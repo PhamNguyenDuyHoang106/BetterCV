@@ -1,0 +1,323 @@
+Tôi đã đọc kỹ **đề Lab23 trong ảnh**. Bài yêu cầu bạn xây dựng **RESTful API với Express + MongoDB (Mongoose)** cho 4 chức năng:
+
+1️⃣ Get all events
+2️⃣ Get bookings by userId
+3️⃣ Get booking details (join user + event)
+4️⃣ Create booking + cập nhật availableTickets
+
+Tôi sẽ viết **code hoàn chỉnh đúng theo project bạn đã gửi** để bạn chỉ cần **copy vào chạy được ngay**.
+
+---
+
+# 1️⃣ Tạo Models (Mongoose)
+
+## models/User.js
+
+```javascript
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema({
+    name: String,
+    email: String
+});
+
+module.exports = mongoose.model("User", userSchema);
+```
+
+---
+
+## models/Event.js
+
+```javascript
+const mongoose = require("mongoose");
+
+const eventSchema = new mongoose.Schema({
+    eventName: String,
+    description: String,
+    eventDate: Date,
+    eventLocation: String,
+    availableTickets: Number
+});
+
+module.exports = mongoose.model("Event", eventSchema);
+```
+
+---
+
+## models/Booking.js
+
+```javascript
+const mongoose = require("mongoose");
+
+const bookingSchema = new mongoose.Schema({
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    },
+    event: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Event"
+    },
+    quantity: Number
+});
+
+module.exports = mongoose.model("Booking", bookingSchema);
+```
+
+---
+
+# 2️⃣ server.js (Hoàn chỉnh)
+
+```javascript
+require("dotenv").config()
+const express = require("express")
+const mongoose = require("mongoose")
+
+const User = require("./models/User")
+const Event = require("./models/Event")
+const Booking = require("./models/Booking")
+
+const app = express()
+app.use(express.json())
+
+mongoose.connect(process.env.MONGO_URI)
+.then(()=> console.log("MongoDB Connected"))
+.catch(err=> console.log(err))
+
+// =============================
+// Question 1
+// GET all events
+// =============================
+
+app.get("/api/events", async(req,res)=>{
+    try {
+
+        const events = await Event.find()
+
+        res.status(200).json(events)
+
+    } catch (error) {
+        res.status(500).json({error:error.message})
+    }
+})
+
+
+// =============================
+// Question 2
+// GET bookings by userId
+// =============================
+
+app.get("/api/bookings/user/:userid", async(req,res)=>{
+    try {
+
+        const user = await User.findById(req.params.userid)
+
+        if(!user){
+            return res.status(404).json({
+                error:"User not found"
+            })
+        }
+
+        const bookings = await Booking.find({user:req.params.userid})
+        .populate("event","eventName eventDate")
+
+        const result = bookings.map(b=>({
+            bookingId: b._id,
+            eventName: b.event.eventName,
+            eventDate: b.event.eventDate,
+            quantity: b.quantity
+        }))
+
+        res.status(200).json(result)
+
+    } catch (error) {
+        res.status(500).json({error:error.message})
+    }
+})
+
+
+// =============================
+// Question 3
+// GET booking detail
+// =============================
+
+app.get("/api/bookings/:bookingid", async(req,res)=>{
+    try {
+
+        const booking = await Booking.findById(req.params.bookingid)
+        .populate("user")
+        .populate("event")
+
+        if(!booking){
+            return res.status(404).json({
+                error:"Booking not found"
+            })
+        }
+
+        res.status(200).json({
+            bookingId: booking._id,
+            user:{
+                name: booking.user.name,
+                email: booking.user.email
+            },
+            event:{
+                name: booking.event.eventName,
+                location: booking.event.eventLocation,
+                eventDate: booking.event.eventDate
+            },
+            quantity: booking.quantity
+        })
+
+    } catch (error) {
+        res.status(500).json({error:error.message})
+    }
+})
+
+
+// =============================
+// Question 4
+// CREATE booking
+// =============================
+
+app.post("/api/bookings", async(req,res)=>{
+    try {
+
+        const {userId,eventId,quantity} = req.body
+
+        const user = await User.findById(userId)
+        if(!user){
+            return res.status(404).json({
+                error:"User not found"
+            })
+        }
+
+        const event = await Event.findById(eventId)
+        if(!event){
+            return res.status(404).json({
+                error:"Event not found"
+            })
+        }
+
+        if(quantity > event.availableTickets){
+            return res.status(409).json({
+                error:"Not enough tickets available"
+            })
+        }
+
+        const booking = await Booking.create({
+            user:userId,
+            event:eventId,
+            quantity:quantity
+        })
+
+        event.availableTickets -= quantity
+        await event.save()
+
+        res.status(201).json({
+            message:"Booking created successfully",
+            booking:{
+                _id: booking._id,
+                user: user.name,
+                event: event.eventName,
+                remainingTickets: event.availableTickets
+            }
+        })
+
+    } catch (error) {
+        res.status(500).json({error:error.message})
+    }
+})
+
+
+const PORT = process.env.PORT || 9999
+
+app.listen(PORT,()=>{
+    console.log(`Server running at http://localhost:${PORT}`)
+})
+```
+
+---
+
+# 3️⃣ API test
+
+## Q1
+
+```
+GET
+http://localhost:9999/api/events
+```
+
+---
+
+## Q2
+
+```
+GET
+http://localhost:9999/api/bookings/user/USERID
+```
+
+---
+
+## Q3
+
+```
+GET
+http://localhost:9999/api/bookings/BOOKINGID
+```
+
+---
+
+## Q4
+
+```
+POST
+http://localhost:9999/api/bookings
+```
+
+Body
+
+```json
+{
+"userId":"USER_ID",
+"eventId":"EVENT_ID",
+"quantity":2
+}
+```
+
+---
+
+# 4️⃣ Kết quả đúng theo đề
+
+Nếu booking thành công:
+
+```json
+{
+"message":"Booking created successfully",
+"booking":{
+"_id":"...",
+"user":"John Doe",
+"event":"Tech Conference 2025",
+"remainingTickets":96
+}
+}
+```
+
+---
+
+# ⭐ Mẹo để làm bài thi nhanh (rất quan trọng)
+
+Lab này thường có **3 trick giáo viên hay chấm**:
+
+1️⃣ **populate()** phải có
+2️⃣ **check user tồn tại**
+3️⃣ **check ticket > availableTickets**
+
+Nếu thiếu 1 trong 3 → trừ điểm.
+
+---
+
+💡 Nếu bạn muốn, tôi có thể viết thêm cho bạn:
+
+* **Postman collection test toàn bộ API**
+* **Cách import JSON vào MongoDB Compass đúng ObjectId**
+* **Version code ngắn hơn (viết trong 15 phút khi thi)**.

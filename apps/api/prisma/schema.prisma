@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  GUEST
+  FREE
+  PRO
+  PREMIUM
+  ADMIN
+}
+
+enum PlanTier {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum CvSectionType {
+  PROFILE
+  SUMMARY
+  EXPERIENCE
+  EDUCATION
+  SKILLS
+  PROJECTS
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  fullName      String
+  role          UserRole       @default(FREE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  refreshTokens RefreshToken[]
+  subscriptions Subscription[]
+  cvs           Cv[]
+  aiUsages      AiUsage[]
+  usageQuota    UsageQuota?
+  stripeCustomer StripeCustomer?
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Plan {
+  id          String    @id @default(cuid())
+  tier        PlanTier  @unique
+  name        String
+  monthlyAiQuota Int
+  stripePriceId String? @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  planId    String
+  plan      Plan     @relation(fields: [planId], references: [id])
+  status    String
+  currentPeriodEnd DateTime?
+  stripeSubscriptionId String? @unique
+  stripeCustomerId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UsageQuota {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  periodStart DateTime
+  periodEnd DateTime
+  usedTokens Int     @default(0)
+  usedRequests Int   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Cv {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
+  title     String
+  locale    String
+  templateId String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  versions  CvVersion[]
+  sections  CvSection[]
+  shareLinks ShareLink[]
+}
+
+model CvVersion {
+  id        String   @id @default(cuid())
+  cvId      String
+  cv        Cv       @relation(fields: [cvId], references: [id])
+  snapshot  Json
+  createdAt DateTime @default(now())
+}
+
+model CvSection {
+  id        String        @id @default(cuid())
+  cvId      String
+  cv        Cv            @relation(fields: [cvId], references: [id])
+  type      CvSectionType
+  content   Json
+  order     Int
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model TemplateCategory {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  templates Template[]
+}
+
+model Template {
+  id         String     @id @default(cuid())
+  name       String
+  categoryId String
+  category   TemplateCategory @relation(fields: [categoryId], references: [id])
+  schema     Json
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model ShareLink {
+  id        String   @id @default(cuid())
+  cvId      String
+  cv        Cv       @relation(fields: [cvId], references: [id])
+  token     String   @unique
+  isActive  Boolean  @default(true)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Prompt {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  createdAt DateTime @default(now())
+  versions  PromptVersion[]
+}
+
+model PromptVersion {
+  id        String   @id @default(cuid())
+  promptId  String
+  prompt    Prompt   @relation(fields: [promptId], references: [id])
+  version   Int
+  content   String
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AiRequest {
+  id        String   @id @default(cuid())
+  userId    String?
+  promptKey String
+  input     Json
+  createdAt DateTime @default(now())
+}
+
+model AiResponse {
+  id        String   @id @default(cuid())
+  requestId String
+  output    Json
+  tokens    Int
+  createdAt DateTime @default(now())
+}
+
+model AiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tokens    Int
+  requests  Int
+  createdAt DateTime @default(now())
+}
+
+model SafetyRule {
+  id        String   @id @default(cuid())
+  name      String
+  pattern   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model StripeCustomer {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  customerId String  @unique
+  createdAt DateTime @default(now())
+}
+
+model Invoice {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  currency  String
+  status    String
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@acv/template-engine",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "test": "node --require ts-node/register --test \"tests/**/*.test.js\""
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}
