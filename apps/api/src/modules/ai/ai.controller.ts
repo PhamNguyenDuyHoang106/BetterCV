@@ -1,8 +1,9 @@
-import { Body, Controller, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, Res, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
-import { Request, Response } from "express";
+import { Response } from "express";
 import { AiService } from "./ai.service";
 import { AiGenerateDto, AiRewriteDto, AiScoreDto } from "./dto/ai.dto";
+import { CurrentUser, JwtPayload } from "../../core/decorators";
 
 @UseGuards(AuthGuard("jwt"))
 @Controller("ai")
@@ -10,60 +11,48 @@ export class AiController {
   constructor(private aiService: AiService) {}
 
   @Post("generate")
-  async generate(
-    @Req() req: Request & { user: { sub: string } },
-    @Body() dto: AiGenerateDto
-  ) {
-    return this.aiService.generate(req.user.sub, dto);
+  async generate(@CurrentUser() user: JwtPayload, @Body() dto: AiGenerateDto) {
+    return this.aiService.generate(user.sub, dto);
   }
 
   @Post("generate/stream")
   async generateStream(
-    @Req() req: Request & { user: { sub: string } },
+    @CurrentUser() user: JwtPayload,
     @Body() dto: AiGenerateDto,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
-    return this.aiService.generateStream(req.user.sub, dto, res);
+    return this.aiService.generateStream(user.sub, dto, res);
   }
 
   @Post("rewrite")
-  async rewrite(
-    @Req() req: Request & { user: { sub: string } },
-    @Body() dto: AiRewriteDto
-  ) {
-    return this.aiService.rewrite(req.user.sub, dto);
+  async rewrite(@CurrentUser() user: JwtPayload, @Body() dto: AiRewriteDto) {
+    return this.aiService.rewrite(user.sub, dto);
   }
 
   @Post("rewrite/stream")
   async rewriteStream(
-    @Req() req: Request & { user: { sub: string } },
+    @CurrentUser() user: JwtPayload,
     @Body() dto: AiRewriteDto,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
-    return this.aiService.rewriteStream(req.user.sub, dto, res);
+    return this.aiService.rewriteStream(user.sub, dto, res);
   }
 
   @Post("score")
-  async score(
-    @Req() req: Request & { user: { sub: string } },
-    @Body() dto: AiScoreDto
-  ) {
-    return this.aiService.score(req.user.sub, dto);
+  async score(@CurrentUser() user: JwtPayload, @Body() dto: AiScoreDto) {
+    return this.aiService.score(user.sub, dto);
   }
 
   @Post("keywords")
-  async keywords(
-    @Req() req: Request & { user: { sub: string } },
-    @Body() dto: AiScoreDto
-  ) {
-    return this.aiService.keywords(req.user.sub, dto);
+  async keywords(@CurrentUser() user: JwtPayload, @Body() dto: AiScoreDto) {
+    return this.aiService.keywords(user.sub, dto);
   }
 
   @Post("jd/analyze")
   async analyzeJd(
-    @Req() req: Request & { user: { sub: string } },
-    @Body("jobDescription") jobDescription: string
+    @CurrentUser() user: JwtPayload,
+    @Body("jobDescription") jobDescription: string,
   ) {
-    return this.aiService.analyzeJobDescription(req.user.sub, jobDescription);
+    return this.aiService.analyzeJobDescription(user.sub, jobDescription);
   }
 }

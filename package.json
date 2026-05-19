@@ -1,5 +1,5 @@
 {
-  "name": "ai-cv-builder",
+  "name": "bettercv",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -8,10 +8,15 @@
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": "npm --workspace apps/api run start:dev",
+    "dev:admin": "npm --workspace apps/admin run dev",
     "build:web": "npm --workspace apps/web run build",
     "build:api": "npm --workspace apps/api run build",
+    "build:admin": "npm --workspace apps/admin run build",
     "lint:web": "npm --workspace apps/web run lint",
-    "lint:api": "npm --workspace apps/api run lint"
+    "lint:api": "npm --workspace apps/api run lint",
+    "db:generate": "npm --workspace apps/api run prisma:generate",
+    "db:migrate": "npm --workspace apps/api run prisma:migrate",
+    "db:seed": "npm --workspace apps/api run prisma:seed"
   },
   "engines": {
     "node": ">=18.18"

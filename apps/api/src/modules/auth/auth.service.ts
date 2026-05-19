@@ -1,92 +1,78 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
-import * as bcrypt from "bcrypt";
-import { createHash } from "crypto";
+import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
 import { UserService } from "../user/user.service";
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from "../../database/prisma.service";
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
-    private jwtService: JwtService,
-    private config: ConfigService,
     private users: UserService,
-    private prisma: PrismaService
+    private prisma: PrismaService,
   ) {}
 
-  async register(data: { email: string; password: string; fullName: string }) {
-    const existing = await this.users.findByEmail(data.email);
-    if (existing) {
-      throw new UnauthorizedException("Email already in use");
-    }
-    const passwordHash = await bcrypt.hash(data.password, 10);
-    const user = await this.users.createUser({
-      email: data.email,
-      fullName: data.fullName,
-      passwordHash
+  /**
+   * Sync a Supabase-authenticated user to the local database.
+   * Called after Supabase Auth sign-up/sign-in to ensure the user
+   * record exists in our Prisma DB with role and profile data.
+   */
+  async syncUser(supabaseId: string, email: string, fullName: string) {
+    let user = await this.prisma.user.findUnique({
+      where: { supabaseId },
     });
-    return this.issueTokens(user.id, user.email, user.role);
-  }
 
-  async login(email: string, password: string) {
-    const user = await this.users.findByEmail(email);
     if (!user) {
-      throw new UnauthorizedException("Invalid credentials");
-    }
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      throw new UnauthorizedException("Invalid credentials");
-    }
-    return this.issueTokens(user.id, user.email, user.role);
-  }
-
-  async refresh(refreshToken: string) {
-    const tokenHash = createHash("sha256").update(refreshToken).digest("hex");
-    const stored = await this.prisma.refreshToken.findFirst({ where: { tokenHash } });
-    if (!stored || stored.expiresAt < new Date()) {
-      throw new UnauthorizedException("Invalid refresh token");
-    }
-    const user = await this.users.findById(stored.userId);
-    if (!user) {
-      throw new UnauthorizedException("User not found");
-    }
-    return this.issueTokens(user.id, user.email, user.role);
-  }
-
-  async logout(refreshToken: string) {
-    const tokenHash = createHash("sha256").update(refreshToken).digest("hex");
-    await this.prisma.refreshToken.deleteMany({ where: { tokenHash } });
-    return { success: true };
-  }
-
-  async getProfile(userId: string) {
-    const user = await this.users.findById(userId);
-    if (!user) {
-      throw new UnauthorizedException("User not found");
-    }
-    return { id: user.id, email: user.email, fullName: user.fullName, role: user.role };
-  }
-
-  private async issueTokens(userId: string, email: string, role: string) {
-    const accessToken = await this.jwtService.signAsync({
-      sub: userId,
-      email,
-      role
-    });
-    const refreshToken = await this.jwtService.signAsync(
-      { sub: userId },
-      {
-        secret: this.config.get<string>("JWT_REFRESH_SECRET"),
-        expiresIn: this.config.get<string>("JWT_REFRESH_TTL", "30d")
+      // Check if user exists by email (legacy migration case)
+      user = await this.users.findByEmail(email);
+      if (user) {
+        // Link existing user to Supabase
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { supabaseId },
+        });
+        this.logger.log(`Linked existing user ${email} to Supabase ID ${supabaseId}`);
+      } else {
+        // Create new user
+        user = await this.prisma.user.create({
+          data: {
+            email,
+            fullName,
+            supabaseId,
+            role: "FREE",
+          },
+        });
+        this.logger.log(`Created new user ${email}`);
       }
-    );
-    const tokenHash = createHash("sha256").update(refreshToken).digest("hex");
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-    await this.prisma.refreshToken.create({
-      data: { tokenHash, userId, expiresAt }
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+    };
+  }
+
+  /**
+   * Get user profile from local DB using Supabase ID.
+   */
+  async getProfile(supabaseId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { supabaseId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
     });
-    return { accessToken, refreshToken };
+
+    if (!user) {
+      throw new UnauthorizedException("User not found");
+    }
+
+    return user;
   }
 }

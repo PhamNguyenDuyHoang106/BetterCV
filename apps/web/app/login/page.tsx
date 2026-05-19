@@ -1,9 +1,11 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "../../lib/api";
+import { useForm } from "react-hook-form";
+import { createSupabaseClient } from "../../lib/supabase";
 import { useAuthStore } from "../../lib/store/auth";
+import { apiFetch } from "../../lib/api";
 
 type LoginForm = {
   email: string;
@@ -12,19 +14,45 @@ type LoginForm = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const setTokens = useAuthStore((s) => s.setTokens);
+  const setAuth = useAuthStore((s) => s.setAuth);
   const { register, handleSubmit, formState } = useForm<LoginForm>();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const onSubmit = async (values: LoginForm) => {
-    const result = await apiFetch<{ accessToken: string; refreshToken: string }>(
-      "/auth/login",
-      {
-        method: "POST",
-        body: JSON.stringify(values)
+    setLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createSupabaseClient();
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+
+      if (authError || !data.session) {
+        setError(authError?.message ?? "Login failed");
+        return;
       }
-    );
-    setTokens(result.accessToken, result.refreshToken);
-    router.push("/dashboard");
+
+      // Sync user to backend and get profile
+      const token = data.session.access_token;
+      useAuthStore.setState({ accessToken: token });
+
+      const profile = await apiFetch<{
+        id: string;
+        email: string;
+        fullName: string;
+        role: string;
+      }>("/auth/me");
+
+      setAuth(token, profile);
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -47,14 +75,16 @@ export default function LoginPage() {
             {...register("password", { required: true })}
           />
         </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
         {formState.errors.email && (
           <p className="text-sm text-red-600">Email and password are required.</p>
         )}
         <button
           type="submit"
-          className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
+          disabled={loading}
+          className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
         >
-          Sign in
+          {loading ? "Signing in..." : "Sign in"}
         </button>
       </form>
     </main>

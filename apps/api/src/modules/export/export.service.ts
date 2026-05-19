@@ -1,77 +1,94 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import { ForbiddenException, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from "../../database/prisma.service";
 import { renderHtml } from "@acv/template-engine";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import puppeteer from "puppeteer";
 import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 
 @Injectable()
 export class ExportService {
-  private s3: S3Client;
+  private readonly logger = new Logger(ExportService.name);
+  private supabase: SupabaseClient | null = null;
+  private bucket: string;
 
-  constructor(private prisma: PrismaService, private config: ConfigService) {
-    this.s3 = new S3Client({
-      region: this.config.get<string>("S3_REGION") ?? "auto",
-      endpoint: this.config.get<string>("S3_ENDPOINT"),
-      credentials: {
-        accessKeyId: this.config.get<string>("S3_ACCESS_KEY") ?? "",
-        secretAccessKey: this.config.get<string>("S3_SECRET_KEY") ?? ""
-      },
-      forcePathStyle: true
-    });
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+  ) {
+    const supabaseUrl = this.config.get<string>("SUPABASE_URL");
+    const supabaseKey = this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY");
+    this.bucket = this.config.get<string>("SUPABASE_STORAGE_BUCKET", "cv-exports");
+
+    if (supabaseUrl && supabaseKey) {
+      this.supabase = createClient(supabaseUrl, supabaseKey);
+    }
   }
 
-  async exportPdf(userId: string, cvId: string) {
-    const { cv, template } = await this.getCvAndTemplate(userId, cvId);
+  async exportPdf(supabaseId: string, cvId: string) {
+    const { cv, template } = await this.getCvAndTemplate(supabaseId, cvId);
     if (!template) {
       throw new ForbiddenException("Template not found");
     }
-    const html = renderHtml({ template: template.schema as any, data: this.flatten(cv) });
+
+    const html = renderHtml({
+      template: template.schema as any,
+      data: this.flatten(cv),
+    });
     const buffer = await this.renderPdf(html);
     const key = `exports/${cvId}/${Date.now()}.pdf`;
-    const url = await this.upload(key, Buffer.from(buffer), "application/pdf");
+    const url = await this.upload(key, buffer, "application/pdf");
     return { url };
   }
 
-  async exportDocx(userId: string, cvId: string) {
-    const { cv } = await this.getCvAndTemplate(userId, cvId, false);
+  async exportDocx(supabaseId: string, cvId: string) {
+    const { cv } = await this.getCvAndTemplate(supabaseId, cvId, false);
     const buffer = await this.renderDocx(cv);
     const key = `exports/${cvId}/${Date.now()}.docx`;
     const url = await this.upload(
       key,
       Buffer.from(buffer),
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
     return { url };
   }
 
+  // ── Private ───────────────────────────────────────────────────
+
   private flatten(cv: { title: string; sections: Array<{ type: string; content: any }> }) {
     const data: Record<string, unknown> = { title: cv.title };
     for (const section of cv.sections) {
-      const key = section.type.toLowerCase();
-      data[key] = section.content;
+      data[section.type.toLowerCase()] = section.content;
     }
     return data;
   }
 
-  private async getCvAndTemplate(userId: string, cvId: string, requireTemplate = true) {
+  private async getCvAndTemplate(
+    supabaseId: string,
+    cvId: string,
+    requireTemplate = true,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { supabaseId },
+      select: { id: true },
+    });
+    if (!user) throw new ForbiddenException("User not found");
+
     const cv = await this.prisma.cv.findUnique({
       where: { id: cvId },
-      include: { sections: true }
+      include: { sections: true },
     });
-    if (!cv || cv.userId !== userId) {
+    if (!cv || cv.userId !== user.id) {
       throw new ForbiddenException("CV not found");
     }
+
     if (!cv.templateId) {
-      if (requireTemplate) {
-        throw new ForbiddenException("Template not selected");
-      }
+      if (requireTemplate) throw new ForbiddenException("Template not selected");
       return { cv, template: null };
     }
+
     const template = await this.prisma.template.findUnique({
-      where: { id: cv.templateId }
+      where: { id: cv.templateId },
     });
     if (!template && requireTemplate) {
       throw new ForbiddenException("Template not found");
@@ -79,66 +96,60 @@ export class ExportService {
     return { cv, template };
   }
 
-  private async renderPdf(html: string) {
+  private async renderPdf(html: string): Promise<Buffer> {
     const browser = await puppeteer.launch({
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: "networkidle0" });
-      return await page.pdf({ format: "A4", printBackground: true });
+      const pdf = await page.pdf({ format: "A4", printBackground: true });
+      return Buffer.from(pdf);
     } finally {
       await browser.close();
     }
   }
 
-  private async renderDocx(cv: { title: string; sections: Array<{ type: string; content: any }> }) {
+  private async renderDocx(cv: {
+    title: string;
+    sections: Array<{ type: string; content: any }>;
+  }) {
     const children = [
-      new Paragraph({
-        text: cv.title,
-        heading: HeadingLevel.HEADING_1
-      })
+      new Paragraph({ text: cv.title, heading: HeadingLevel.HEADING_1 }),
     ];
     for (const section of cv.sections) {
       children.push(
-        new Paragraph({ text: section.type, heading: HeadingLevel.HEADING_2 })
+        new Paragraph({ text: section.type, heading: HeadingLevel.HEADING_2 }),
       );
       children.push(
         new Paragraph({
           text:
             typeof section.content === "string"
               ? section.content
-              : JSON.stringify(section.content, null, 2)
-        })
+              : JSON.stringify(section.content, null, 2),
+        }),
       );
     }
     const doc = new Document({ sections: [{ children }] });
     return Packer.toBuffer(doc);
   }
 
-  private async upload(key: string, body: Buffer, contentType: string) {
-    const bucket = this.config.get<string>("S3_BUCKET");
-    if (!bucket) {
-      throw new ForbiddenException("S3 not configured");
+  private async upload(key: string, body: Buffer, contentType: string): Promise<string> {
+    if (!this.supabase) {
+      throw new ForbiddenException("Storage not configured");
     }
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: body,
-        ContentType: contentType
-      })
-    );
-    const publicBase = this.config.get<string>("S3_PUBLIC_URL");
-    if (publicBase) {
-      return `${publicBase.replace(/\/$/, "")}/${key}`;
+
+    const { error } = await this.supabase.storage
+      .from(this.bucket)
+      .upload(key, body, { contentType, upsert: true });
+
+    if (error) {
+      this.logger.error(`Storage upload failed: ${error.message}`);
+      throw new ForbiddenException("Upload failed");
     }
-    const signed = await getSignedUrl(
-      this.s3,
-      new GetObjectCommand({ Bucket: bucket, Key: key }),
-      { expiresIn: 3600 }
-    );
-    return signed;
+
+    const { data } = this.supabase.storage.from(this.bucket).getPublicUrl(key);
+    return data.publicUrl;
   }
 }

@@ -1,9 +1,11 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "../../lib/api";
+import { useForm } from "react-hook-form";
+import { createSupabaseClient } from "../../lib/supabase";
 import { useAuthStore } from "../../lib/store/auth";
+import { apiFetch } from "../../lib/api";
 
 type RegisterForm = {
   fullName: string;
@@ -13,19 +15,51 @@ type RegisterForm = {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const setTokens = useAuthStore((s) => s.setTokens);
+  const setAuth = useAuthStore((s) => s.setAuth);
   const { register, handleSubmit, formState } = useForm<RegisterForm>();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const onSubmit = async (values: RegisterForm) => {
-    const result = await apiFetch<{ accessToken: string; refreshToken: string }>(
-      "/auth/register",
-      {
-        method: "POST",
-        body: JSON.stringify(values)
+    setLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createSupabaseClient();
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: {
+          data: { full_name: values.fullName },
+        },
+      });
+
+      if (authError || !data.session) {
+        setError(authError?.message ?? "Registration failed. Check your email for confirmation.");
+        return;
       }
-    );
-    setTokens(result.accessToken, result.refreshToken);
-    router.push("/dashboard");
+
+      // Sync user to backend
+      const token = data.session.access_token;
+      useAuthStore.setState({ accessToken: token });
+
+      const profile = await apiFetch<{
+        id: string;
+        email: string;
+        fullName: string;
+        role: string;
+      }>("/auth/sync", {
+        method: "POST",
+        body: JSON.stringify({ fullName: values.fullName }),
+      });
+
+      setAuth(token, profile);
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -56,14 +90,16 @@ export default function RegisterPage() {
             {...register("password", { required: true, minLength: 6 })}
           />
         </div>
-        {formState.errors.email && (
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {formState.errors.fullName && (
           <p className="text-sm text-red-600">All fields are required.</p>
         )}
         <button
           type="submit"
-          className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
+          disabled={loading}
+          className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
         >
-          Create account
+          {loading ? "Creating account..." : "Create account"}
         </button>
       </form>
     </main>

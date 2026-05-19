@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
 enum UserRole {
   GUEST
   FREE
@@ -30,99 +32,124 @@ enum CvSectionType {
   PROJECTS
 }
 
+// ─── Core Identity & Access ─────────────────────────────────────────────────
+
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
-  passwordHash  String
+  passwordHash  String?
   fullName      String
+  avatarUrl     String?
   role          UserRole       @default(FREE)
+  supabaseId    String?        @unique
+  isActive      Boolean        @default(true)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  refreshTokens RefreshToken[]
+
   subscriptions Subscription[]
   cvs           Cv[]
   aiUsages      AiUsage[]
   usageQuota    UsageQuota?
   stripeCustomer StripeCustomer?
+
+  @@index([email])
+  @@index([supabaseId])
 }
 
-model RefreshToken {
-  id        String   @id @default(cuid())
-  tokenHash String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-}
+// ─── Plans & Billing ────────────────────────────────────────────────────────
 
 model Plan {
-  id          String    @id @default(cuid())
-  tier        PlanTier  @unique
-  name        String
+  id             String         @id @default(cuid())
+  tier           PlanTier       @unique
+  name           String
   monthlyAiQuota Int
-  stripePriceId String? @unique
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  subscriptions Subscription[]
+  stripePriceId  String?        @unique
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  subscriptions  Subscription[]
 }
 
 model Subscription {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  planId    String
-  plan      Plan     @relation(fields: [planId], references: [id])
-  status    String
-  currentPeriodEnd DateTime?
-  stripeSubscriptionId String? @unique
-  stripeCustomerId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId               String
+  plan                 Plan      @relation(fields: [planId], references: [id])
+  status               String
+  currentPeriodEnd     DateTime?
+  stripeSubscriptionId String?   @unique
+  stripeCustomerId     String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
-model UsageQuota {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
-  periodStart DateTime
-  periodEnd DateTime
-  usedTokens Int     @default(0)
-  usedRequests Int   @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model StripeCustomer {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String   @unique
+  createdAt  DateTime @default(now())
 }
+
+model Invoice {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  currency  String   @default("usd")
+  status    String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─── CV & Templates ─────────────────────────────────────────────────────────
 
 model Cv {
-  id        String     @id @default(cuid())
-  userId    String
-  user      User       @relation(fields: [userId], references: [id])
-  title     String
-  locale    String
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  locale     String      @default("en")
   templateId String?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  versions  CvVersion[]
-  sections  CvSection[]
+  isDeleted  Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  versions   CvVersion[]
+  sections   CvSection[]
   shareLinks ShareLink[]
+
+  @@index([userId])
+  @@index([userId, isDeleted])
 }
 
 model CvVersion {
   id        String   @id @default(cuid())
   cvId      String
-  cv        Cv       @relation(fields: [cvId], references: [id])
+  cv        Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)
   snapshot  Json
   createdAt DateTime @default(now())
+
+  @@index([cvId])
 }
 
 model CvSection {
   id        String        @id @default(cuid())
   cvId      String
-  cv        Cv            @relation(fields: [cvId], references: [id])
+  cv        Cv            @relation(fields: [cvId], references: [id], onDelete: Cascade)
   type      CvSectionType
   content   Json
   order     Int
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+
+  @@index([cvId])
+  @@index([cvId, type])
 }
 
 model TemplateCategory {
@@ -132,41 +159,50 @@ model TemplateCategory {
 }
 
 model Template {
-  id         String     @id @default(cuid())
+  id         String           @id @default(cuid())
   name       String
   categoryId String
   category   TemplateCategory @relation(fields: [categoryId], references: [id])
   schema     Json
-  isActive   Boolean    @default(true)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  isActive   Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([isActive])
 }
 
 model ShareLink {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   cvId      String
-  cv        Cv       @relation(fields: [cvId], references: [id])
-  token     String   @unique
-  isActive  Boolean  @default(true)
+  cv        Cv        @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  isActive  Boolean   @default(true)
   expiresAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+
+  @@index([token])
 }
 
+// ─── AI Orchestration ───────────────────────────────────────────────────────
+
 model Prompt {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  createdAt DateTime @default(now())
+  id        String          @id @default(cuid())
+  key       String          @unique
+  createdAt DateTime        @default(now())
   versions  PromptVersion[]
 }
 
 model PromptVersion {
   id        String   @id @default(cuid())
   promptId  String
-  prompt    Prompt   @relation(fields: [promptId], references: [id])
+  prompt    Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
   version   Int
   content   String
   isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([promptId, isActive])
 }
 
 model AiRequest {
@@ -175,6 +211,8 @@ model AiRequest {
   promptKey String
   input     Json
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model AiResponse {
@@ -183,38 +221,37 @@ model AiResponse {
   output    Json
   tokens    Int
   createdAt DateTime @default(now())
+
+  @@index([requestId])
 }
 
 model AiUsage {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokens    Int
   requests  Int
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model UsageQuota {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodStart  DateTime
+  periodEnd    DateTime
+  usedTokens   Int      @default(0)
+  usedRequests Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model SafetyRule {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @unique
   pattern   String
   isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-}
-
-model StripeCustomer {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
-  customerId String  @unique
-  createdAt DateTime @default(now())
-}
-
-model Invoice {
-  id        String   @id @default(cuid())
-  userId    String
-  amount    Int
-  currency  String
-  status    String
   createdAt DateTime @default(now())
 }

@@ -2,42 +2,46 @@ import { create } from "zustand";
 
 type AuthState = {
   accessToken: string | null;
-  refreshToken: string | null;
-  setTokens: (accessToken: string, refreshToken: string) => void;
+  user: { id: string; email: string; fullName: string; role: string } | null;
+  setAuth: (token: string, user: AuthState["user"]) => void;
   clear: () => void;
   hydrate: () => void;
 };
 
-const storageKey = "acv-auth";
+const STORAGE_KEY = "acv-auth";
+
+const isClient = typeof window !== "undefined";
 
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
-  refreshToken: null,
-  setTokens: (accessToken, refreshToken) => {
-    const payload = { accessToken, refreshToken };
-    localStorage.setItem(storageKey, JSON.stringify(payload));
-    set(payload);
+  user: null,
+  setAuth: (accessToken, user) => {
+    if (isClient) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ accessToken, user }));
+    }
+    set({ accessToken, user });
   },
   clear: () => {
-    localStorage.removeItem(storageKey);
-    set({ accessToken: null, refreshToken: null });
+    if (isClient) {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+    set({ accessToken: null, user: null });
   },
   hydrate: () => {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      return;
-    }
+    if (!isClient) return;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
     try {
       const parsed = JSON.parse(raw) as {
         accessToken?: string;
-        refreshToken?: string;
+        user?: AuthState["user"];
       };
       set({
         accessToken: parsed.accessToken ?? null,
-        refreshToken: parsed.refreshToken ?? null
+        user: parsed.user ?? null,
       });
     } catch {
-      localStorage.removeItem(storageKey);
+      localStorage.removeItem(STORAGE_KEY);
     }
-  }
+  },
 }));

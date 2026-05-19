@@ -1,37 +1,37 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
-import { AuthService } from "./auth.service";
-import { LoginDto } from "./dto/login.dto";
-import { RegisterDto } from "./dto/register.dto";
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
-import { Request } from "express";
+import { AuthService } from "./auth.service";
+import { CurrentUser, JwtPayload } from "../../core/decorators";
 
 @Controller("auth")
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post("register")
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  /**
+   * POST /api/auth/sync
+   * Called by the frontend after Supabase sign-up/sign-in to ensure
+   * the user record exists in our database.
+   */
+  @UseGuards(AuthGuard("jwt"))
+  @Post("sync")
+  async sync(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { fullName?: string },
+  ) {
+    return this.authService.syncUser(
+      user.sub,
+      user.email,
+      body.fullName ?? user.email.split("@")[0],
+    );
   }
 
-  @Post("login")
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto.email, dto.password);
-  }
-
-  @Post("refresh")
-  async refresh(@Body("refreshToken") refreshToken: string) {
-    return this.authService.refresh(refreshToken);
-  }
-
-  @Post("logout")
-  async logout(@Body("refreshToken") refreshToken: string) {
-    return this.authService.logout(refreshToken);
-  }
-
+  /**
+   * GET /api/auth/me
+   * Returns the authenticated user's profile.
+   */
   @UseGuards(AuthGuard("jwt"))
   @Get("me")
-  async me(@Req() req: Request & { user: { sub: string } }) {
-    return this.authService.getProfile(req.user.sub);
+  async me(@CurrentUser("sub") supabaseId: string) {
+    return this.authService.getProfile(supabaseId);
   }
 }

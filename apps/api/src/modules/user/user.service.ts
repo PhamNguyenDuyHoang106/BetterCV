@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
-import { UserRole } from "@acv/shared";
+import { PrismaService } from "../../database/prisma.service";
 
 @Injectable()
 export class UserService {
@@ -14,12 +13,20 @@ export class UserService {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  async findBySupabaseId(supabaseId: string) {
+    return this.prisma.user.findUnique({ where: { supabaseId } });
+  }
+
   async createUser(data: {
     email: string;
     fullName: string;
-    passwordHash: string;
-    role?: UserRole;
+    supabaseId?: string;
+    role?: string;
   }) {
-    return this.prisma.user.create({ data });
+    return this.prisma.user.create({ data: data as any });
+  }
+
+  async updateUser(id: string, data: { fullName?: string; avatarUrl?: string }) {
+    return this.prisma.user.update({ where: { id }, data });
   }
 }
