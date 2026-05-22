@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -59,9 +59,13 @@ export class AuthService {
    * Get user profile from local DB using Supabase ID.
    * Auto-syncs the user record if it doesn't exist yet.
    */
-  async getProfile(userPayload: { sub: string; email: string; fullName?: string }) {
+  async getProfile(userPayload: {
+    sub: string;
+    email: string;
+    fullName?: string;
+  }) {
     const supabaseId = userPayload.sub;
-    let user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { supabaseId },
       select: {
         id: true,
@@ -74,9 +78,16 @@ export class AuthService {
     });
 
     if (!user) {
-      this.logger.log(`User ${userPayload.email} not found in DB. Auto-syncing...`);
-      const fallbackName = userPayload.fullName || userPayload.email.split('@')[0];
-      const synced = await this.syncUser(supabaseId, userPayload.email, fallbackName);
+      this.logger.log(
+        `User ${userPayload.email} not found in DB. Auto-syncing...`,
+      );
+      const fallbackName =
+        userPayload.fullName || userPayload.email.split('@')[0];
+      const synced = await this.syncUser(
+        supabaseId,
+        userPayload.email,
+        fallbackName,
+      );
       return {
         id: synced.id,
         email: synced.email,

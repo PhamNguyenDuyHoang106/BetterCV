@@ -14,7 +14,7 @@ import { passportJwtSecret } from 'jwks-rsa';
 export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
   constructor(config: ConfigService) {
     const supabaseUrl = config.get<string>('SUPABASE_URL');
-    
+
     const secretOrKeyProvider = supabaseUrl
       ? passportJwtSecret({
           cache: true,
@@ -48,7 +48,9 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
       sub: payload.sub,
       email: payload.email ?? '',
       role: payload.role ?? 'FREE',
-      fullName: payload.user_metadata?.full_name ?? (payload.email ? payload.email.split('@')[0] : 'User'),
+      fullName:
+        payload.user_metadata?.full_name ??
+        (payload.email ? payload.email.split('@')[0] : 'User'),
     };
   }
 }
