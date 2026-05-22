@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start:dev": "nest start --watch",
-    "build": "nest build",
+    "build": "tsc --project ../../packages/shared/tsconfig.json && tsc --project ../../packages/template-engine/tsconfig.json && nest build",
     "lint": "eslint \"src/**/*.ts\"",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
