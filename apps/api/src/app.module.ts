@@ -12,6 +12,7 @@ import { BillingModule } from "./modules/billing/billing.module";
 import { HealthModule } from "./modules/health/health.module";
 import { ExportModule } from "./modules/export/export.module";
 import { ShareModule } from "./modules/share/share.module";
+import { AppController } from "./app.controller";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ShareModule } from "./modules/share/share.module";
     ExportModule,
     ShareModule,
   ],
+  controllers: [AppController],
   providers: [
     {
       provide: APP_GUARD,

@@ -19,9 +19,9 @@
     "allowSyntheticDefaultImports": true,
     "removeComments": false,
     "paths": {
-      "@acv/shared": ["./packages/shared/src"],
-      "@acv/shared/*": ["./packages/shared/src/*"],
-      "@acv/template-engine": ["./packages/template-engine/src"],
+      "@acv/shared": ["./packages/shared/dist"],
+      "@acv/shared/*": ["./packages/shared/dist/*"],
+      "@acv/template-engine": ["./packages/template-engine/dist"],
       "@acv/supabase": ["./packages/supabase/src"],
       "@acv/supabase/*": ["./packages/supabase/src/*"]
     }

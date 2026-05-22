@@ -178,7 +178,7 @@ export class AiService {
       throw new ForbiddenException("AI request failed");
     }
 
-    const json = await result.json();
+    const json = (await result.json()) as any;
     const content = json.choices?.[0]?.message?.content ?? "{}";
     const tokens = json.usage?.total_tokens ?? 0;
 
