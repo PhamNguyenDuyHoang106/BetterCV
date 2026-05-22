@@ -1,9 +1,13 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { randomBytes } from "crypto";
-import { PrismaService } from "../../database/prisma.service";
-import { CvCreateDto, CvUpdateDto } from "./dto/cv.dto";
-import { CvSectionUpsertDto } from "./dto/section.dto";
-import { Prisma } from "@prisma/client";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { PrismaService } from '../../database/prisma.service';
+import { CvCreateDto, CvUpdateDto } from './dto/cv.dto';
+import { CvSectionUpsertDto } from './dto/section.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CvService {
@@ -25,8 +29,8 @@ export class CvService {
     const userId = await this.resolveUserId(supabaseId);
     return this.prisma.cv.findMany({
       where: { userId, isDeleted: false },
-      include: { sections: { orderBy: { order: "asc" } } },
-      orderBy: { updatedAt: "desc" },
+      include: { sections: { orderBy: { order: 'asc' } } },
+      orderBy: { updatedAt: 'desc' },
     });
   }
 
@@ -34,10 +38,10 @@ export class CvService {
     const userId = await this.resolveUserId(supabaseId);
     const cv = await this.prisma.cv.findUnique({
       where: { id },
-      include: { sections: { orderBy: { order: "asc" } } },
+      include: { sections: { orderBy: { order: 'asc' } } },
     });
     if (!cv || cv.userId !== userId || cv.isDeleted) {
-      throw new NotFoundException("CV not found");
+      throw new NotFoundException('CV not found');
     }
     return cv;
   }
@@ -67,7 +71,11 @@ export class CvService {
     return { success: true };
   }
 
-  async upsertSection(supabaseId: string, cvId: string, dto: CvSectionUpsertDto) {
+  async upsertSection(
+    supabaseId: string,
+    cvId: string,
+    dto: CvSectionUpsertDto,
+  ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, cvId);
     if (dto.id) {
@@ -99,7 +107,7 @@ export class CvService {
     await this.assertOwnership(userId, cvId);
     return this.prisma.cvVersion.findMany({
       where: { cvId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
       take: 20,
     });
   }
@@ -107,7 +115,7 @@ export class CvService {
   async createShareLink(supabaseId: string, cvId: string) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, cvId);
-    const token = randomBytes(24).toString("hex");
+    const token = randomBytes(24).toString('hex');
     return this.prisma.shareLink.create({
       data: { cvId, token },
     });
@@ -121,7 +129,7 @@ export class CvService {
       select: { id: true },
     });
     if (!user) {
-      throw new ForbiddenException("User not found");
+      throw new ForbiddenException('User not found');
     }
     return user.id;
   }
@@ -132,7 +140,7 @@ export class CvService {
       select: { userId: true, isDeleted: true },
     });
     if (!cv || cv.userId !== userId || cv.isDeleted) {
-      throw new NotFoundException("CV not found");
+      throw new NotFoundException('CV not found');
     }
   }
 

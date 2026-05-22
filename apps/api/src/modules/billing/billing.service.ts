@@ -1,8 +1,8 @@
-import { ForbiddenException, Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import Stripe from "stripe";
-import { PrismaService } from "../../database/prisma.service";
-import { CheckoutDto } from "./dto/checkout.dto";
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
+import { PrismaService } from '../../database/prisma.service';
+import { CheckoutDto } from './dto/checkout.dto';
 
 @Injectable()
 export class BillingService {
@@ -13,18 +13,18 @@ export class BillingService {
     private config: ConfigService,
     private prisma: PrismaService,
   ) {
-    const key = this.config.get<string>("STRIPE_SECRET_KEY");
+    const key = this.config.get<string>('STRIPE_SECRET_KEY');
     if (key) {
-      this.stripe = new Stripe(key, { apiVersion: "2023-10-16" });
+      this.stripe = new Stripe(key, { apiVersion: '2023-10-16' });
     }
   }
 
   async createCheckout(supabaseId: string, dto: CheckoutDto) {
-    if (!this.stripe) throw new ForbiddenException("Stripe not configured");
+    if (!this.stripe) throw new ForbiddenException('Stripe not configured');
     const userId = await this.resolveUserId(supabaseId);
     const customerId = await this.getOrCreateCustomer(userId);
     const session = await this.stripe.checkout.sessions.create({
-      mode: "subscription",
+      mode: 'subscription',
       customer: customerId,
       line_items: [{ price: dto.priceId, quantity: 1 }],
       success_url: dto.successUrl,
@@ -35,32 +35,38 @@ export class BillingService {
   }
 
   async createPortal(supabaseId: string) {
-    if (!this.stripe) throw new ForbiddenException("Stripe not configured");
+    if (!this.stripe) throw new ForbiddenException('Stripe not configured');
     const userId = await this.resolveUserId(supabaseId);
     const customerId = await this.getOrCreateCustomer(userId);
     const session = await this.stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: this.config.get<string>("APP_PUBLIC_URL") ?? "",
+      return_url: this.config.get<string>('APP_PUBLIC_URL') ?? '',
     });
     return { url: session.url };
   }
 
   async handleWebhook(payload: Buffer, signature?: string) {
-    if (!this.stripe) throw new ForbiddenException("Stripe not configured");
-    const webhookSecret = this.config.get<string>("STRIPE_WEBHOOK_SECRET");
+    if (!this.stripe) throw new ForbiddenException('Stripe not configured');
+    const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!webhookSecret || !signature) {
-      throw new ForbiddenException("Stripe webhook not configured");
+      throw new ForbiddenException('Stripe webhook not configured');
     }
 
-    const event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+    const event = this.stripe.webhooks.constructEvent(
+      payload,
+      signature,
+      webhookSecret,
+    );
 
     switch (event.type) {
-      case "customer.subscription.created":
-      case "customer.subscription.updated":
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
         await this.syncSubscription(event.data.object as Stripe.Subscription);
         break;
-      case "customer.subscription.deleted":
-        await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+      case 'customer.subscription.deleted':
+        await this.handleSubscriptionDeleted(
+          event.data.object as Stripe.Subscription,
+        );
         break;
       default:
         this.logger.log(`Unhandled Stripe event: ${event.type}`);
@@ -76,17 +82,19 @@ export class BillingService {
       where: { supabaseId },
       select: { id: true },
     });
-    if (!user) throw new ForbiddenException("User not found");
+    if (!user) throw new ForbiddenException('User not found');
     return user.id;
   }
 
   private async getOrCreateCustomer(userId: string) {
-    if (!this.stripe) throw new ForbiddenException("Stripe not configured");
-    const existing = await this.prisma.stripeCustomer.findUnique({ where: { userId } });
+    if (!this.stripe) throw new ForbiddenException('Stripe not configured');
+    const existing = await this.prisma.stripeCustomer.findUnique({
+      where: { userId },
+    });
     if (existing) return existing.customerId;
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new ForbiddenException("User not found");
+    if (!user) throw new ForbiddenException('User not found');
 
     const customer = await this.stripe.customers.create({
       email: user.email,
@@ -120,11 +128,15 @@ export class BillingService {
 
     await this.prisma.subscription.upsert({
       where: { stripeSubscriptionId: stripeId },
-      update: { status: subscription.status ?? "unknown", planId: plan.id, currentPeriodEnd },
+      update: {
+        status: subscription.status ?? 'unknown',
+        planId: plan.id,
+        currentPeriodEnd,
+      },
       create: {
         userId: stripeCustomer.userId,
         planId: plan.id,
-        status: subscription.status ?? "unknown",
+        status: subscription.status ?? 'unknown',
         currentPeriodEnd,
         stripeSubscriptionId: stripeId,
         stripeCustomerId: customerId,
@@ -145,17 +157,17 @@ export class BillingService {
 
     await this.prisma.subscription.update({
       where: { id: record.id },
-      data: { status: "canceled" },
+      data: { status: 'canceled' },
     });
     await this.prisma.user.update({
       where: { id: record.userId },
-      data: { role: "FREE" },
+      data: { role: 'FREE' },
     });
   }
 
   private roleFromPlan(tier: string) {
-    if (tier === "PREMIUM") return "PREMIUM";
-    if (tier === "PRO") return "PRO";
-    return "FREE";
+    if (tier === 'PREMIUM') return 'PREMIUM';
+    if (tier === 'PRO') return 'PRO';
+    return 'FREE';
   }
 }

@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../../database/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class ShareService {
@@ -10,11 +10,11 @@ export class ShareService {
       where: { token, isActive: true },
     });
     if (!link || (link.expiresAt && link.expiresAt < new Date())) {
-      return { status: "inactive" };
+      return { status: 'inactive' };
     }
     return this.prisma.cv.findUnique({
       where: { id: link.cvId },
-      include: { sections: { orderBy: { order: "asc" } } },
+      include: { sections: { orderBy: { order: 'asc' } } },
     });
   }
 }

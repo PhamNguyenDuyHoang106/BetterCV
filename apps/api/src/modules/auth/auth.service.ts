@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
-import { UserService } from "../user/user.service";
-import { PrismaService } from "../../database/prisma.service";
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { UserService } from '../user/user.service';
+import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class AuthService {
@@ -30,7 +30,9 @@ export class AuthService {
           where: { id: user.id },
           data: { supabaseId },
         });
-        this.logger.log(`Linked existing user ${email} to Supabase ID ${supabaseId}`);
+        this.logger.log(
+          `Linked existing user ${email} to Supabase ID ${supabaseId}`,
+        );
       } else {
         // Create new user
         user = await this.prisma.user.create({
@@ -38,7 +40,7 @@ export class AuthService {
             email,
             fullName,
             supabaseId,
-            role: "FREE",
+            role: 'FREE',
           },
         });
         this.logger.log(`Created new user ${email}`);
@@ -70,7 +72,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException("User not found");
+      throw new UnauthorizedException('User not found');
     }
 
     return user;

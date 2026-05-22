@@ -1,11 +1,11 @@
-import { IsIn, IsOptional, IsString } from "class-validator";
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class CvCreateDto {
   @IsString()
   title!: string;
 
-  @IsIn(["en", "vi"])
-  locale!: "en" | "vi";
+  @IsIn(['en', 'vi'])
+  locale!: 'en' | 'vi';
 
   @IsOptional()
   @IsString()
@@ -18,8 +18,8 @@ export class CvUpdateDto {
   title?: string;
 
   @IsOptional()
-  @IsIn(["en", "vi"])
-  locale?: "en" | "vi";
+  @IsIn(['en', 'vi'])
+  locale?: 'en' | 'vi';
 
   @IsOptional()
   @IsString()

@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
-import { AuthService } from "./auth.service";
-import { CurrentUser, JwtPayload } from "../../core/decorators";
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { AuthService } from './auth.service';
+import { CurrentUser, JwtPayload } from '../../core/decorators';
 
-@Controller("auth")
+@Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
@@ -12,8 +12,8 @@ export class AuthController {
    * Called by the frontend after Supabase sign-up/sign-in to ensure
    * the user record exists in our database.
    */
-  @UseGuards(AuthGuard("jwt"))
-  @Post("sync")
+  @UseGuards(AuthGuard('jwt'))
+  @Post('sync')
   async sync(
     @CurrentUser() user: JwtPayload,
     @Body() body: { fullName?: string },
@@ -21,7 +21,7 @@ export class AuthController {
     return this.authService.syncUser(
       user.sub,
       user.email,
-      body.fullName ?? user.email.split("@")[0],
+      body.fullName ?? user.email.split('@')[0],
     );
   }
 
@@ -29,9 +29,9 @@ export class AuthController {
    * GET /api/auth/me
    * Returns the authenticated user's profile.
    */
-  @UseGuards(AuthGuard("jwt"))
-  @Get("me")
-  async me(@CurrentUser("sub") supabaseId: string) {
+  @UseGuards(AuthGuard('jwt'))
+  @Get('me')
+  async me(@CurrentUser('sub') supabaseId: string) {
     return this.authService.getProfile(supabaseId);
   }
 }

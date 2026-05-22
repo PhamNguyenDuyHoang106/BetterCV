@@ -1,12 +1,12 @@
-import { Controller, Get, Param } from "@nestjs/common";
-import { ShareService } from "./share.service";
+import { Controller, Get, Param } from '@nestjs/common';
+import { ShareService } from './share.service';
 
-@Controller("share")
+@Controller('share')
 export class ShareController {
   constructor(private shareService: ShareService) {}
 
-  @Get(":token")
-  async get(@Param("token") token: string) {
+  @Get(':token')
+  async get(@Param('token') token: string) {
     return this.shareService.getByToken(token);
   }
 }

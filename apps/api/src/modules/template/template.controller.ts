@@ -1,7 +1,7 @@
-import { Controller, Get, Param } from "@nestjs/common";
-import { TemplateService } from "./template.service";
+import { Controller, Get, Param } from '@nestjs/common';
+import { TemplateService } from './template.service';
 
-@Controller("templates")
+@Controller('templates')
 export class TemplateController {
   constructor(private templateService: TemplateService) {}
 
@@ -10,8 +10,8 @@ export class TemplateController {
     return this.templateService.list();
   }
 
-  @Get(":id")
-  async get(@Param("id") id: string) {
+  @Get(':id')
+  async get(@Param('id') id: string) {
     return this.templateService.get(id);
   }
 }

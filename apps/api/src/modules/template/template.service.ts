@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../../database/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class TemplateService {
@@ -9,7 +9,7 @@ export class TemplateService {
     return this.prisma.template.findMany({
       where: { isActive: true },
       include: { category: true },
-      orderBy: { name: "asc" },
+      orderBy: { name: 'asc' },
     });
   }
 

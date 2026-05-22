@@ -1,7 +1,7 @@
-import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PassportStrategy } from "@nestjs/passport";
-import { ExtractJwt, Strategy } from "passport-jwt";
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
 
 /**
  * Validates JWTs issued by Supabase Auth.
@@ -16,8 +16,8 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey:
-        config.get<string>("SUPABASE_JWT_SECRET") ??
-        "super-secret-jwt-token-with-at-least-32-characters",
+        config.get<string>('SUPABASE_JWT_SECRET') ??
+        'super-secret-jwt-token-with-at-least-32-characters',
     });
   }
 
@@ -29,8 +29,8 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
   }) {
     return {
       sub: payload.sub,
-      email: payload.email ?? "",
-      role: payload.role ?? "FREE",
+      email: payload.email ?? '',
+      role: payload.role ?? 'FREE',
     };
   }
 }

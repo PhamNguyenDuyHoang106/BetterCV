@@ -1,9 +1,9 @@
-import { ForbiddenException, Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaService } from "../../database/prisma.service";
-import { AiGenerateDto, AiRewriteDto, AiScoreDto } from "./dto/ai.dto";
-import { Response } from "express";
-import { Prisma } from "@prisma/client";
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../database/prisma.service';
+import { AiGenerateDto, AiRewriteDto, AiScoreDto } from './dto/ai.dto';
+import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 
 type PromptPayload = {
   system: string;
@@ -21,41 +21,45 @@ export class AiService {
   ) {}
 
   async generate(supabaseId: string, dto: AiGenerateDto) {
-    return this.runPrompt(supabaseId, "cv_generate", {
-      system: "You are a CV generator. Return valid JSON. Keep output ATS-friendly and concise.",
-      user: "Generate a CV structure from the provided user profile and job description.",
+    return this.runPrompt(supabaseId, 'cv_generate', {
+      system:
+        'You are a CV generator. Return valid JSON. Keep output ATS-friendly and concise.',
+      user: 'Generate a CV structure from the provided user profile and job description.',
       input: dto,
     });
   }
 
   async rewrite(supabaseId: string, dto: AiRewriteDto) {
-    return this.runPrompt(supabaseId, "cv_rewrite", {
-      system: "You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.",
-      user: "Rewrite the section to match the requested style.",
+    return this.runPrompt(supabaseId, 'cv_rewrite', {
+      system:
+        'You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.',
+      user: 'Rewrite the section to match the requested style.',
       input: dto,
     });
   }
 
   async score(supabaseId: string, dto: AiScoreDto) {
-    return this.runPrompt(supabaseId, "cv_score", {
-      system: "You score CV vs JD. Return JSON with score 0-100 and reasoning.",
-      user: "Score the CV content against the job description.",
+    return this.runPrompt(supabaseId, 'cv_score', {
+      system: 'You score CV vs JD. Return JSON with score 0-100 and reasoning.',
+      user: 'Score the CV content against the job description.',
       input: dto,
     });
   }
 
   async keywords(supabaseId: string, dto: AiScoreDto) {
-    return this.runPrompt(supabaseId, "cv_keywords", {
-      system: "You extract keywords and missing skills. Return JSON with keywords and gaps.",
-      user: "Analyze CV content against job description for keywords and missing skills.",
+    return this.runPrompt(supabaseId, 'cv_keywords', {
+      system:
+        'You extract keywords and missing skills. Return JSON with keywords and gaps.',
+      user: 'Analyze CV content against job description for keywords and missing skills.',
       input: dto,
     });
   }
 
   async analyzeJobDescription(supabaseId: string, jobDescription: string) {
-    return this.runPrompt(supabaseId, "jd_analyze", {
-      system: "You analyze job descriptions. Return JSON summary and required skills.",
-      user: "Analyze the job description for key requirements.",
+    return this.runPrompt(supabaseId, 'jd_analyze', {
+      system:
+        'You analyze job descriptions. Return JSON summary and required skills.',
+      user: 'Analyze the job description for key requirements.',
       input: { jobDescription },
     });
   }
@@ -63,10 +67,11 @@ export class AiService {
   async generateStream(supabaseId: string, dto: AiGenerateDto, res: Response) {
     return this.streamPrompt(
       supabaseId,
-      "cv_generate",
+      'cv_generate',
       {
-        system: "You are a CV generator. Return valid JSON. Keep output ATS-friendly and concise.",
-        user: "Generate a CV structure from the provided user profile and job description.",
+        system:
+          'You are a CV generator. Return valid JSON. Keep output ATS-friendly and concise.',
+        user: 'Generate a CV structure from the provided user profile and job description.',
         input: dto,
       },
       res,
@@ -76,10 +81,11 @@ export class AiService {
   async rewriteStream(supabaseId: string, dto: AiRewriteDto, res: Response) {
     return this.streamPrompt(
       supabaseId,
-      "cv_rewrite",
+      'cv_rewrite',
       {
-        system: "You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.",
-        user: "Rewrite the section to match the requested style.",
+        system:
+          'You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.',
+        user: 'Rewrite the section to match the requested style.',
         input: dto,
       },
       res,
@@ -88,7 +94,11 @@ export class AiService {
 
   // ── Core AI Pipeline ──────────────────────────────────────────
 
-  private async runPrompt(supabaseId: string, promptKey: string, payload: PromptPayload) {
+  private async runPrompt(
+    supabaseId: string,
+    promptKey: string,
+    payload: PromptPayload,
+  ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertQuota(userId);
     await this.applySafetyRules(payload.input);
@@ -122,9 +132,9 @@ export class AiService {
     payload: PromptPayload,
     res: Response,
   ) {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
     const userId = await this.resolveUserId(supabaseId);
@@ -165,9 +175,9 @@ export class AiService {
     const body = this.buildChatBody(payload, false);
 
     const result = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
@@ -175,11 +185,11 @@ export class AiService {
 
     if (!result.ok) {
       this.logger.error(`AI request failed: ${result.status}`);
-      throw new ForbiddenException("AI request failed");
+      throw new ForbiddenException('AI request failed');
     }
 
     const json = (await result.json()) as any;
-    const content = json.choices?.[0]?.message?.content ?? "{}";
+    const content = json.choices?.[0]?.message?.content ?? '{}';
     const tokens = json.usage?.total_tokens ?? 0;
 
     return { output: safeJsonParse(content), tokens };
@@ -190,22 +200,22 @@ export class AiService {
     const body = this.buildChatBody(payload, true);
 
     const result = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
     });
 
     if (!result.ok || !result.body) {
-      throw new ForbiddenException("AI request failed");
+      throw new ForbiddenException('AI request failed');
     }
 
     const reader = result.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = "";
-    let fullText = "";
+    let buffer = '';
+    let fullText = '';
     let totalTokens = 0;
 
     while (true) {
@@ -213,16 +223,16 @@ export class AiService {
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
 
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
+        if (!line.startsWith('data: ')) continue;
         const data = line.slice(6).trim();
-        if (data === "[DONE]") continue;
+        if (data === '[DONE]') continue;
         try {
           const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content ?? "";
+          const delta = parsed.choices?.[0]?.delta?.content ?? '';
           if (delta) {
             fullText += delta;
             res.write(`data: ${delta}\n\n`);
@@ -242,26 +252,28 @@ export class AiService {
   // ── Helpers ───────────────────────────────────────────────────
 
   private getAiConfig() {
-    const baseUrl = this.config.get<string>("OPENAI_BASE_URL");
-    const apiKey = this.config.get<string>("OPENAI_API_KEY");
+    const baseUrl = this.config.get<string>('OPENAI_BASE_URL');
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!baseUrl || !apiKey) {
-      throw new ForbiddenException("AI provider not configured");
+      throw new ForbiddenException('AI provider not configured');
     }
     return { baseUrl, apiKey };
   }
 
   private buildChatBody(payload: PromptPayload, stream: boolean) {
     return {
-      model: this.config.get<string>("OPENAI_MODEL", "gpt-4o-mini"),
+      model: this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
       messages: [
-        { role: "system", content: payload.system },
+        { role: 'system', content: payload.system },
         {
-          role: "user",
+          role: 'user',
           content: `${payload.user}\n\nINPUT:\n${JSON.stringify(payload.input)}`,
         },
       ],
       temperature: 0.4,
-      ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}),
+      ...(stream
+        ? { stream: true, stream_options: { include_usage: true } }
+        : {}),
     };
   }
 
@@ -271,7 +283,7 @@ export class AiService {
       select: { id: true },
     });
     if (!user) {
-      throw new ForbiddenException("User not found");
+      throw new ForbiddenException('User not found');
     }
     return user.id;
   }
@@ -307,12 +319,12 @@ export class AiService {
       where: { isActive: true },
     });
     if (rules.length === 0) return;
-    const haystack = JSON.stringify(input ?? "").toLowerCase();
+    const haystack = JSON.stringify(input ?? '').toLowerCase();
     for (const rule of rules) {
       try {
-        const regex = new RegExp(rule.pattern, "i");
+        const regex = new RegExp(rule.pattern, 'i');
         if (regex.test(haystack)) {
-          throw new ForbiddenException("Unsafe input detected");
+          throw new ForbiddenException('Unsafe input detected');
         }
       } catch (e) {
         if (e instanceof ForbiddenException) throw e;
@@ -326,17 +338,18 @@ export class AiService {
       where: { id: userId },
       include: {
         subscriptions: {
-          where: { status: { in: ["active", "trialing"] } },
+          where: { status: { in: ['active', 'trialing'] } },
           include: { plan: true },
         },
       },
     });
     if (!user) {
-      throw new ForbiddenException("User not found");
+      throw new ForbiddenException('User not found');
     }
 
     const planQuota =
-      user.subscriptions[0]?.plan?.monthlyAiQuota ?? (user.role === "FREE" ? 2000 : 0);
+      user.subscriptions[0]?.plan?.monthlyAiQuota ??
+      (user.role === 'FREE' ? 2000 : 0);
 
     const periodStart = new Date();
     periodStart.setUTCDate(1);
@@ -347,11 +360,17 @@ export class AiService {
     const quota = await this.prisma.usageQuota.upsert({
       where: { userId },
       update: {},
-      create: { userId, periodStart, periodEnd, usedRequests: 0, usedTokens: 0 },
+      create: {
+        userId,
+        periodStart,
+        periodEnd,
+        usedRequests: 0,
+        usedTokens: 0,
+      },
     });
 
     if (quota.usedTokens >= planQuota) {
-      throw new ForbiddenException("AI quota exceeded");
+      throw new ForbiddenException('AI quota exceeded');
     }
   }
 

@@ -1,12 +1,12 @@
-import { IsIn, IsInt, IsObject, IsOptional, IsString } from "class-validator";
+import { IsIn, IsInt, IsObject, IsOptional, IsString } from 'class-validator';
 
 const sectionTypes = [
-  "PROFILE",
-  "SUMMARY",
-  "EXPERIENCE",
-  "EDUCATION",
-  "SKILLS",
-  "PROJECTS"
+  'PROFILE',
+  'SUMMARY',
+  'EXPERIENCE',
+  'EDUCATION',
+  'SKILLS',
+  'PROJECTS',
 ] as const;
 
 export class CvSectionUpsertDto {
