@@ -66,7 +66,7 @@ export default function CvEditorPage() {
     const result = await apiFetch<{ token: string }>(`/cvs/${cvId}/share`, {
       method: "POST"
     });
-    setShareUrl(`${window.location.origin}/share/${result.token}`);
+    setShareUrl(typeof window !== "undefined" ? `${window.location.origin}/share/${result.token}` : "");
   };
 
   const onExport = async () => {
