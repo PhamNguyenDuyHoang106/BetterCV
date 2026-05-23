@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BetterCV - AI Rewrite Experience</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "background": "#f5faff",
+                      "tertiary-fixed-dim": "#c2c7ca",
+                      "on-secondary-fixed-variant": "#2c4b59",
+                      "error": "#ba1a1a",
+                      "primary-container": "#5dade2",
+                      "on-secondary": "#ffffff",
+                      "primary": "#006491",
+                      "on-error": "#ffffff",
+                      "surface-bright": "#f5faff",
+                      "primary-fixed-dim": "#8aceff",
+                      "surface-container-low": "#e9f5ff",
+                      "error-container": "#ffdad6",
+                      "on-background": "#0c1d27",
+                      "on-tertiary-container": "#363c3e",
+                      "accent-glow": "rgba(93, 173, 226, 0.3)",
+                      "on-primary": "#ffffff",
+                      "secondary-container": "#c7e7fa",
+                      "surface-container-lowest": "#ffffff",
+                      "on-tertiary-fixed-variant": "#42484a",
+                      "secondary-fixed-dim": "#abcbdd",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-high": "#d8ebf8",
+                      "on-tertiary-fixed": "#171c1f",
+                      "glass-bg": "rgba(255, 255, 255, 0.4)",
+                      "surface-dim": "#caddea",
+                      "on-primary-container": "#003f5d",
+                      "surface-variant": "#d3e5f2",
+                      "tertiary-fixed": "#dee3e6",
+                      "tertiary-container": "#a1a6a9",
+                      "on-primary-fixed-variant": "#004b6f",
+                      "on-primary-fixed": "#001e2f",
+                      "inverse-primary": "#8aceff",
+                      "tertiary": "#5a5f62",
+                      "outline-variant": "#bfc7d0",
+                      "on-surface-variant": "#40484f",
+                      "secondary": "#446272",
+                      "on-error-container": "#93000a",
+                      "inverse-surface": "#22323d",
+                      "on-secondary-container": "#4a6878",
+                      "text-secondary": "#5A7383",
+                      "text-primary": "#1C2D37",
+                      "secondary-fixed": "#c7e7fa",
+                      "on-surface": "#0c1d27",
+                      "surface": "#f5faff",
+                      "surface-container-highest": "#d3e5f2",
+                      "surface-container": "#def0fe",
+                      "primary-fixed": "#c9e6ff",
+                      "surface-tint": "#006491",
+                      "outline": "#707880",
+                      "inverse-on-surface": "#e3f3ff",
+                      "glass-border": "rgba(255, 255, 255, 0.4)",
+                      "on-secondary-fixed": "#001f2b"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "grid-gutter": "24px",
+                      "stack-md": "16px",
+                      "container-margin": "24px",
+                      "stack-sm": "8px",
+                      "section-gap": "64px",
+                      "card-padding": "32px"
+              },
+              "fontFamily": {
+                      "hero-title": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "section-title": [
+                              "Inter"
+                      ],
+                      "hero-title-mobile": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "hero-title": [
+                              "60px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "section-title": [
+                              "36px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "hero-title-mobile": [
+                              "40px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        body {
+            background-color: #f5faff;
+            background-image: radial-gradient(circle at 15% 50%, rgba(138, 206, 255, 0.15) 0%, transparent 50%),
+                              radial-gradient(circle at 85% 30%, rgba(93, 173, 226, 0.1) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+    </style>
+</head>
+<body class="h-full flex overflow-hidden bg-background text-text-primary font-body-md">
+<!-- SideNavBar (Shared Component) -->
+<nav class="docked left-0 h-screen w-64 backdrop-blur-md border-r border-glass-border shadow-sm flex flex-col h-full py-stack-md bg-glass-bg dark:bg-glass-bg hidden md:flex shrink-0">
+<!-- Header -->
+<div class="px-container-margin pb-stack-md border-b border-glass-border mb-stack-md">
+<h1 class="font-hero-title text-section-title text-primary">BetterCV</h1>
+<p class="font-label-md text-label-md text-text-secondary mt-1">Current CV</p>
+<p class="font-label-sm text-label-sm text-text-secondary opacity-70">Draft - Senior Designer</p>
+</div>
+<!-- Navigation Links -->
+<ul class="flex-1 space-y-1">
+<li>
+<a class="text-text-secondary hover:text-primary px-4 py-3 mx-2 cursor-pointer flex items-center gap-3 transition-all hover:translate-y-[-2px] hover:shadow-md transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+<span class="font-label-md text-label-md">Resume Editor</span>
+</a>
+</li>
+<li>
+<a class="bg-primary-container text-on-primary-container rounded-xl mx-2 shadow-sm cursor-pointer flex items-center gap-3 transition-all" href="#">
+<span class="material-symbols-outlined px-4 py-3" data-icon="auto_fix_high" data-weight="fill" style="font-variation-settings: 'FILL' 1;">auto_fix_high</span>
+<span class="font-label-md text-label-md font-bold">AI Assistant</span>
+</a>
+</li>
+<li>
+<a class="text-text-secondary hover:text-primary px-4 py-3 mx-2 cursor-pointer flex items-center gap-3 transition-all hover:translate-y-[-2px] hover:shadow-md transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="contact_page">contact_page</span>
+<span class="font-label-md text-label-md">Contact Info</span>
+</a>
+</li>
+<li>
+<a class="text-text-secondary hover:text-primary px-4 py-3 mx-2 cursor-pointer flex items-center gap-3 transition-all hover:translate-y-[-2px] hover:shadow-md transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="work">work</span>
+<span class="font-label-md text-label-md">Experience</span>
+</a>
+</li>
+<li>
+<a class="text-text-secondary hover:text-primary px-4 py-3 mx-2 cursor-pointer flex items-center gap-3 transition-all hover:translate-y-[-2px] hover:shadow-md transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="school">school</span>
+<span class="font-label-md text-label-md">Education</span>
+</a>
+</li>
+</ul>
+<!-- Footer Actions -->
+<div class="px-container-margin pt-stack-md border-t border-glass-border space-y-3">
+<button class="w-full bg-primary text-on-primary font-label-md text-label-md py-2 rounded-xl hover:shadow-[0_0_15px_rgba(93,173,226,0.3)] transition-all">
+                Export PDF
+            </button>
+<div class="flex flex-col gap-1 mt-4">
+<a class="text-text-secondary hover:text-primary px-4 py-2 cursor-pointer flex items-center gap-3 transition-all rounded-lg hover:bg-white/20" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="settings">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+<a class="text-text-secondary hover:text-primary px-4 py-2 cursor-pointer flex items-center gap-3 transition-all rounded-lg hover:bg-white/20" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help">help</span>
+<span class="font-label-sm text-label-sm">Help</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col h-screen overflow-y-auto w-full">
+<!-- TopAppBar (Mobile Fallback / Context Header) -->
+<header class="w-full px-grid-gutter py-container-margin flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-10 backdrop-blur-md bg-white/10 border-b border-glass-border">
+<div class="flex flex-col">
+<div class="flex items-center gap-2 text-text-secondary font-label-sm text-label-sm mb-1">
+<button class="hover:text-primary transition-colors flex items-center">
+<span class="material-symbols-outlined text-sm mr-1">arrow_back</span>
+                        Back
+                    </button>
+<span>/</span>
+<span>AI Rewrite Assistant</span>
+<span>&gt;</span>
+<span class="text-primary font-medium">Summary</span>
+</div>
+<h2 class="font-section-title text-section-title text-text-primary hidden md:block">Supercharge Your Content with AI</h2>
+<h2 class="font-hero-title-mobile text-hero-title-mobile text-text-primary md:hidden">Supercharge Your Content</h2>
+</div>
+<!-- Credits Pill -->
+<div class="flex items-center bg-white/40 backdrop-blur-sm border border-white/40 rounded-full px-4 py-2 shadow-sm relative group overflow-hidden">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<span class="material-symbols-outlined text-primary mr-2" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span class="font-label-md text-label-md text-primary font-medium">125 Credits Left</span>
+<!-- Glow effect -->
+<div class="absolute -inset-1 bg-primary/20 blur-md rounded-full -z-10 group-hover:bg-primary/30 transition-all"></div>
+</div>
+</header>
+<!-- Editor Canvas -->
+<div class="flex-1 p-container-margin md:p-grid-gutter lg:px-section-gap pb-section-gap w-full max-w-7xl mx-auto">
+<div class="flex flex-col lg:flex-row gap-grid-gutter h-full min-h-[500px]">
+<!-- Left Column: Original Content (45%) -->
+<div class="w-full lg:w-[45%] flex flex-col gap-4">
+<div class="flex-1 bg-white/40 backdrop-blur-md border border-white/30 rounded-2xl p-card-padding shadow-sm flex flex-col relative overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1">
+<!-- Header -->
+<div class="flex justify-between items-center mb-6 border-b border-white/20 pb-4">
+<h3 class="font-label-md text-label-md text-text-primary font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-text-secondary">history_edu</span>
+                                Original Text
+                            </h3>
+<div class="flex items-center gap-1.5 bg-error/10 text-error px-2.5 py-1 rounded-full border border-error/20">
+<div class="w-2 h-2 rounded-full bg-error animate-pulse"></div>
+<span class="font-label-sm text-label-sm">Needs Improvement</span>
+</div>
+</div>
+<!-- Content -->
+<div class="flex-1 font-body-md text-body-md text-text-primary opacity-80 leading-relaxed">
+                            "I was in charge of managing the web development team and making sure our React site loaded quickly. I also helped fix bugs and worked with clients."
+                        </div>
+<!-- Footer Stats -->
+<div class="mt-6 pt-4 border-t border-white/20 flex items-center gap-4 text-text-secondary font-label-sm text-label-sm">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">format_list_numbered</span>
+                                Word count: 32
+                            </div>
+<div class="w-1 h-1 rounded-full bg-text-secondary/50"></div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">warning</span>
+                                Muted impact verbs
+                            </div>
+</div>
+</div>
+</div>
+<!-- Right Column: AI Output (55%) -->
+<div class="w-full lg:w-[55%] flex flex-col gap-4">
+<div class="flex-1 bg-white/60 backdrop-blur-xl border-2 border-primary-container rounded-2xl p-card-padding shadow-[0_4px_24px_rgba(93,173,226,0.15)] flex flex-col relative overflow-hidden group">
+<!-- Decorative glow -->
+<div class="absolute -top-24 -right-24 w-48 h-48 bg-primary-container/20 rounded-full blur-3xl group-hover:bg-primary-container/30 transition-all duration-700"></div>
+<!-- Header -->
+<div class="flex justify-between items-center mb-6 border-b border-primary/10 pb-4 relative z-10">
+<h3 class="font-label-md text-label-md text-primary font-bold flex items-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+                                AI Suggested Rewrite
+                            </h3>
+<div class="flex items-center gap-1.5 bg-[#E8F5E9] text-[#2E7D32] px-3 py-1 rounded-full border border-[#C8E6C9] shadow-sm">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-sm text-label-sm font-bold">98% ATS Score Match</span>
+</div>
+</div>
+<!-- Content -->
+<div class="flex-1 font-body-lg text-body-lg text-text-primary leading-relaxed relative z-10">
+<span class="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium shadow-[0_0_8px_rgba(93,173,226,0.2)]">Spearheaded</span> web development workflows for <span class="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium shadow-[0_0_8px_rgba(93,173,226,0.2)]">high-performance</span> React architectures, achieving a <span class="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium shadow-[0_0_8px_rgba(93,173,226,0.2)]">40% reduction</span> in page load latency. <span class="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium shadow-[0_0_8px_rgba(93,173,226,0.2)]">Orchestrated</span> cross-functional debugging cycles and managed enterprise client relations.
+                        </div>
+<!-- Options Panel -->
+<div class="mt-8 mb-6 relative z-10">
+<p class="font-label-sm text-label-sm text-text-secondary mb-3 uppercase tracking-wider">Refine Tone</p>
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-2 rounded-full font-label-sm text-label-sm bg-white/40 border border-white/60 text-text-secondary hover:text-primary hover:border-primary/50 transition-colors shadow-sm">
+                                    Make Shorter
+                                </button>
+<button class="px-4 py-2 rounded-full font-label-sm text-label-sm bg-primary/5 border-2 border-primary text-primary font-semibold shadow-[0_0_10px_rgba(93,173,226,0.1)] transition-colors">
+                                    More Professional
+                                </button>
+<button class="px-4 py-2 rounded-full font-label-sm text-label-sm bg-white/40 border border-white/60 text-text-secondary hover:text-primary hover:border-primary/50 transition-colors shadow-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">add</span>
+                                    Inject Keywords
+                                </button>
+<button class="px-4 py-2 rounded-full font-label-sm text-label-sm bg-white/40 border border-white/60 text-text-secondary hover:text-primary hover:border-primary/50 transition-colors shadow-sm">
+                                    Make More Punchy
+                                </button>
+</div>
+</div>
+<!-- Action Row -->
+<div class="flex flex-col sm:flex-row items-center gap-3 pt-4 border-t border-primary/10 relative z-10 w-full">
+<button class="w-full sm:w-auto flex-1 bg-primary text-on-primary font-label-md text-label-md py-3 px-6 rounded-xl shadow-[0_4px_14px_rgba(0,100,145,0.3)] hover:shadow-[0_6px_20px_rgba(0,100,145,0.4)] hover:-translate-y-0.5 transition-all flex justify-center items-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">task_alt</span>
+                                Accept &amp; Replace
+                            </button>
+<button class="w-full sm:w-auto px-6 py-3 rounded-xl font-label-md text-label-md bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary hover:bg-[rgba(185,217,235,0.4)] transition-colors flex justify-center items-center gap-2">
+<span class="material-symbols-outlined">refresh</span>
+                                Regenerate
+                            </button>
+<button class="w-full sm:w-auto px-4 py-3 font-label-md text-label-md text-text-secondary hover:text-error transition-colors text-center">
+                                Discard
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

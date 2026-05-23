@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Export Page - BetterCV</title>
+<!-- Fonts & Icons -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-container": "#5dade2",
+                    "text-secondary": "#5A7383",
+                    "surface-container-high": "#d8ebf8",
+                    "background": "#f5faff",
+                    "error-container": "#ffdad6",
+                    "on-secondary": "#ffffff",
+                    "on-primary": "#ffffff",
+                    "surface-container-low": "#e9f5ff",
+                    "outline-variant": "#bfc7d0",
+                    "inverse-primary": "#8aceff",
+                    "on-error": "#ffffff",
+                    "tertiary": "#5a5f62",
+                    "surface": "#f5faff",
+                    "on-tertiary-fixed": "#171c1f",
+                    "glass-bg": "rgba(255, 255, 255, 0.4)",
+                    "on-tertiary-container": "#363c3e",
+                    "on-background": "#0c1d27",
+                    "primary-fixed-dim": "#8aceff",
+                    "inverse-on-surface": "#e3f3ff",
+                    "accent-glow": "rgba(93, 173, 226, 0.3)",
+                    "on-primary-fixed": "#001e2f",
+                    "surface-variant": "#d3e5f2",
+                    "on-surface": "#0c1d27",
+                    "on-secondary-fixed": "#001f2b",
+                    "on-surface-variant": "#40484f",
+                    "surface-container-highest": "#d3e5f2",
+                    "on-secondary-fixed-variant": "#2c4b59",
+                    "on-primary-fixed-variant": "#004b6f",
+                    "primary-fixed": "#c9e6ff",
+                    "tertiary-fixed-dim": "#c2c7ca",
+                    "tertiary-fixed": "#dee3e6",
+                    "secondary-fixed-dim": "#abcbdd",
+                    "secondary": "#446272",
+                    "secondary-fixed": "#c7e7fa",
+                    "on-error-container": "#93000a",
+                    "surface-tint": "#006491",
+                    "surface-bright": "#f5faff",
+                    "tertiary-container": "#a1a6a9",
+                    "on-secondary-container": "#4a6878",
+                    "secondary-container": "#c7e7fa",
+                    "primary": "#006491",
+                    "outline": "#707880",
+                    "surface-dim": "#caddea",
+                    "surface-container": "#def0fe",
+                    "text-primary": "#1C2D37",
+                    "on-primary-container": "#003f5d",
+                    "inverse-surface": "#22323d",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed-variant": "#42484a",
+                    "glass-border": "rgba(255, 255, 255, 0.4)",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-sm": "8px",
+                    "grid-gutter": "24px",
+                    "container-margin": "24px",
+                    "section-gap": "64px",
+                    "card-padding": "32px",
+                    "stack-md": "16px"
+            },
+            "fontFamily": {
+                    "label-md": ["Inter"],
+                    "hero-title-mobile": ["Inter"],
+                    "body-md": ["Inter"],
+                    "section-title": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "hero-title": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "hero-title-mobile": ["40px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "section-title": ["36px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                    "hero-title": ["60px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body {
+            background-color: #f5faff;
+            background-image: radial-gradient(circle at 15% 50%, rgba(93, 173, 226, 0.15), transparent 25%),
+                              radial-gradient(circle at 85% 30%, rgba(93, 173, 226, 0.1), transparent 25%);
+            background-attachment: fixed;
+        }
+        /* Custom scrollbar for preview */
+        .preview-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .preview-scroll::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        .preview-scroll::-webkit-scrollbar-thumb {
+            background: rgba(185, 217, 235, 0.5);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="text-text-primary font-body-md text-body-md min-h-screen">
+<!-- TopAppBar -->
+<header class="bg-glass-bg dark:bg-glass-bg backdrop-blur-md text-primary dark:text-primary-fixed-dim font-label-md text-label-md border-b border-glass-border dark:border-white/10 shadow-sm fixed top-0 left-0 w-full z-50 flex justify-between items-center px-container-margin h-16">
+<div class="flex items-center gap-grid-gutter w-1/3">
+<span class="text-body-lg font-bold text-primary dark:text-primary-fixed-dim">BetterCV</span>
+<nav class="hidden md:flex gap-grid-gutter h-full items-center">
+<a class="text-primary font-bold border-b-2 border-primary pb-1 hover:text-primary dark:hover:text-primary-fixed-dim transition-all duration-200 Active: scale-95 opacity-80 transition-transform" href="#">My Resumes</a>
+<a class="text-text-secondary dark:text-text-secondary hover:text-primary dark:hover:text-primary-fixed-dim transition-all duration-200" href="#">Templates</a>
+<a class="text-text-secondary dark:text-text-secondary hover:text-primary dark:hover:text-primary-fixed-dim transition-all duration-200" href="#">Career Tips</a>
+</nav>
+</div>
+<div class="flex items-center gap-stack-md w-1/3 justify-end">
+<button class="bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary rounded-full px-4 py-2 font-label-md text-label-md hover:bg-white/50 transition-colors">Share</button>
+<button class="bg-primary text-on-primary rounded-xl px-4 py-2 font-label-md text-label-md shadow-sm hover:shadow-accent-glow hover:-translate-y-0.5 transition-all">Download</button>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">notifications</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">settings</span>
+<div class="w-8 h-8 rounded-full bg-surface-variant overflow-hidden border border-glass-border">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4Tj0RCeajjiOT5Qywsyb2OTn3ZwZJNVFbgOuIpYK-oMqIgax9QH8b8JsetocqKVe35YU9G-esRCV2Q1ue3J58bQP-37soilH68HE5YhFk-Q2_41z9bNn2aSewLqQroYweQPEp3Rc9nNM3w2wjAE1V2_X8gsfuT2s-hS-lhClJYQHWMRCt1FQcbwqWK8SStlOM935igETliZY3xZkej8sc5lJuxvHU3gnJT0v9v39AvkJjETems8CjnicxBOqzohitrFzHa3d9-rw"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="bg-glass-bg dark:bg-glass-bg backdrop-blur-xl text-primary dark:text-primary-fixed-dim font-label-md text-label-md border-r border-glass-border dark:border-white/10 shadow-md fixed left-0 top-16 h-[calc(100vh-64px)] w-64 flex flex-col p-4 z-40">
+<div class="mb-section-gap flex flex-col gap-stack-sm p-2">
+<div class="flex items-center gap-stack-md mb-2">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary border border-glass-border">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div>
+<h2 class="font-section-title text-body-md text-primary font-bold">Resume v2.1</h2>
+<p class="text-label-sm font-label-sm text-text-secondary">Last edited 2m ago</p>
+</div>
+</div>
+<button class="w-full mt-2 bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary rounded-xl py-2 font-label-md text-label-md hover:bg-white/50 transition-colors">New Draft</button>
+</div>
+<nav class="flex-1 flex flex-col gap-2">
+<a class="flex items-center gap-stack-md text-text-secondary dark:text-text-secondary px-4 py-3 hover:bg-surface-container-low/50 rounded-xl hover:bg-surface-container-high/40 dark:hover:bg-surface-container-high/20 transition-all" href="#">
+<span class="material-symbols-outlined">edit_note</span> Editor
+            </a>
+<a class="flex items-center gap-stack-md text-text-secondary dark:text-text-secondary px-4 py-3 hover:bg-surface-container-low/50 rounded-xl hover:bg-surface-container-high/40 dark:hover:bg-surface-container-high/20 transition-all" href="#">
+<span class="material-symbols-outlined">palette</span> Design
+            </a>
+<a class="flex items-center gap-stack-md text-text-secondary dark:text-text-secondary px-4 py-3 hover:bg-surface-container-low/50 rounded-xl hover:bg-surface-container-high/40 dark:hover:bg-surface-container-high/20 transition-all" href="#">
+<span class="material-symbols-outlined">visibility</span> Preview
+            </a>
+<a class="flex items-center gap-stack-md bg-primary-container/30 dark:bg-primary-container/20 text-primary dark:text-primary-fixed-dim rounded-xl px-4 py-3 hover:bg-surface-container-high/40 dark:hover:bg-surface-container-high/20 transition-all Active: translate-x-1 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">ios_share</span> Export
+            </a>
+</nav>
+<div class="mt-auto pt-4 border-t border-glass-border flex flex-col gap-2">
+<a class="flex items-center gap-stack-md text-text-secondary dark:text-text-secondary px-4 py-3 hover:bg-surface-container-low/50 rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">help</span> Help Center
+            </a>
+<a class="flex items-center gap-stack-md text-text-secondary dark:text-text-secondary px-4 py-3 hover:bg-surface-container-low/50 rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">person</span> Account
+            </a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 pt-16 min-h-screen flex flex-col">
+<!-- Content Header -->
+<div class="px-container-margin py-stack-md border-b border-glass-border bg-glass-bg backdrop-blur-sm sticky top-16 z-30 flex justify-between items-center">
+<div class="flex items-center gap-stack-md">
+<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors text-text-secondary">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div>
+<div class="text-label-sm font-label-sm text-text-secondary mb-1">Workspace &gt; Export</div>
+<h1 class="font-section-title text-section-title text-[#1C2D37] leading-none">Export &amp; Share Your CV</h1>
+</div>
+</div>
+<div class="flex items-center gap-stack-md bg-white/50 backdrop-blur-md px-4 py-2 rounded-full border border-white/40 shadow-sm">
+<span class="text-label-md font-label-md text-text-primary">Share Link</span>
+<button class="w-10 h-5 bg-surface-variant rounded-full relative cursor-pointer transition-colors duration-300 focus:outline-none" onclick="this.classList.toggle('bg-primary-container'); this.firstElementChild.classList.toggle('translate-x-5')">
+<div class="w-4 h-4 bg-white rounded-full absolute top-0.5 left-0.5 shadow-sm transition-transform duration-300"></div>
+</button>
+</div>
+</div>
+<!-- Split Layout -->
+<div class="flex-1 flex px-container-margin py-container-margin gap-grid-gutter h-[calc(100vh-64px-80px)]">
+<!-- Left: Formatting Options (40%) -->
+<div class="w-[40%] bg-glass-bg backdrop-blur-md border border-glass-border rounded-xl p-card-padding shadow-sm flex flex-col gap-section-gap overflow-y-auto preview-scroll">
+<!-- Export Formats -->
+<section>
+<h3 class="font-label-md text-label-md text-text-secondary uppercase tracking-wider mb-stack-md">Export Formats</h3>
+<div class="flex flex-col gap-stack-sm">
+<button class="w-full flex items-center justify-center gap-stack-sm bg-primary text-on-primary rounded-xl py-3 font-label-md text-label-md shadow-sm hover:shadow-accent-glow hover:-translate-y-0.5 transition-all">
+<span class="material-symbols-outlined">picture_as_pdf</span> Download PDF
+                        </button>
+<button class="w-full flex items-center justify-center gap-stack-sm bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary rounded-full py-3 font-label-md text-label-md hover:bg-white/50 transition-colors">
+<span class="material-symbols-outlined">description</span> Download DOCX
+                        </button>
+</div>
+</section>
+<!-- Page Settings -->
+<section>
+<h3 class="font-label-md text-label-md text-text-secondary uppercase tracking-wider mb-stack-md">Page Settings</h3>
+<div class="flex flex-col gap-stack-md">
+<div class="flex flex-col gap-1">
+<label class="font-label-sm text-label-sm text-text-secondary">Paper Size</label>
+<div class="relative">
+<select class="w-full bg-white/40 border border-white/30 rounded-lg px-3 py-2 text-text-primary appearance-none focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all font-body-md text-body-md">
+<option selected="">A4 (210 x 297 mm)</option>
+<option>US Letter (8.5 x 11 in)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-text-secondary pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-sm text-label-sm text-text-secondary">Margins</label>
+<div class="relative">
+<select class="w-full bg-white/40 border border-white/30 rounded-lg px-3 py-2 text-text-primary appearance-none focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all font-body-md text-body-md">
+<option selected="">Default (1")</option>
+<option>Narrow (0.5")</option>
+<option>Wide (1.5")</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-text-secondary pointer-events-none">expand_more</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Typography & Accent -->
+<section>
+<h3 class="font-label-md text-label-md text-text-secondary uppercase tracking-wider mb-stack-md">Appearance</h3>
+<div class="flex flex-col gap-stack-md">
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center">
+<label class="font-label-sm text-label-sm text-text-secondary">Font Size</label>
+<span class="font-label-sm text-label-sm text-primary">11pt</span>
+</div>
+<input class="w-full h-1 bg-surface-variant rounded-lg appearance-none cursor-pointer accent-primary" max="14" min="9" type="range" value="11"/>
+</div>
+<div class="flex flex-col gap-2 mt-2">
+<label class="font-label-sm text-label-sm text-text-secondary">Color Accent</label>
+<div class="flex gap-stack-sm">
+<button aria-label="Soft Sky Blue" class="w-8 h-8 rounded-full bg-inverse-primary border-2 border-white shadow-sm flex items-center justify-center ring-2 ring-primary ring-offset-1 focus:outline-none">
+<span class="material-symbols-outlined text-white text-sm" style="font-variation-settings: 'FILL' 1; font-size: 16px;">check</span>
+</button>
+<button aria-label="Emerald Mint" class="w-8 h-8 rounded-full bg-[#50C878] border border-white/40 shadow-sm hover:scale-110 transition-transform focus:outline-none"></button>
+<button aria-label="Deep Slate" class="w-8 h-8 rounded-full bg-[#2F4F4F] border border-white/40 shadow-sm hover:scale-110 transition-transform focus:outline-none"></button>
+<button aria-label="Burgundy Plum" class="w-8 h-8 rounded-full bg-[#800020] border border-white/40 shadow-sm hover:scale-110 transition-transform focus:outline-none"></button>
+</div>
+</div>
+</div>
+</section>
+<div class="mt-auto bg-surface-container-high/50 rounded-lg p-4 border border-white/40 flex gap-stack-sm items-start">
+<span class="material-symbols-outlined text-primary mt-0.5" style="font-size: 20px;">lightbulb</span>
+<p class="font-body-md text-[13px] leading-relaxed text-text-secondary">
+<strong class="text-text-primary">Recruiter Tip:</strong> PDF is highly recommended for submitting job applications as it preserves your layout exactly as designed across all devices and ATS systems.
+                    </p>
+</div>
+</div>
+<!-- Right: Live Preview (60%) -->
+<div class="w-[60%] bg-glass-bg backdrop-blur-md border border-glass-border rounded-xl shadow-sm p-stack-md flex flex-col relative overflow-hidden">
+<!-- Floating Toolbar -->
+<div class="absolute top-6 right-6 flex items-center gap-1 bg-white/70 backdrop-blur-xl border border-white shadow-md rounded-full px-2 py-1 z-10">
+<button class="w-8 h-8 flex items-center justify-center rounded-full text-text-secondary hover:bg-surface-variant transition-colors" title="Zoom Out">
+<span class="material-symbols-outlined" style="font-size: 20px;">zoom_out</span>
+</button>
+<span class="text-label-sm font-label-sm text-text-primary px-1">100%</span>
+<button class="w-8 h-8 flex items-center justify-center rounded-full text-text-secondary hover:bg-surface-variant transition-colors" title="Zoom In">
+<span class="material-symbols-outlined" style="font-size: 20px;">zoom_in</span>
+</button>
+<div class="w-px h-4 bg-outline-variant mx-1"></div>
+<button class="w-8 h-8 flex items-center justify-center rounded-full text-text-secondary hover:bg-surface-variant transition-colors" title="Fullscreen">
+<span class="material-symbols-outlined" style="font-size: 20px;">fullscreen</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-full text-primary hover:bg-surface-container-high transition-colors" title="Print Preview">
+<span class="material-symbols-outlined" style="font-size: 20px;">print</span>
+</button>
+</div>
+<!-- Preview Area -->
+<div class="flex-1 overflow-y-auto preview-scroll flex justify-center pb-8 pt-4">
+<!-- A4 Document Mockup -->
+<div class="bg-white shadow-[0_4px_20px_rgba(0,0,0,0.08)] w-full max-w-[600px] aspect-[1/1.414] p-8 flex flex-col relative transform transition-transform origin-top">
+<!-- Header Accent line -->
+<div class="absolute top-0 left-0 w-full h-2 bg-inverse-primary"></div>
+<!-- Mock Resume Content -->
+<div class="flex justify-between items-end border-b-2 border-surface-variant pb-4 mb-6 mt-4">
+<div>
+<h1 class="font-section-title text-[28px] text-on-background leading-none mb-1">Alex Morgan</h1>
+<p class="text-inverse-primary font-label-md text-[14px]">Senior Product Designer</p>
+</div>
+<div class="text-right text-[11px] text-text-secondary flex flex-col gap-0.5">
+<span>hello@alexmorgan.design</span>
+<span>+1 (555) 123-4567</span>
+<span>San Francisco, CA</span>
+</div>
+</div>
+<div class="flex gap-6 h-full">
+<!-- Left Col -->
+<div class="w-2/3 flex flex-col gap-6">
+<div>
+<h3 class="text-inverse-primary text-[13px] font-bold uppercase tracking-wider mb-2">Experience</h3>
+<div class="mb-4">
+<div class="flex justify-between items-baseline mb-1">
+<h4 class="font-bold text-[14px] text-text-primary">Lead UI Designer</h4>
+<span class="text-[11px] text-text-secondary">2021 - Present</span>
+</div>
+<p class="text-[12px] italic text-text-secondary mb-1.5">TechFlow Inc.</p>
+<ul class="list-disc pl-4 text-[11px] text-on-surface-variant space-y-1">
+<li>Spearheaded the redesign of the core SaaS platform, increasing user engagement by 40%.</li>
+<li>Established and maintained the company-wide design system using Figma.</li>
+</ul>
+</div>
+<div>
+<div class="flex justify-between items-baseline mb-1">
+<h4 class="font-bold text-[14px] text-text-primary">Product Designer</h4>
+<span class="text-[11px] text-text-secondary">2018 - 2021</span>
+</div>
+<p class="text-[12px] italic text-text-secondary mb-1.5">Creative Solutions LLC</p>
+<ul class="list-disc pl-4 text-[11px] text-on-surface-variant space-y-1">
+<li>Designed mobile-first experiences for e-commerce clients.</li>
+<li>Conducted extensive user research and usability testing.</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- Right Col -->
+<div class="w-1/3 flex flex-col gap-6">
+<div>
+<h3 class="text-inverse-primary text-[13px] font-bold uppercase tracking-wider mb-2">Skills</h3>
+<div class="flex flex-wrap gap-1.5">
+<span class="bg-surface-container px-2 py-0.5 rounded text-[10px] text-text-primary">Figma</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-[10px] text-text-primary">UI/UX</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-[10px] text-text-primary">Prototyping</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-[10px] text-text-primary">Design Systems</span>
+</div>
+</div>
+<div>
+<h3 class="text-inverse-primary text-[13px] font-bold uppercase tracking-wider mb-2">Education</h3>
+<div>
+<h4 class="font-bold text-[12px] text-text-primary">BFA Interaction Design</h4>
+<p class="text-[11px] text-text-secondary">California College of the Arts</p>
+<p class="text-[10px] text-text-secondary">2014 - 2018</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

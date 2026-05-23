@@ -2,15 +2,21 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useAuthStore } from "../lib/store/auth";
 import { createSupabaseClient } from "../lib/supabase";
 
 export const TopNav = () => {
+  const pathname = usePathname();
   const { accessToken, user, clear, hydrate } = useAuthStore();
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  if (pathname?.startsWith("/dashboard") || pathname?.startsWith("/cv")) {
+    return null;
+  }
 
   const handleLogout = async () => {
     try {

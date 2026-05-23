@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BetterCV - Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed": "#001e2f",
+                        "on-tertiary": "#ffffff",
+                        "primary": "#006491",
+                        "surface-variant": "#d3e5f2",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#4a6878",
+                        "surface-tint": "#006491",
+                        "surface-container-highest": "#d3e5f2",
+                        "tertiary": "#5a5f62",
+                        "on-primary-container": "#003f5d",
+                        "surface-dim": "#caddea",
+                        "secondary-fixed-dim": "#abcbdd",
+                        "inverse-surface": "#22323d",
+                        "surface-container-low": "#e9f5ff",
+                        "on-tertiary-fixed-variant": "#42484a",
+                        "primary-fixed": "#c9e6ff",
+                        "on-primary": "#ffffff",
+                        "text-primary": "#1C2D37",
+                        "surface-bright": "#f5faff",
+                        "glass-border": "rgba(255, 255, 255, 0.4)",
+                        "tertiary-fixed-dim": "#c2c7ca",
+                        "on-secondary-fixed-variant": "#2c4b59",
+                        "tertiary-container": "#a1a6a9",
+                        "primary-fixed-dim": "#8aceff",
+                        "on-secondary-fixed": "#001f2b",
+                        "error-container": "#ffdad6",
+                        "background": "#f5faff",
+                        "primary-container": "#5dade2",
+                        "surface": "#f5faff",
+                        "surface-container-high": "#d8ebf8",
+                        "text-secondary": "#5A7383",
+                        "on-background": "#0c1d27",
+                        "outline": "#707880",
+                        "on-tertiary-fixed": "#171c1f",
+                        "tertiary-fixed": "#dee3e6",
+                        "secondary-container": "#c7e7fa",
+                        "on-surface-variant": "#40484f",
+                        "on-primary-fixed-variant": "#004b6f",
+                        "outline-variant": "#bfc7d0",
+                        "inverse-primary": "#8aceff",
+                        "on-tertiary-container": "#363c3e",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#0c1d27",
+                        "on-error": "#ffffff",
+                        "secondary": "#446272",
+                        "inverse-on-surface": "#e3f3ff",
+                        "glass-bg": "rgba(255, 255, 255, 0.4)",
+                        "surface-container": "#def0fe",
+                        "accent-glow": "rgba(93, 173, 226, 0.3)",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed": "#c7e7fa"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "grid-gutter": "24px",
+                        "container-margin": "24px",
+                        "card-padding": "32px",
+                        "section-gap": "64px"
+                    },
+                    "fontFamily": {
+                        "hero-title": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "section-title": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "hero-title-mobile": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "hero-title": ["60px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "section-title": ["36px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-md": ["14px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "label-sm": ["12px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "hero-title-mobile": ["40px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .radial-bg {
+            background: radial-gradient(circle at 20% 30%, rgba(93, 173, 226, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 70%, rgba(201, 230, 255, 0.4) 0%, transparent 50%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        .frosted-input {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            transition: all 0.2s ease-in-out;
+        }
+        .frosted-input:focus {
+            border-color: #006491;
+            box-shadow: 0 0 0 4px rgba(93, 173, 226, 0.3);
+            background: rgba(255, 255, 255, 0.9);
+        }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-text-primary min-h-screen flex font-body-md">
+<!-- Left Column: Marketing / Glassmorphism Aesthetic -->
+<div class="hidden lg:flex lg:w-1/2 flex-col justify-between p-section-gap relative overflow-hidden bg-gradient-to-br from-surface-bright to-surface-container-high radial-bg">
+<!-- Decorative subtle glowing orbs -->
+<div class="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary-fixed/30 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-secondary-container/40 rounded-full blur-3xl pointer-events-none"></div>
+<div class="relative z-10">
+<!-- Space for logo if needed on left side, but keeping it clean for the card -->
+</div>
+<div class="relative z-10 flex-grow flex items-center justify-center">
+<!-- Glassmorphism Card -->
+<div class="glass-card rounded-xl p-card-padding max-w-lg w-full flex flex-col gap-stack-md transform hover:-translate-y-1 transition-transform duration-300">
+<!-- ATS Score Badge -->
+<div class="self-start inline-flex items-center gap-stack-sm bg-white/60 rounded-full px-4 py-2 border border-white/50 shadow-sm backdrop-blur-md">
+<span class="material-symbols-outlined text-[#10b981] text-xl" data-weight="fill" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-md text-text-primary">ATS Score</span>
+<span class="font-label-md text-[#10b981] font-bold ml-2">95 / 100</span>
+</div>
+<!-- Testimonial -->
+<p class="font-body-lg text-text-primary mt-stack-md leading-relaxed">
+                    "BetterCV completely transformed my resume. The ATS scanner gave me the confidence to apply, and I got the job!"
+                </p>
+<!-- Citation -->
+<p class="font-label-md text-text-secondary mt-stack-sm flex items-center gap-2">
+<span class="w-8 h-[1px] bg-outline-variant inline-block"></span>
+                    Sarah Jenkins, Software Engineer at Tech Corp
+                </p>
+</div>
+</div>
+<!-- Footer Micro-copy -->
+<div class="relative z-10 mt-auto flex items-center gap-stack-sm">
+<div class="flex -space-x-3">
+<img alt="User avatar" class="w-10 h-10 rounded-full border-2 border-surface-container-lowest shadow-sm" data-alt="A small circular avatar placeholder image showing a generic user profile picture in a professional setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyjOEAgpMXR8Q6kfN1BbTySCLyL7buf4GL9Xg1inXnl-YhXlh4eifk8OpdsnLydzaPXwUw2biwk0rv3DBTIpCo6UhqYj-VXctm0f-Mfz3nfloO5lMBBAL_k7qmrOLHkQjM4m7xutQNKzZzq5zWgh5uCbWSTECEX37c55TvOetD50FpkZZcPf0_kvMd1PQ7ytHJ9oYiItdXz9T6fS1k2L-PEezB__aKQ8ElaWZ_cSXhQeV013J5FX6sy-NpdR_ODY9DD83WpbxAnGo"/>
+<img alt="User avatar" class="w-10 h-10 rounded-full border-2 border-surface-container-lowest shadow-sm" data-alt="A small circular avatar placeholder image showing a generic user profile picture in a professional setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTmanHL9vvWpglMex0yMETvtahSXe8T-iK4XzW0K_Efwf2Ceu6eCmFsAd1X6QjIr9pgzgJ30AnZnqmcWwy84b6pbPCWdH2DkEHuzmP3z7OHzkWRrTJ7h0FFc67qYxjjhdRzp51qkMTuUYjjCe8ZahbGaTvRJ97eEvlSvxlWulV1g3mdzURG96Vj40PIUiyLN69whCsNvZcRm6mY_uhB4HONJ6Wi3h3u8SwkRtlufpkSm_b6F0hBNBOZMICYUezjQkbwW0eUcC3Qzs"/>
+<img alt="User avatar" class="w-10 h-10 rounded-full border-2 border-surface-container-lowest shadow-sm" data-alt="A small circular avatar placeholder image showing a generic user profile picture in a professional setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_Ji1MpPzkpFGGRVKPnq_lf-Rgb_2w0wOjjS3-UdUTo6Rv-pyiVASSi__QM29t6RVDfpY7_tgzT7qpP4QoDHc0nvWCdVs3cizAM8IVtPgqYIG45RJX00YNS0Mn4W8TpkMb0pqdjeZlYaRWyzhPjJsBNgTVlMmWxVPTIY-8ni_p_4c1_cqzla0UOUF7GeIk6QQdU9_JIRAWTXS7ZuDzM1sYKiYryrNjP4y1a7onc6gbeDe_zPZOp0eAV2HQEfG1J0rFen1SIiVRBcw"/>
+</div>
+<p class="font-label-md text-text-secondary ml-2">Join 10,000+ professionals who landed jobs using BetterCV.</p>
+</div>
+</div>
+<!-- Right Column: Login Form -->
+<div class="w-full lg:w-1/2 flex flex-col justify-center items-center p-container-margin bg-surface-container-lowest relative z-20 shadow-[-20px_0_40px_-10px_rgba(0,0,0,0.05)]">
+<div class="w-full max-w-md flex flex-col gap-stack-md">
+<!-- Header -->
+<div class="text-center mb-stack-md">
+<img alt="BetterCV Logo" class="h-12 mx-auto mb-stack-md" src="https://lh3.googleusercontent.com/aida/ADBb0uglH1VuXjmoKo1pMNhRX5TnsQCLSP7T0ie2Piq7aQVpJbsAqxdyRMDee5Jy5GcbRAk-bt_3GKBp0Tv4Aqj38cci4eJtLoFiJjACsbSO7-iV5qjn3BkF3aodzm8NL2ToyzgfJY9WexJIRAkTv7JIe7E4bDgQqmRHMMLyjLtHbi7eh69aqmbh0H5Q-B0GTTgzQGOwP52QPYs-LPcvPyeh2uXPiMEiyU9inXy5oeGWThGWPlYOok6PY3A1eeo"/>
+<h1 class="font-section-title text-text-primary">Welcome back</h1>
+<p class="font-body-md text-text-secondary mt-stack-sm">Enter your credentials to access your account.</p>
+</div>
+<!-- Social Auth -->
+<div class="flex gap-stack-md w-full">
+<button class="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary font-label-md hover:bg-surface-variant transition-colors duration-200">
+<img alt="Google" class="w-5 h-5 grayscale opacity-80" data-alt="A small monochrome Google logo icon used for a social login button." src="https://lh3.googleusercontent.com/aida-public/AB6AXuByV7Iasv1uU8EuMA2VgSoTuTIl90U6NGn3y2vdSmNDjlIIWELnes0pNV063Ie2ylDN0hkEBmTUPjd3a0EIGQNJf76CQbgvp7RYMPBoce9BrEc7dBJNJ6szXAPUGEjFnYXPhpMkWWY7XpqpAtd1Lqno9MxpXVMDHj0B1cwtKQZo3PnO8Ev1eRblgaYOlHeHSMar-aJrKl2J1TJx7H8KVtAfZR0f9MtO-ZmK_f0cxaxdV4lLZ0Hm1Pdx1-asJu7jJoZaEQ6Cdh0s5FQ"/>
+                    Google
+                </button>
+<button class="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary font-label-md hover:bg-surface-variant transition-colors duration-200">
+<img alt="LinkedIn" class="w-5 h-5 grayscale opacity-80" data-alt="A small monochrome LinkedIn logo icon used for a social login button." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKAi3dV76BfWs5_WR92HZPe37YF_H48usM-Gepjcwk_b1TOeGU80i9gQlCYuVvZLNQJ1j3ziGiYfbdN2D0D_4p18-sqSlA4hKOy2qA_jsv-xy7TsCjRry8R2rD80kb4NccOyRuLBNunL5ueckZ2nXtoZajfbWHLadaX9fjKEGpTPOriIWhxaFkD70AFlyA6IyMMVZpdadMe-b5nqV2hyVIE5KQSHggmCjP6kqOSGWrkNLDtvT256euKn_kcEP90wBlY_AN7-xoXAg"/>
+                    LinkedIn
+                </button>
+</div>
+<div class="flex items-center gap-4 my-stack-sm">
+<div class="h-[1px] flex-1 bg-outline-variant"></div>
+<span class="font-label-sm text-text-secondary uppercase tracking-wider">or sign in with email</span>
+<div class="h-[1px] flex-1 bg-outline-variant"></div>
+</div>
+<!-- Form -->
+<form class="flex flex-col gap-stack-md w-full" onsubmit="event.preventDefault();">
+<!-- Email -->
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-text-secondary" for="email">Email</label>
+<input class="frosted-input w-full px-4 py-3 rounded-lg text-text-primary placeholder:text-text-secondary/50 focus:outline-none font-body-md" id="email" placeholder="you@example.com" type="email"/>
+</div>
+<!-- Password -->
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-text-secondary" for="password">Password</label>
+<div class="relative">
+<input class="frosted-input w-full px-4 py-3 rounded-lg text-text-primary placeholder:text-text-secondary/50 focus:outline-none font-body-md" id="password" placeholder="••••••••" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</div>
+<!-- Error Message -->
+<p class="font-label-sm text-error mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="error">error</span>
+                        Password must be at least 8 characters
+                    </p>
+</div>
+<!-- Options -->
+<div class="flex items-center justify-between mt-stack-sm">
+<label class="flex items-center gap-2 cursor-pointer group">
+<div class="relative flex items-center">
+<input class="peer h-4 w-4 rounded border-outline-variant bg-surface-container text-primary focus:ring-primary focus:ring-offset-surface-container-lowest transition-all" type="checkbox"/>
+</div>
+<span class="font-label-md text-text-secondary group-hover:text-text-primary transition-colors">Remember me</span>
+</label>
+<a class="font-label-md text-primary hover:text-on-primary-fixed-variant transition-colors hover:underline" href="#">Forgot Password?</a>
+</div>
+<!-- Submit -->
+<button class="w-full mt-stack-md py-3 px-6 rounded-full bg-primary text-on-primary font-label-md hover:shadow-[0_0_15px_rgba(93,173,226,0.4)] hover:-translate-y-0.5 transition-all duration-200" type="submit">
+                    Sign In
+                </button>
+</form>
+<!-- Toggle -->
+<p class="text-center font-body-md text-text-secondary mt-stack-md">
+                Don't have an account? 
+                <a class="text-primary font-bold hover:underline ml-1" href="#">Sign up</a>
+</p>
+</div>
+</div>
+</body></html>

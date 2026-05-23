@@ -1,7 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
   @apply bg-slate-50 text-slate-900;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-overlay {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.radial-bg {
+  background: radial-gradient(circle at top right, #c9e6ff 0%, #f5faff 40%, #f5faff 100%);
 }

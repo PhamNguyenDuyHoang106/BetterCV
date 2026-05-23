@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BetterCV - Resume Builder Workspace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed-dim": "#abcbdd",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "glass-bg": "rgba(255, 255, 255, 0.4)",
+                        "inverse-surface": "#22323d",
+                        "tertiary-fixed": "#dee3e6",
+                        "on-primary": "#ffffff",
+                        "outline": "#707880",
+                        "surface-container-low": "#e9f5ff",
+                        "surface": "#f5faff",
+                        "on-primary-fixed-variant": "#004b6f",
+                        "surface-container-high": "#d8ebf8",
+                        "on-tertiary-fixed": "#171c1f",
+                        "surface-variant": "#d3e5f2",
+                        "on-error-container": "#93000a",
+                        "primary": "#006491",
+                        "tertiary-container": "#a1a6a9",
+                        "surface-tint": "#006491",
+                        "tertiary-fixed-dim": "#c2c7ca",
+                        "outline-variant": "#bfc7d0",
+                        "on-surface": "#0c1d27",
+                        "accent-glow": "rgba(93, 173, 226, 0.3)",
+                        "surface-container": "#def0fe",
+                        "error-container": "#ffdad6",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#f5faff",
+                        "on-primary-fixed": "#001e2f",
+                        "inverse-on-surface": "#e3f3ff",
+                        "on-secondary": "#ffffff",
+                        "text-secondary": "#5A7383",
+                        "on-tertiary-fixed-variant": "#42484a",
+                        "inverse-primary": "#8aceff",
+                        "on-error": "#ffffff",
+                        "text-primary": "#1C2D37",
+                        "on-background": "#0c1d27",
+                        "on-tertiary-container": "#363c3e",
+                        "glass-border": "rgba(255, 255, 255, 0.4)",
+                        "on-secondary-fixed-variant": "#2c4b59",
+                        "on-secondary-fixed": "#001f2b",
+                        "secondary": "#446272",
+                        "on-primary-container": "#003f5d",
+                        "primary-container": "#5dade2",
+                        "surface-dim": "#caddea",
+                        "on-secondary-container": "#4a6878",
+                        "secondary-fixed": "#c7e7fa",
+                        "tertiary": "#5a5f62",
+                        "primary-fixed-dim": "#8aceff",
+                        "background": "#f5faff",
+                        "primary-fixed": "#c9e6ff",
+                        "surface-container-highest": "#d3e5f2",
+                        "secondary-container": "#c7e7fa",
+                        "on-surface-variant": "#40484f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "section-gap": "64px",
+                        "container-margin": "24px",
+                        "stack-md": "16px",
+                        "card-padding": "32px",
+                        "grid-gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "section-title": ["Inter"],
+                        "hero-title-mobile": ["Inter"],
+                        "hero-title": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "label-sm": ["12px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "section-title": ["36px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "hero-title-mobile": ["40px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "hero-title": ["60px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #F5FAFD; /* Ice-cool white */
+            background-image: radial-gradient(circle at 10% 20%, rgba(93, 173, 226, 0.05) 0%, transparent 40%),
+                              radial-gradient(circle at 90% 80%, rgba(93, 173, 226, 0.08) 0%, transparent 50%);
+            background-attachment: fixed;
+            color: #1C2D37; /* text-primary */
+        }
+        
+        .glass-panel {
+            background-color: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 6px -1px rgba(93, 173, 226, 0.1), 0 2px 4px -1px rgba(93, 173, 226, 0.06);
+        }
+
+        .glass-panel-heavy {
+            background-color: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 15px -3px rgba(93, 173, 226, 0.1), 0 4px 6px -2px rgba(93, 173, 226, 0.05);
+        }
+
+        .primary-glow-hover:hover {
+            box-shadow: 0 0 15px rgba(93, 173, 226, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* Hide scrollbar for clean UI */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(90, 115, 131, 0.2);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(90, 115, 131, 0.4);
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md h-screen overflow-hidden flex flex-col">
+<!-- Sticky Top Workspace Header -->
+<header class="glass-panel-heavy fixed top-0 w-full h-16 z-50 flex items-center justify-between px-container-margin">
+<div class="flex items-center gap-stack-md">
+<button class="text-secondary hover:text-primary transition-colors flex items-center justify-center p-2 rounded-full hover:bg-white/50">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex items-center gap-stack-sm">
+<input aria-label="Resume Title" class="bg-transparent border-none focus:ring-0 text-body-lg font-body-lg text-primary p-0 w-64 hover:bg-white/30 rounded px-2 transition-colors cursor-text" type="text" value="Software Engineer CV"/>
+<span class="material-symbols-outlined text-text-secondary text-sm">edit</span>
+</div>
+<div class="flex items-center gap-2 ml-4">
+<span class="material-symbols-outlined text-[#34A853] text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-sm font-label-sm text-text-secondary">Autosaved 1m ago</span>
+</div>
+</div>
+<div class="flex items-center gap-stack-md">
+<button class="bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary-container px-6 py-2 rounded-full font-label-md text-label-md hover:bg-white/50 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">visibility</span>
+                Preview PDF
+            </button>
+<button class="bg-[#5DADE2] text-on-primary px-6 py-2 rounded-full font-label-md text-label-md primary-glow-hover transition-all flex items-center gap-2">
+                Export &amp; Download
+                <span class="material-symbols-outlined text-sm">download</span>
+</button>
+</div>
+</header>
+<!-- Main Workspace Area -->
+<main class="flex-1 mt-16 p-container-margin h-[calc(100vh-64px)] grid grid-cols-12 gap-grid-gutter overflow-hidden">
+<!-- Column 1 (20% ~ 2.4 cols, rounding to 3 for grid): Resume Sections -->
+<aside class="col-span-3 h-full flex flex-col gap-stack-md overflow-hidden">
+<div class="glass-panel rounded-xl h-full flex flex-col p-stack-md relative">
+<h2 class="text-label-md font-label-md text-primary mb-stack-md flex items-center gap-2">
+<span class="material-symbols-outlined">list_alt</span> Resume Sections
+                </h2>
+<div class="flex-1 overflow-y-auto pr-2 space-y-2">
+<!-- Section Items -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/50 transition-colors cursor-move group">
+<span class="material-symbols-outlined text-text-secondary opacity-50 group-hover:opacity-100 cursor-grab text-sm">drag_indicator</span>
+<span class="material-symbols-outlined text-[#34A853] text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-md font-label-md text-text-secondary flex-1">Contact Info</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg bg-white/60 border-l-4 border-primary-container shadow-sm cursor-move group">
+<span class="material-symbols-outlined text-text-secondary opacity-50 group-hover:opacity-100 cursor-grab text-sm">drag_indicator</span>
+<span class="material-symbols-outlined text-primary text-sm">edit_document</span>
+<span class="text-label-md font-label-md text-primary font-bold flex-1">Professional Summary</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/50 transition-colors cursor-move group">
+<span class="material-symbols-outlined text-text-secondary opacity-50 group-hover:opacity-100 cursor-grab text-sm">drag_indicator</span>
+<span class="material-symbols-outlined text-[#34A853] text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-md font-label-md text-text-secondary flex-1">Work Experience</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/50 transition-colors cursor-move group">
+<span class="material-symbols-outlined text-text-secondary opacity-50 group-hover:opacity-100 cursor-grab text-sm">drag_indicator</span>
+<span class="material-symbols-outlined text-[#34A853] text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-md font-label-md text-text-secondary flex-1">Education</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/50 transition-colors cursor-move group">
+<span class="material-symbols-outlined text-text-secondary opacity-50 group-hover:opacity-100 cursor-grab text-sm">drag_indicator</span>
+<span class="material-symbols-outlined text-text-secondary text-sm">radio_button_unchecked</span>
+<span class="text-label-md font-label-md text-text-secondary flex-1">Skills &amp; Expertise</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/50 transition-colors cursor-move group">
+<span class="material-symbols-outlined text-text-secondary opacity-50 group-hover:opacity-100 cursor-grab text-sm">drag_indicator</span>
+<span class="material-symbols-outlined text-text-secondary text-sm">radio_button_unchecked</span>
+<span class="text-label-md font-label-md text-text-secondary flex-1">Projects</span>
+</div>
+</div>
+<div class="mt-stack-md pt-stack-md border-t border-glass-border">
+<button class="w-full bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary-container py-3 rounded-lg font-label-md text-label-md hover:bg-white/60 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span>
+                        Add Custom Section
+                    </button>
+</div>
+</div>
+</aside>
+<!-- Column 2 (50% ~ 6 cols): Live Resume Editor -->
+<section class="col-span-6 h-full flex flex-col gap-stack-md overflow-y-auto pr-2 pb-24">
+<!-- Editor Card -->
+<div class="glass-panel rounded-xl p-card-padding flex flex-col gap-stack-md">
+<div class="flex justify-between items-center">
+<h3 class="text-body-lg font-body-lg text-primary font-semibold flex items-center gap-2">
+                        Professional Summary
+                        <span class="material-symbols-outlined text-text-secondary hover:text-primary cursor-pointer text-sm">edit</span>
+</h3>
+<span class="text-label-sm font-label-sm text-text-secondary bg-white/50 px-3 py-1 rounded-full">Editing</span>
+</div>
+<div class="relative group">
+<textarea class="w-full h-48 bg-white/30 border border-white/40 rounded-lg p-4 text-body-md font-body-md text-primary focus:outline-none focus:border-primary-container focus:ring-4 focus:ring-accent-glow transition-all resize-none shadow-inner" placeholder="Write your professional summary here...">Results-driven Software Engineer with 5+ years of experience designing scalable web applications. Expert in React, Node.js, and cloud systems...</textarea>
+<div class="absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="bg-white/80 p-2 rounded-full shadow hover:bg-white text-text-secondary hover:text-primary transition-colors" title="Format Bold">
+<span class="material-symbols-outlined text-sm">format_bold</span>
+</button>
+<button class="bg-white/80 p-2 rounded-full shadow hover:bg-white text-text-secondary hover:text-primary transition-colors" title="Format Italic">
+<span class="material-symbols-outlined text-sm">format_italic</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Mini Preview Panel -->
+<div class="mt-stack-md">
+<h4 class="text-label-md font-label-md text-text-secondary mb-stack-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">preview</span> Live Preview Segment
+                </h4>
+<div class="glass-panel rounded-xl p-6 bg-white/80 shadow-md transform transition-all hover:-translate-y-1">
+<!-- Mock PDF Content -->
+<div class="border-b-2 border-primary-container/30 pb-2 mb-4">
+<h2 class="text-lg font-bold text-[#1a1a1a] tracking-wide uppercase">Professional Summary</h2>
+</div>
+<p class="text-sm leading-relaxed text-[#333333] font-serif">
+                        Results-driven Software Engineer with 5+ years of experience designing scalable web applications. Expert in React, Node.js, and cloud systems...
+                    </p>
+</div>
+</div>
+</section>
+<!-- Column 3 (30% ~ 3 cols): AI Assistant Panel -->
+<aside class="col-span-3 h-full flex flex-col gap-stack-md overflow-hidden">
+<!-- ATS Score Tracker -->
+<div class="glass-panel rounded-xl p-stack-md flex flex-col gap-stack-sm">
+<h3 class="text-label-md font-label-md text-primary flex items-center gap-2">
+<span class="material-symbols-outlined">analytics</span> ATS Score Tracker
+                </h3>
+<div class="flex items-center gap-4 mt-2">
+<!-- Circular Progress Mock -->
+<div class="relative w-16 h-16 flex items-center justify-center bg-white/50 rounded-full border-4 border-[#34A853]/20">
+<div class="absolute inset-0 rounded-full border-4 border-[#34A853] border-t-transparent border-l-transparent transform rotate-45"></div>
+<span class="text-label-md font-bold text-primary">88</span>
+</div>
+<div>
+<p class="text-label-sm font-label-sm text-[#34A853] font-semibold">Good Match</p>
+<p class="text-[10px] text-text-secondary">Target: Software Engineer</p>
+</div>
+</div>
+<div class="mt-4">
+<p class="text-label-sm font-label-sm text-text-secondary mb-2">Missing Keywords:</p>
+<div class="flex flex-wrap gap-2">
+<span class="bg-[#ffdad6]/50 border border-[#ba1a1a]/20 text-[#ba1a1a] px-2 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">add</span> AWS
+                        </span>
+<span class="bg-[#ffdad6]/50 border border-[#ba1a1a]/20 text-[#ba1a1a] px-2 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">add</span> Docker
+                        </span>
+<span class="bg-[#ffdad6]/50 border border-[#ba1a1a]/20 text-[#ba1a1a] px-2 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">add</span> GraphQL
+                        </span>
+</div>
+</div>
+</div>
+<!-- AI Copilot -->
+<div class="glass-panel rounded-xl p-stack-md flex-1 flex flex-col gap-stack-md overflow-hidden border-t-4 border-primary-container">
+<h3 class="text-label-md font-label-md text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">auto_awesome</span> AI Copilot
+                </h3>
+<div class="bg-white/40 rounded-lg p-3 text-sm">
+<h4 class="font-semibold text-primary mb-2">Improve your Summary:</h4>
+<ul class="list-disc pl-5 text-text-secondary space-y-1 text-label-sm">
+<li>Quantify your "scalable web applications" impact.</li>
+<li>Incorporate missing keywords (AWS, Docker).</li>
+</ul>
+</div>
+<!-- Streaming Box -->
+<div class="mt-auto bg-surface-container-low/80 border border-primary-container/30 rounded-lg p-3 relative overflow-hidden flex flex-col gap-3">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-container to-transparent opacity-50 animate-pulse"></div>
+<p class="text-label-sm text-primary italic">
+                        "High-performing Software Engineer with 5+ years building scalable web apps. Expert in React, Node.js, and deploying via <span class="bg-[#d8ebf8] font-semibold px-1 rounded">AWS</span> and <span class="bg-[#d8ebf8] font-semibold px-1 rounded">Docker</span>..."
+                    </p>
+<button class="w-full bg-primary-container/20 hover:bg-primary-container/40 text-primary-container font-label-md text-label-sm py-2 rounded transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">swap_horiz</span>
+                        Replace Original
+                    </button>
+</div>
+</div>
+</aside>
+</main>
+<!-- Floating Toast -->
+<div class="fixed bottom-container-margin left-container-margin glass-panel-heavy rounded-lg px-4 py-3 flex items-center gap-3 shadow-lg z-50 animate-[slideUp_0.3s_ease-out]">
+<span class="material-symbols-outlined text-[#34A853]" style="font-variation-settings: 'FILL' 1;">cloud_done</span>
+<span class="text-label-md font-label-md text-primary">Draft autosaved successfully at 12:24 PM</span>
+<button class="ml-4 text-text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">close</span>
+</button>
+</div>
+<style>
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</body></html>

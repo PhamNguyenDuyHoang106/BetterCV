@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BetterCV - Import Resume</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed": "#c9e6ff",
+                      "on-secondary": "#ffffff",
+                      "accent-glow": "rgba(93, 173, 226, 0.3)",
+                      "secondary": "#446272",
+                      "surface-container-low": "#e9f5ff",
+                      "surface-container-lowest": "#ffffff",
+                      "text-secondary": "#5A7383",
+                      "on-error-container": "#93000a",
+                      "surface-variant": "#d3e5f2",
+                      "inverse-on-surface": "#e3f3ff",
+                      "secondary-container": "#c7e7fa",
+                      "tertiary": "#5a5f62",
+                      "secondary-fixed": "#c7e7fa",
+                      "surface-container-highest": "#d3e5f2",
+                      "primary": "#006491",
+                      "text-primary": "#1C2D37",
+                      "surface-container": "#def0fe",
+                      "surface-tint": "#006491",
+                      "on-secondary-fixed-variant": "#2c4b59",
+                      "surface-bright": "#f5faff",
+                      "on-tertiary-fixed": "#171c1f",
+                      "surface-container-high": "#d8ebf8",
+                      "on-primary": "#ffffff",
+                      "inverse-primary": "#8aceff",
+                      "on-primary-container": "#003f5d",
+                      "on-surface": "#0c1d27",
+                      "primary-fixed-dim": "#8aceff",
+                      "error-container": "#ffdad6",
+                      "inverse-surface": "#22323d",
+                      "background": "#f5faff",
+                      "tertiary-fixed-dim": "#c2c7ca",
+                      "surface": "#f5faff",
+                      "tertiary-fixed": "#dee3e6",
+                      "on-surface-variant": "#40484f",
+                      "on-secondary-container": "#4a6878",
+                      "secondary-fixed-dim": "#abcbdd",
+                      "on-secondary-fixed": "#001f2b",
+                      "glass-bg": "rgba(255, 255, 255, 0.4)",
+                      "on-background": "#0c1d27",
+                      "glass-border": "rgba(255, 255, 255, 0.4)",
+                      "on-tertiary-container": "#363c3e",
+                      "outline-variant": "#bfc7d0",
+                      "primary-container": "#5dade2",
+                      "surface-dim": "#caddea",
+                      "on-tertiary-fixed-variant": "#42484a",
+                      "on-primary-fixed": "#001e2f",
+                      "tertiary-container": "#a1a6a9",
+                      "error": "#ba1a1a",
+                      "on-primary-fixed-variant": "#004b6f",
+                      "outline": "#707880",
+                      "on-tertiary": "#ffffff",
+                      "on-error": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-md": "16px",
+                      "grid-gutter": "24px",
+                      "section-gap": "64px",
+                      "card-padding": "32px",
+                      "container-margin": "24px",
+                      "stack-sm": "8px"
+              },
+              "fontFamily": {
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "hero-title": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "section-title": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "hero-title-mobile": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "hero-title": [
+                              "60px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "section-title": [
+                              "36px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "hero-title-mobile": [
+                              "40px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        body {
+            background-color: #f5faff;
+            background-image: radial-gradient(circle at top right, rgba(201, 230, 255, 0.4), transparent 40%),
+                              radial-gradient(circle at bottom left, rgba(201, 230, 255, 0.4), transparent 40%);
+            background-attachment: fixed;
+        }
+        .primary-glow {
+            box-shadow: 0 0 15px rgba(93, 173, 226, 0.4);
+        }
+        .progress-bar-glow {
+            box-shadow: 0 0 10px rgba(93, 173, 226, 0.6);
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 100, 145, 0.1);
+        }
+    </style>
+</head>
+<body class="font-body-md text-text-primary antialiased min-h-screen flex">
+<!-- SideNavBar (Desktop) -->
+<nav aria-label="Sidebar Navigation" class="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-64 bg-white/40 dark:bg-white/5 backdrop-blur-xl border-r border-white/30 shadow-md py-stack-md z-40">
+<div class="px-container-margin mb-8">
+<h1 class="font-section-title text-section-title font-bold text-primary">BetterCV</h1>
+<p class="font-label-sm text-label-sm text-text-secondary mt-1">AI Resume Suite</p>
+</div>
+<div class="flex-1 overflow-y-auto">
+<ul class="space-y-2">
+<li>
+<a class="flex items-center px-4 py-3 text-text-secondary hover:text-primary mx-2 rounded-xl hover:translate-x-1 transition-all duration-300" href="#">
+<span aria-hidden="true" class="material-symbols-outlined mr-3">dashboard</span>
+<span class="font-label-md text-label-md">Overview</span>
+</a>
+</li>
+<li>
+<a aria-current="page" class="flex items-center px-4 py-3 bg-primary-container text-on-primary-container rounded-xl mx-2 hover:translate-x-1 transition-all duration-300" href="#">
+<span aria-hidden="true" class="material-symbols-outlined mr-3">upload_file</span>
+<span class="font-label-md text-label-md font-bold">Importer</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-4 py-3 text-text-secondary hover:text-primary mx-2 rounded-xl hover:translate-x-1 transition-all duration-300" href="#">
+<span aria-hidden="true" class="material-symbols-outlined mr-3">edit_note</span>
+<span class="font-label-md text-label-md">Editor</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-4 py-3 text-text-secondary hover:text-primary mx-2 rounded-xl hover:translate-x-1 transition-all duration-300" href="#">
+<span aria-hidden="true" class="material-symbols-outlined mr-3">history</span>
+<span class="font-label-md text-label-md">History</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-4 py-3 text-text-secondary hover:text-primary mx-2 rounded-xl hover:translate-x-1 transition-all duration-300" href="#">
+<span aria-hidden="true" class="material-symbols-outlined mr-3">help_outline</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+</li>
+</ul>
+</div>
+<div class="px-container-margin mt-auto pt-6 border-t border-white/30">
+<button class="w-full bg-primary text-on-primary font-label-md text-label-md rounded-xl py-3 mb-4 hover:primary-glow transition-all">
+                Upgrade to Pro
+            </button>
+<a class="flex items-center text-text-secondary hover:text-primary transition-colors duration-200" href="#">
+<span aria-hidden="true" class="material-symbols-outlined mr-2">logout</span>
+<span class="font-label-sm text-label-sm">Logout</span>
+</a>
+</div>
+</nav>
+<!-- TopNavBar (Mobile) -->
+<header class="lg:hidden fixed top-0 w-full z-50 flex justify-between items-center px-grid-gutter h-16 bg-white/40 dark:bg-white/10 backdrop-blur-md border-b border-white/30 shadow-sm">
+<h1 class="font-hero-title-mobile text-hero-title-mobile font-bold text-primary dark:text-inverse-primary">BetterCV</h1>
+<div class="flex items-center space-x-4">
+<button aria-label="Notifications" class="text-text-secondary hover:bg-primary-container/20 transition-colors duration-200 p-2 rounded-full">
+<span aria-hidden="true" class="material-symbols-outlined">notifications</span>
+</button>
+<button aria-label="Settings" class="text-text-secondary hover:bg-primary-container/20 transition-colors duration-200 p-2 rounded-full">
+<span aria-hidden="true" class="material-symbols-outlined">settings</span>
+</button>
+<button aria-label="New Resume" class="bg-primary text-on-primary font-label-sm text-label-sm px-4 py-2 rounded-xl">
+                New Resume
+            </button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 lg:ml-64 pt-20 lg:pt-0 min-h-screen flex flex-col p-container-margin md:p-card-padding lg:p-[48px]">
+<div class="max-w-7xl mx-auto w-full">
+<!-- Header Section -->
+<div class="text-center mb-section-gap pt-8 lg:pt-12">
+<h2 class="font-section-title text-section-title font-bold text-text-primary mb-4">Import Your Existing CV</h2>
+<p class="font-body-md text-body-md text-text-secondary max-w-2xl mx-auto">Upload your old resume. Our AI will extract all text, optimize it for ATS, and format it instantly.</p>
+</div>
+<!-- 50/50 Split Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-grid-gutter lg:gap-12 items-start">
+<!-- Left Column: AI Parsing Simulator -->
+<div class="bg-white/40 backdrop-blur-md border border-white/30 rounded-[24px] p-card-padding shadow-sm relative overflow-hidden flex flex-col">
+<div class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+<div class="flex items-center space-x-4 mb-8">
+<div class="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center text-error">
+<span aria-hidden="true" class="material-symbols-outlined text-[28px]">picture_as_pdf</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md font-bold text-text-primary">Alex_Mercer_CV_2024.pdf</h3>
+<p class="font-label-sm text-label-sm text-text-secondary">(2.4 MB)</p>
+</div>
+</div>
+<div class="mb-6">
+<div class="flex justify-between items-end mb-2">
+<span class="font-label-sm text-label-sm text-primary font-semibold">Parsing &amp; Optimizing...</span>
+<span class="font-label-sm text-label-sm text-primary font-bold">65%</span>
+</div>
+<div class="w-full h-2 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full progress-bar-glow w-[65%] transition-all duration-1000 ease-in-out relative">
+<div class="absolute inset-0 bg-white/20 animate-pulse"></div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-low/50 border border-white/40 rounded-xl p-4 font-mono text-[13px] leading-relaxed text-secondary h-[200px] overflow-y-auto shadow-inner">
+<div class="space-y-3">
+<p class="flex items-start text-primary">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] mr-2 mt-0.5">check_circle</span>
+                                Contact Information extracted successfully.
+                            </p>
+<p class="flex items-start text-primary">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] mr-2 mt-0.5">check_circle</span>
+                                5 Work Experience entries found.
+                            </p>
+<p class="flex items-start text-on-primary-container animate-pulse">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] mr-2 mt-0.5">bolt</span>
+                                Rewriting summary section using AI professional tone...
+                            </p>
+<p class="flex items-start text-text-secondary">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] mr-2 mt-0.5 animate-spin">sync</span>
+                                Scanning for ATS keywords...
+                            </p>
+</div>
+</div>
+<div class="mt-8 text-center">
+<button class="bg-transparent border border-outline-variant text-text-secondary hover:text-error hover:border-error hover:bg-error/5 font-label-md text-label-md rounded-full px-6 py-2.5 transition-colors duration-200">
+                            Cancel Upload
+                        </button>
+</div>
+</div>
+<!-- Right Column: Benefits -->
+<div class="flex flex-col h-full justify-between">
+<div class="space-y-6">
+<!-- Benefit 1 -->
+<div class="bg-white/40 backdrop-blur-sm border border-white/30 rounded-xl p-6 shadow-sm card-hover transition-all duration-300">
+<div class="flex items-start">
+<div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center text-primary shrink-0 mr-4">
+<span aria-hidden="true" class="material-symbols-outlined">document_scanner</span>
+</div>
+<div>
+<h4 class="font-body-lg text-body-lg font-semibold text-text-primary mb-2">AI Resume Parsing</h4>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed">No more manual copy-pasting. Our advanced parser translates raw PDFs or Word files into clean, editable fields in seconds.</p>
+</div>
+</div>
+</div>
+<!-- Benefit 2 -->
+<div class="bg-white/40 backdrop-blur-sm border border-white/30 rounded-xl p-6 shadow-sm card-hover transition-all duration-300">
+<div class="flex items-start">
+<div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center text-primary shrink-0 mr-4">
+<span aria-hidden="true" class="material-symbols-outlined">find_in_page</span>
+</div>
+<div>
+<h4 class="font-body-lg text-body-lg font-semibold text-text-primary mb-2">ATS Keyword Scan</h4>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed">Instantly matches your old content against industry-standard keywords to boost your initial search visibility.</p>
+</div>
+</div>
+</div>
+<!-- Benefit 3 -->
+<div class="bg-white/40 backdrop-blur-sm border border-white/30 rounded-xl p-6 shadow-sm card-hover transition-all duration-300">
+<div class="flex items-start">
+<div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center text-primary shrink-0 mr-4">
+<span aria-hidden="true" class="material-symbols-outlined">auto_awesome</span>
+</div>
+<div>
+<h4 class="font-body-lg text-body-lg font-semibold text-text-primary mb-2">Automatic Formatting</h4>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed">Your raw text is instantly mapped into one of our recruiter-approved templates, beautifully polished.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-8 md:mt-12 flex justify-center lg:justify-start">
+<button class="bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary font-label-md text-label-md rounded-full px-8 py-3 hover:bg-[rgba(185,217,235,0.3)] transition-colors duration-200">
+                            Start from Scratch instead
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Fallback for destination screens, hidden here as importer is a focused flow) -->
+<!-- Suppressed based on "The UX Goal: If the user is in a focused journey... hide the shell" -->
+</body></html>
