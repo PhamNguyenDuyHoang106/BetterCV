@@ -7,6 +7,10 @@ import { useForm } from "react-hook-form";
 import { apiFetch } from "../../lib/api";
 import { useAuthStore } from "../../lib/store/auth";
 import { createSupabaseClient } from "../../lib/supabase";
+import { DashboardSidebar, type DashboardTab } from "../../components/dashboard/DashboardSidebar";
+import { TemplateGallery } from "../../components/dashboard/TemplateGallery";
+import { CreateCvModal } from "../../components/dashboard/CreateCvModal";
+import { FALLBACK_TEMPLATES } from "../../lib/dashboard-templates";
 
 type Template = {
   id: string;
@@ -53,10 +57,9 @@ export default function DashboardPage() {
 
   // Layout states
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "resumes" | "templates" | "upgrade" | "settings" | "profile">("dashboard");
-
-  // Template filter state
-  const [selectedTemplateCategory, setSelectedTemplateCategory] = useState("All");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
 
   const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CreateForm>({
     defaultValues: { locale: "vi" }
@@ -75,12 +78,28 @@ export default function DashboardPage() {
     }
   }, [user, setValueProfile]);
 
+  const loadTemplates = useCallback(() => {
+    setTemplatesLoading(true);
+    setTemplatesError(null);
+    apiFetch<Template[]>("/templates")
+      .then((data) => {
+        const list = data?.length ? data : FALLBACK_TEMPLATES;
+        setTemplates(list);
+        if (!data?.length) {
+          setTemplatesError("Chưa có mẫu trong DB — đã hiển thị mẫu mặc định. Chạy: npm run db:seed");
+        }
+      })
+      .catch(() => {
+        setTemplates(FALLBACK_TEMPLATES);
+        setTemplatesError("API chưa chạy — hiển thị mẫu offline. Khởi động: npm run dev:api");
+      })
+      .finally(() => setTemplatesLoading(false));
+  }, []);
+
   // Fetch templates
   useEffect(() => {
-    apiFetch<Template[]>("/templates")
-      .then(setTemplates)
-      .catch(() => setTemplates([]));
-  }, []);
+    loadTemplates();
+  }, [loadTemplates]);
 
   // Fetch CVs when user logged in
   const fetchCvs = useCallback(() => {
@@ -150,11 +169,61 @@ export default function DashboardPage() {
     }
   };
 
-  // Trigger Creation modal from Template card
   const handleUseTemplate = (templateId: string) => {
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsCreateModalOpen(true);
+  };
+
+  const handleQuickCreateFromTemplate = async (templateId: string, templateName: string) => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const cv = await apiFetch<Cv>("/cvs", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `CV — ${templateName}`,
+          locale: "vi",
+          templateId,
+        }),
+      });
+      setCvs((prev) => [cv, ...prev]);
+      router.push(`/cv/${cv.id}`);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Không thể tạo CV từ mẫu");
+      handleUseTemplate(templateId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedTemplateName = templates.find((t) => t.id === selectedTemplateId)?.name;
+
+  const tabMeta: Record<DashboardTab, { title: string; subtitle: string }> = {
+    dashboard: {
+      title: "Tổng quan",
+      subtitle: `Chào ${user?.fullName?.split(" ")[0] || "bạn"}! Bắt đầu tạo hoặc hoàn thiện CV ngay hôm nay.`,
+    },
+    resumes: {
+      title: "CV của tôi",
+      subtitle: "Quản lý, chỉnh sửa và sao chép các bản CV đã tạo.",
+    },
+    templates: {
+      title: "Mẫu CV",
+      subtitle: "Chọn mẫu chuẩn ATS — nhấn Dùng ngay để tạo CV và chỉnh sửa luôn.",
+    },
+    upgrade: {
+      title: "Nâng cấp gói",
+      subtitle: "Mở khóa AI rewrite, mẫu Premium và xuất file không giới hạn.",
+    },
+    settings: {
+      title: "Cài đặt",
+      subtitle: "Tùy chỉnh ngôn ngữ và thông báo workspace.",
+    },
+    profile: {
+      title: "Hồ sơ cá nhân",
+      subtitle: "Cập nhật họ tên và quản lý phiên đăng nhập.",
+    },
   };
 
   // Handle Delete CV
@@ -280,7 +349,7 @@ export default function DashboardPage() {
   const activeDrafts = cvs.length;
 
   return (
-    <div className="bg-background text-on-surface font-body-md text-body-md radial-bg min-h-screen flex selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">
+    <div className="bg-background text-on-surface font-body-md radial-bg min-h-screen flex selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">
       {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 bg-white/20 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -288,158 +357,22 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Ambient Background Effects */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
-        <div className="absolute top-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-primary-fixed-dim/20 blur-[120px]"></div>
-        <div className="absolute bottom-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-secondary-container/30 blur-[100px]"></div>
+        <div className="absolute top-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-primary-fixed-dim/20 blur-[120px]" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-secondary-container/30 blur-[100px]" />
       </div>
 
-      {/* ChatGPT-style Collapsible SideNavBar */}
-      <nav
-        className={`fixed md:sticky left-0 top-0 h-screen z-40 bg-glass-bg backdrop-blur-md border-r border-glass-border shadow-sm py-8 px-5 flex flex-col gap-4 transition-all duration-300 transform ${
-          isSidebarOpen ? "w-80 translate-x-0" : "w-0 -translate-x-full p-0 overflow-hidden border-r-0"
-        }`}
-      >
-        <div className="flex items-center justify-between mb-8 mt-2">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-lg shadow-sm">
-              BC
-            </div>
-            <div>
-              <h1 className="font-section-title font-bold text-primary tracking-tight text-lg">BetterCV</h1>
-              <p className="font-label-sm text-[10px] text-text-secondary">Professional Plan</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-text-secondary hover:text-text-primary transition-colors"
-            title="Collapse Sidebar"
-          >
-            <span className="material-symbols-outlined text-xl">menu_open</span>
-          </button>
-        </div>
-        
-        {/* Navigation buttons: Dashboard, My Resume, Template, Nâng cấp gói, Cài đặt */}
-        <ul className="flex flex-col gap-2 flex-grow">
-          {/* Dashboard Tab */}
-          <li>
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                activeTab === "dashboard"
-                  ? "bg-primary-container/20 text-primary font-bold shadow-sm"
-                  : "text-text-secondary hover:text-primary hover:bg-white/20"
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: activeTab === "dashboard" ? "'FILL' 1" : "" }}>dashboard</span>
-              Dashboard
-            </button>
-          </li>
+      <DashboardSidebar
+        isOpen={isSidebarOpen}
+        activeTab={activeTab}
+        userName={user?.fullName}
+        userRole={user?.role}
+        onTabChange={setActiveTab}
+        onClose={() => setIsSidebarOpen(false)}
+        onUpgrade={() => setActiveTab("upgrade")}
+        onProfile={() => setActiveTab("profile")}
+      />
 
-          {/* My Resume Tab */}
-          <li>
-            <button
-              onClick={() => setActiveTab("resumes")}
-              className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                activeTab === "resumes"
-                  ? "bg-primary-container/20 text-primary font-bold shadow-sm"
-                  : "text-text-secondary hover:text-primary hover:bg-white/20"
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: activeTab === "resumes" ? "'FILL' 1" : "" }}>description</span>
-              My Resume
-            </button>
-          </li>
-          
-          {/* Template Tab */}
-          <li>
-            <button
-              onClick={() => setActiveTab("templates")}
-              className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                activeTab === "templates"
-                  ? "bg-primary-container/20 text-primary font-bold shadow-sm"
-                  : "text-text-secondary hover:text-primary hover:bg-white/20"
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: activeTab === "templates" ? "'FILL' 1" : "" }}>dashboard_customize</span>
-              Template
-            </button>
-          </li>
-
-          {/* Nâng cấp gói Tab */}
-          <li>
-            <button
-              onClick={() => setActiveTab("upgrade")}
-              className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                activeTab === "upgrade"
-                  ? "bg-primary-container/20 text-primary font-bold shadow-sm"
-                  : "text-text-secondary hover:text-primary hover:bg-white/20"
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: activeTab === "upgrade" ? "'FILL' 1" : "" }}>star</span>
-              Nâng cấp gói
-            </button>
-          </li>
-
-          {/* Cài đặt Tab */}
-          <li>
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                activeTab === "settings"
-                  ? "bg-primary-container/20 text-primary font-bold shadow-sm"
-                  : "text-text-secondary hover:text-primary hover:bg-white/20"
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: activeTab === "settings" ? "'FILL' 1" : "" }}>settings</span>
-              Cài đặt
-            </button>
-          </li>
-        </ul>
-
-        {/* Bottom items: Trợ giúp and direct profile navigation card */}
-        <div className="mt-auto flex flex-col gap-2">
-          <button
-            onClick={() => alert("BetterCV Support is ready to help!")}
-            className="w-full flex items-center gap-3 text-text-secondary hover:text-primary px-4 py-2.5 transition-colors rounded-xl text-left text-sm font-semibold"
-          >
-            <span className="material-symbols-outlined text-lg">help</span>
-            Trợ giúp
-          </button>
-          
-          {/* User Profile Card - clicking redirects directly to the Profile View */}
-          <div
-            onClick={() => setActiveTab("profile")}
-            className={`flex items-center justify-between p-3 glass-panel rounded-2xl shadow-sm border select-none transition-all duration-200 cursor-pointer ${
-              activeTab === "profile"
-                ? "bg-primary-container/10 border-primary"
-                : "border-white/50 hover:bg-white/30"
-            }`}
-          >
-            <div className="flex items-center gap-2.5 truncate max-w-[70%]">
-              <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0">
-                {user?.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "ME"}
-              </div>
-              <div className="truncate text-left">
-                <p className="text-xs text-text-primary font-bold truncate leading-tight">{user?.fullName || "BetterCV User"}</p>
-                <p className="text-[10px] text-text-secondary leading-none mt-0.5">Free</p>
-              </div>
-            </div>
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTab("upgrade");
-              }}
-              className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 shadow-sm text-[10px] font-bold text-text-primary rounded-lg transition-colors"
-            >
-              Nâng cấp
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content Area */}
       <main className="w-full min-h-screen px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
         
         {/* TopNavBar with collapsible toggle */}
@@ -464,22 +397,8 @@ export default function DashboardPage() {
             </div>
             
             <div className="hidden md:flex flex-col">
-              <h2 className="font-section-title text-2xl font-bold text-text-primary">
-                {activeTab === "dashboard" && "Dashboard Overview"}
-                {activeTab === "resumes" && "My Resumes Collection"}
-                {activeTab === "templates" && "Choose Resume Templates"}
-                {activeTab === "upgrade" && "Pricing Plans"}
-                {activeTab === "settings" && "System Settings"}
-                {activeTab === "profile" && "Personal Information"}
-              </h2>
-              <p className="font-body-md text-sm text-text-secondary mt-1">
-                {activeTab === "dashboard" && `Welcome back, ${user?.fullName?.split(" ")[0] || "User"}! Let's craft your next career move.`}
-                {activeTab === "resumes" && "Review and manage all your previously created resume profiles."}
-                {activeTab === "templates" && "Recruiter-approved templates designed to maximize ATS match score."}
-                {activeTab === "upgrade" && "Upgrade to a premium subscription to unlock direct AI rewrites."}
-                {activeTab === "settings" && "Customize your dashboard options and workspace parameters."}
-                {activeTab === "profile" && "Manage your profile details and private login credentials."}
-              </p>
+              <h2 className="text-2xl font-bold text-text-primary">{tabMeta[activeTab].title}</h2>
+              <p className="text-sm text-text-secondary mt-1 max-w-2xl">{tabMeta[activeTab].subtitle}</p>
             </div>
           </div>
           
@@ -489,29 +408,15 @@ export default function DashboardPage() {
               className="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-xl font-label-md shadow-sm hover:shadow-md hover:shadow-accent-glow hover:-translate-y-0.5 transition-all text-sm font-semibold"
             >
               <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>add</span>
-              Create Resume
+              Tạo CV mới
             </button>
           </div>
         </header>
 
         {/* Mobile Welcome/Tab Title Greeting */}
-        <div className="md:hidden flex flex-col mb-8">
-          <h2 className="font-section-title font-bold text-text-primary text-2xl">
-            {activeTab === "dashboard" && "Dashboard Overview"}
-            {activeTab === "resumes" && "My Resumes Collection"}
-            {activeTab === "templates" && "Choose Resume Templates"}
-            {activeTab === "upgrade" && "Pricing Plans"}
-            {activeTab === "settings" && "System Settings"}
-            {activeTab === "profile" && "Personal Information"}
-          </h2>
-          <p className="font-body-md text-sm text-text-secondary mt-1">
-            {activeTab === "dashboard" && `Welcome back, ${user?.fullName?.split(" ")[0] || "User"}! Let's craft your next career move.`}
-            {activeTab === "resumes" && "Review and manage all your previously created resume profiles."}
-            {activeTab === "templates" && "Recruiter-approved templates designed to maximize ATS match score."}
-            {activeTab === "upgrade" && "Upgrade to a premium subscription to unlock direct AI rewrites."}
-            {activeTab === "settings" && "Customize your dashboard options and workspace parameters."}
-            {activeTab === "profile" && "Manage your profile details and private login credentials."}
-          </p>
+        <div className="md:hidden flex flex-col mb-6">
+          <h2 className="font-bold text-text-primary text-xl">{tabMeta[activeTab].title}</h2>
+          <p className="text-sm text-text-secondary mt-1">{tabMeta[activeTab].subtitle}</p>
         </div>
 
         {/* ── SUB-VIEW 1: DASHBOARD OVERVIEW ── */}
@@ -635,10 +540,11 @@ export default function DashboardPage() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setActiveTab("templates")}
-                  className="w-full py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-sm hover:-translate-y-0.5 transition-all"
+                  className="w-full py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-sm hover:bg-primary/90 transition-all"
                 >
-                  Browse Templates
+                  Xem mẫu CV
                 </button>
               </section>
             </div>
@@ -650,7 +556,7 @@ export default function DashboardPage() {
           <div className="flex-grow flex flex-col">
             {/* Search Box */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-              <h2 className="font-section-title font-bold text-text-primary text-xl">All Resumes</h2>
+              <h2 className="font-bold text-text-primary text-xl">Danh sách CV</h2>
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <div className="relative w-full sm:w-64">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">search</span>
@@ -666,10 +572,19 @@ export default function DashboardPage() {
             </div>
 
             {filteredCvs.length === 0 ? (
-              <div className="glass-panel rounded-2xl p-12 text-center flex flex-col items-center justify-center text-text-secondary border border-white/30 flex-grow">
-                <span className="material-symbols-outlined text-4xl mb-4 text-primary/40">description</span>
-                <p className="text-md font-semibold text-text-primary">No resumes found</p>
-                <p className="text-xs mt-1 max-w-xs">{"Create your very first professional CV by clicking \"Create Resume\" above."}</p>
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center flex flex-col items-center flex-grow">
+                <span className="material-symbols-outlined text-5xl mb-4 text-primary/50">description</span>
+                <p className="text-lg font-semibold text-text-primary">Chưa có CV nào</p>
+                <p className="text-sm text-text-secondary mt-2 max-w-sm">
+                  Tạo CV đầu tiên hoặc chọn mẫu có sẵn tại tab <strong>Mẫu CV</strong>.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("templates")}
+                  className="mt-6 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90"
+                >
+                  Chọn mẫu CV
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 flex-grow">
@@ -754,138 +669,14 @@ export default function DashboardPage() {
 
         {/* ── SUB-VIEW 3: TEMPLATES SELECTION GALLERY ── */}
         {activeTab === "templates" && (
-          <div className="flex-grow flex flex-col">
-            <div className="sticky top-20 z-30 glass-panel rounded-2xl p-4 mb-6 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-              <div className="relative w-full md:w-64">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">search</span>
-                <input
-                  className="w-full pl-10 pr-4 py-2 bg-white/50 border border-white/40 rounded-xl focus:border-primary focus:ring-2 focus:ring-accent-glow text-sm text-text-primary placeholder:text-text-secondary outline-none transition-all"
-                  placeholder="Search templates..."
-                  type="text"
-                />
-              </div>
-              
-              <div className="flex-1 overflow-x-auto w-full no-scrollbar">
-                <div className="flex gap-2 min-w-max md:justify-center px-2">
-                  {["All", "Modern", "ATS Friendly", "Creative", "Minimal"].map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedTemplateCategory(cat)}
-                      className={`px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm transition-all ${
-                        selectedTemplateCategory === cat
-                          ? "bg-primary text-on-primary"
-                          : "text-text-secondary hover:bg-white/40 border border-transparent hover:border-white/40"
-                      }`}
-                    >
-                      {cat === "All" ? "All Templates" : cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 flex-grow">
-              {[
-                {
-                  id: "tpl_dublin",
-                  name: "Dublin",
-                  category: "Modern",
-                  score: 98,
-                  tag: "Popular",
-                  atsPercent: "98%"
-                },
-                {
-                  id: "tpl_standard_ats",
-                  name: "Standard ATS",
-                  category: "ATS Friendly",
-                  score: 99,
-                  tag: "Free",
-                  atsPercent: "99%"
-                },
-                {
-                  id: "tpl_nova",
-                  name: "Nova",
-                  category: "Creative",
-                  score: 85,
-                  tag: "Premium",
-                  atsPercent: "85%"
-                },
-                {
-                  id: "tpl_minimalist",
-                  name: "Minimalist",
-                  category: "Minimal",
-                  score: 92,
-                  tag: "Free",
-                  atsPercent: "92%"
-                },
-                {
-                  id: "tpl_monarch",
-                  name: "Monarch",
-                  category: "Creative",
-                  score: 88,
-                  tag: "Premium",
-                  atsPercent: "88%"
-                },
-                {
-                  id: "tpl_techstack",
-                  name: "TechStack",
-                  category: "Modern",
-                  score: 95,
-                  tag: "Free",
-                  atsPercent: "95%"
-                }
-              ]
-                .filter((tpl) => selectedTemplateCategory === "All" || tpl.category === selectedTemplateCategory)
-                .map((tpl) => (
-                  <div
-                    key={tpl.id}
-                    className="group relative glass-panel rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 h-[380px] flex flex-col border border-white/40"
-                  >
-                    <div className="p-4 flex justify-between items-start absolute top-0 w-full z-10">
-                      <span className="px-3 py-1 bg-surface-container/80 backdrop-blur-sm border border-white/50 rounded-full font-label-sm text-[10px] text-primary shadow-sm">
-                        ATS: {tpl.atsPercent}
-                      </span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${
-                        tpl.tag === "Premium"
-                          ? "bg-amber-100 text-amber-800 border border-amber-200"
-                          : "bg-primary text-on-primary"
-                      }`}>
-                        {tpl.tag}
-                      </span>
-                    </div>
-
-                    <div className="flex-1 bg-surface-container-low p-8 relative overflow-hidden flex items-center justify-center">
-                      <div className="w-full h-full bg-white shadow-sm border border-outline-variant/30 rounded flex flex-col p-4 opacity-80">
-                        <div className="h-4 w-1/3 bg-surface-variant mb-4 rounded"></div>
-                        <div className="h-2 w-full bg-surface-variant mb-2 rounded"></div>
-                        <div className="h-2 w-5/6 bg-surface-variant mb-4 rounded"></div>
-                        <div className="h-2 w-3/4 bg-surface-variant rounded"></div>
-                      </div>
-                    </div>
-
-                    <div className="p-4 border-t border-white/30 bg-white/20">
-                      <h3 className="font-label-md text-sm text-text-primary font-bold">{tpl.name}</h3>
-                      <p className="text-xs text-text-secondary mt-0.5">{tpl.category}</p>
-                    </div>
-
-                    <div className="absolute inset-0 bg-white/60 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-3 p-6 z-20">
-                      <button
-                        onClick={() => handleUseTemplate(tpl.id)}
-                        className="w-full py-3 bg-[#5DADE2] hover:bg-[#489cd3] text-white rounded-xl font-bold text-xs shadow-md transition-all"
-                      >
-                        Use Template
-                      </button>
-                      <button
-                        onClick={() => alert(`Previewing ${tpl.name} template...`)}
-                        className="w-full py-3 bg-[rgba(185,217,235,0.2)] border border-white/40 text-primary rounded-xl font-bold text-xs hover:bg-white/60 transition-colors"
-                      >
-                        Quick Preview
-                      </button>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
+          <TemplateGallery
+            templates={templates}
+            loading={templatesLoading}
+            error={templatesError}
+            onRetry={loadTemplates}
+            onUseNow={handleQuickCreateFromTemplate}
+            onCustomize={handleUseTemplate}
+          />
         )}
 
         {/* ── SUB-VIEW 4: NÂNG CẤP GÓI (PRICING PLANS) ── */}
@@ -1096,103 +887,23 @@ export default function DashboardPage() {
 
       </main>
 
-      {/* Premium Glassmorphism Create Resume Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-md transition-opacity"
-            onClick={() => setIsCreateModalOpen(false)}
-          ></div>
-
-          <div className="relative w-full max-w-md transform overflow-hidden rounded-2xl glass-overlay p-6 text-left shadow-2xl transition-all z-10 border border-white/50 flex flex-col animate-[fadeIn_0.2s_ease-out]">
-            <div className="flex items-center justify-between border-b border-glass-border pb-4 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-2xl">post_add</span>
-                <h3 className="text-lg font-bold text-text-primary">Create New Resume</h3>
-              </div>
-              <button
-                type="button"
-                className="text-text-secondary hover:text-text-primary transition-colors"
-                onClick={() => setIsCreateModalOpen(false)}
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit(onCreate)} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-text-primary mb-1">Resume Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Software Engineer Resume"
-                  className="w-full bg-white/40 border border-glass-border focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-2.5 text-sm text-text-primary focus:outline-none transition-all shadow-sm placeholder:text-text-secondary/50"
-                  {...register("title", { required: "Resume title is required." })}
-                />
-                {errors.title && (
-                  <p className="text-xs text-error mt-1">{errors.title.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-text-primary mb-1">Language (Locale)</label>
-                <select
-                  className="w-full bg-white/40 border border-glass-border focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-2.5 text-sm text-text-primary focus:outline-none transition-all shadow-sm"
-                  {...register("locale")}
-                >
-                  <option value="vi">Tiếng Việt (Vietnamese)</option>
-                  <option value="en">English</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-text-primary mb-1">Resume Template</label>
-                <select
-                  className="w-full bg-white/40 border border-glass-border focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-2.5 text-sm text-text-primary focus:outline-none transition-all shadow-sm"
-                  {...register("templateId")}
-                  value={selectedTemplateId}
-                  onChange={(e) => setSelectedTemplateId(e.target.value)}
-                >
-                  <option value="">Blank Canvas (No Template)</option>
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name} {template.category?.name ? `(${template.category.name})` : ""}
-                    </option>
-                  ))}
-                  <option value="tpl_dublin">Dublin (Modern)</option>
-                  <option value="tpl_standard_ats">Standard ATS (ATS Friendly)</option>
-                  <option value="tpl_nova">Nova (Creative)</option>
-                  <option value="tpl_minimalist">Minimalist (Minimal)</option>
-                  <option value="tpl_monarch">Monarch (Creative)</option>
-                  <option value="tpl_techstack">TechStack (Modern)</option>
-                </select>
-              </div>
-
-              {errorMsg && (
-                <div className="bg-red-50 text-error border border-red-200 rounded-xl p-3 text-xs">
-                  {errorMsg}
-                </div>
-              )}
-
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button"
-                  className="w-1/2 bg-white/40 border border-glass-border hover:bg-white/60 text-text-secondary text-sm font-semibold py-2.5 rounded-xl transition-all shadow-sm text-center"
-                  onClick={() => setIsCreateModalOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-1/2 bg-primary hover:bg-primary/95 text-on-primary text-sm font-semibold py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md text-center disabled:opacity-50"
-                >
-                  {loading ? "Creating..." : "Create"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CreateCvModal
+        open={isCreateModalOpen}
+        loading={loading}
+        errorMsg={errorMsg}
+        templates={templates}
+        selectedTemplateId={selectedTemplateId}
+        selectedTemplateName={selectedTemplateName}
+        register={register}
+        errors={errors}
+        onSubmit={handleSubmit}
+        onCreate={onCreate}
+        onClose={() => setIsCreateModalOpen(false)}
+        onTemplateChange={(id) => {
+          setSelectedTemplateId(id);
+          setValue("templateId", id);
+        }}
+      />
     </div>
   );
 }

@@ -2,10 +2,14 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const templateSchema = (category: "TECH" | "BUSINESS" | "DESIGN") => ({
-  id: `${category.toLowerCase()}-classic`,
-  name: `${category} Classic`,
-  category,
+const templateSchema = (opts: {
+  id: string;
+  name: string;
+  category: "TECH" | "BUSINESS" | "DESIGN";
+}) => ({
+  id: opts.id,
+  name: opts.name,
+  category: opts.category,
   layout: {
     sections: [
       {
@@ -103,9 +107,78 @@ async function main() {
   });
 
   const templates = [
-    { category: techCategory, schema: templateSchema("TECH") },
-    { category: businessCategory, schema: templateSchema("BUSINESS") },
-    { category: designCategory, schema: templateSchema("DESIGN") }
+    {
+      category: businessCategory,
+      schema: templateSchema({
+        id: "standard-ats",
+        name: "Standard ATS",
+        category: "BUSINESS",
+      }),
+    },
+    {
+      category: techCategory,
+      schema: templateSchema({
+        id: "tech-classic",
+        name: "Tech Classic",
+        category: "TECH",
+      }),
+    },
+    {
+      category: techCategory,
+      schema: templateSchema({
+        id: "techstack",
+        name: "TechStack",
+        category: "TECH",
+      }),
+    },
+    {
+      category: businessCategory,
+      schema: templateSchema({
+        id: "business-classic",
+        name: "Business Classic",
+        category: "BUSINESS",
+      }),
+    },
+    {
+      category: businessCategory,
+      schema: templateSchema({
+        id: "dublin",
+        name: "Dublin",
+        category: "BUSINESS",
+      }),
+    },
+    {
+      category: designCategory,
+      schema: templateSchema({
+        id: "design-classic",
+        name: "Design Classic",
+        category: "DESIGN",
+      }),
+    },
+    {
+      category: designCategory,
+      schema: templateSchema({
+        id: "nova",
+        name: "Nova",
+        category: "DESIGN",
+      }),
+    },
+    {
+      category: designCategory,
+      schema: templateSchema({
+        id: "monarch",
+        name: "Monarch",
+        category: "DESIGN",
+      }),
+    },
+    {
+      category: designCategory,
+      schema: templateSchema({
+        id: "minimalist",
+        name: "Minimalist",
+        category: "DESIGN",
+      }),
+    },
   ];
 
   for (const item of templates) {

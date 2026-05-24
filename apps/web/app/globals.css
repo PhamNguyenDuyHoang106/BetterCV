@@ -26,3 +26,11 @@ body {
 .radial-bg {
   background: radial-gradient(circle at top right, #c9e6ff 0%, #f5faff 40%, #f5faff 100%);
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
