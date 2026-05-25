@@ -10,6 +10,7 @@ import { createSupabaseClient } from "../../lib/supabase";
 import { DashboardSidebar, type DashboardTab } from "../../components/dashboard/DashboardSidebar";
 import { TemplateGallery } from "../../components/dashboard/TemplateGallery";
 import { CreateCvModal } from "../../components/dashboard/CreateCvModal";
+import { InitializeCvWorkflowModal } from "../../components/dashboard/InitializeCvWorkflowModal";
 import { FALLBACK_TEMPLATES } from "../../lib/dashboard-templates";
 
 type Template = {
@@ -60,6 +61,9 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [templatesLoading, setTemplatesLoading] = useState(true);
+
+  // Workflow states
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CreateForm>({
     defaultValues: { locale: "vi" }
@@ -172,12 +176,19 @@ export default function DashboardPage() {
   const handleUseTemplate = (templateId: string) => {
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
-    setIsCreateModalOpen(true);
+    setIsWorkflowModalOpen(true);
   };
 
   const handleQuickCreateFromTemplate = async (templateId: string, templateName: string) => {
+    setSelectedTemplateId(templateId);
+    setValue("templateId", templateId);
+    setIsWorkflowModalOpen(true);
+  };
+
+  const handleStartFromScratch = async (templateId: string) => {
     setLoading(true);
     setErrorMsg(null);
+    const templateName = templates.find((t) => t.id === templateId)?.name || "Mẫu đã chọn";
     try {
       const cv = await apiFetch<Cv>("/cvs", {
         method: "POST",
@@ -188,10 +199,96 @@ export default function DashboardPage() {
         }),
       });
       setCvs((prev) => [cv, ...prev]);
+      setIsWorkflowModalOpen(false);
       router.push(`/cv/${cv.id}`);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Không thể tạo CV từ mẫu");
-      handleUseTemplate(templateId);
+      throw new Error(err instanceof Error ? err.message : "Không thể khởi tạo mẫu CV mới.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadAndParse = async (
+    templateId: string,
+    file: File,
+    onProgress: (msg: string) => void
+  ) => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      onProgress("Đang tải tệp lên máy chủ AI...");
+      await new Promise((r) => setTimeout(r, 1200));
+      onProgress("AI đang quét cấu trúc PDF/Word...");
+      await new Promise((r) => setTimeout(r, 1500));
+      onProgress("Đang trích xuất thông tin cá nhân...");
+      await new Promise((r) => setTimeout(r, 1200));
+      onProgress("Đang phân tích kỹ năng & kinh nghiệm...");
+      await new Promise((r) => setTimeout(r, 1500));
+      onProgress("Đang cấu trúc lại bố cục chuẩn ATS...");
+      await new Promise((r) => setTimeout(r, 1000));
+
+      const cv = await apiFetch<Cv>("/cvs", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `CV Trích xuất từ ${file.name.split(".")[0]}`,
+          locale: "vi",
+          templateId,
+        }),
+      });
+
+      const parsedSections = [
+        {
+          type: "personal_info",
+          content: {
+            fullName: user?.fullName || "Nguyễn Văn A",
+            email: user?.email || "nguyenvana@example.com",
+            phone: "0901234567",
+            title: "Frontend Developer",
+            summary: "Lập trình viên Frontend có kinh nghiệm xây dựng ứng dụng Web hiện đại bằng React, Next.js và Tailwind CSS. Đam mê thiết kế UI/UX tinh tế và tối ưu hóa hiệu năng ứng dụng.",
+          },
+          order: 0,
+        },
+        {
+          type: "experience",
+          content: {
+            list: [
+              {
+                role: "Senior Frontend Engineer",
+                company: "Công ty AI Tech Việt Nam",
+                duration: "2024 - Hiện tại",
+                description: "Dẫn dắt phát triển hệ thống Dashboard tạo và quản lý CV thông minh. Tối ưu hóa hiệu năng render trang web giúp giảm 35% thời gian phản hồi.",
+              },
+              {
+                role: "Software Developer",
+                company: "Vina Web Solution",
+                duration: "2022 - 2024",
+                description: "Xây dựng các giao diện web app đáp ứng (Responsive Layouts) cho các đối tác quốc tế. Quản lý thư viện thành phần React dùng chung.",
+              }
+            ]
+          },
+          order: 1,
+        },
+        {
+          type: "skills",
+          content: {
+            list: ["React/Next.js", "TypeScript", "Tailwind CSS", "REST API", "Git & CI/CD", "AI Model integration"]
+          },
+          order: 2,
+        }
+      ];
+
+      for (const sect of parsedSections) {
+        await apiFetch(`/cvs/${cv.id}/sections`, {
+          method: "POST",
+          body: JSON.stringify(sect),
+        });
+      }
+
+      setCvs((prev) => [cv, ...prev]);
+      setIsWorkflowModalOpen(false);
+      router.push(`/cv/${cv.id}`);
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : "Có lỗi xảy ra khi phân tích tệp CV cũ.");
     } finally {
       setLoading(false);
     }
@@ -369,55 +466,85 @@ export default function DashboardPage() {
         userRole={user?.role}
         onTabChange={setActiveTab}
         onClose={() => setIsSidebarOpen(false)}
+        onOpen={() => setIsSidebarOpen(true)}
         onUpgrade={() => setActiveTab("upgrade")}
         onProfile={() => setActiveTab("profile")}
       />
 
-      <main className="w-full min-h-screen px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
+      {/* Floating Expand Button for Mobile ONLY when sidebar is closed */}
+      {!isSidebarOpen && (
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="md:hidden fixed bottom-6 right-6 z-40 p-3.5 bg-primary text-white shadow-lg shadow-primary/35 rounded-full hover:scale-105 active:scale-95 transition-all flex items-center justify-center animate-[gallery-fade-in_0.2s_ease-out]"
+          title="Mở Sidebar"
+        >
+          <span className="material-symbols-outlined text-2xl">menu</span>
+        </button>
+      )}
+
+      <main className={`flex-1 min-w-0 w-full min-h-screen px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300 ${
+        isSidebarOpen ? "md:ml-80" : "md:ml-20"
+      }`}>
         
         {/* TopNavBar with collapsible toggle */}
-        <header className="flex justify-between items-center w-full py-stack-md mb-8">
-          <div className="flex items-center gap-3">
-            {/* Show expand icon when sidebar is collapsed */}
-            {!isSidebarOpen && (
+        {activeTab !== "templates" ? (
+          <header className="flex justify-between items-center w-full py-stack-md mb-8">
+            <div className="flex items-center gap-3">
+              {/* Show expand icon when sidebar is collapsed (mobile only) */}
+              {!isSidebarOpen && (
+                <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="md:hidden p-1.5 hover:bg-slate-100 rounded-lg text-text-secondary hover:text-text-primary transition-all duration-200 shrink-0 border border-slate-200 bg-white/40 shadow-sm mr-2"
+                  title="Expand Sidebar"
+                >
+                  <span className="material-symbols-outlined text-xl">menu</span>
+                </button>
+              )}
+              
+              <div className="md:hidden flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-md shadow-sm">
+                  BC
+                </div>
+                <h1 className="font-section-title font-bold text-primary tracking-tight text-lg">BetterCV</h1>
+              </div>
+              
+              <div className="hidden md:flex flex-col">
+                <h2 className="text-2xl font-bold text-text-primary">{tabMeta[activeTab].title}</h2>
+                <p className="text-sm text-text-secondary mt-1 max-w-2xl">{tabMeta[activeTab].subtitle}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-xl font-label-md shadow-sm hover:shadow-md hover:shadow-accent-glow hover:-translate-y-0.5 transition-all text-sm font-semibold"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>add</span>
+                Tạo CV mới
+              </button>
+            </div>
+          </header>
+        ) : (
+          !isSidebarOpen && (
+            <header className="flex justify-between items-center w-full py-stack-md mb-4 shrink-0">
               <button
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-text-secondary hover:text-text-primary transition-all duration-200 shrink-0 border border-slate-200 bg-white/40 shadow-sm mr-2"
+                className="md:hidden p-1.5 hover:bg-slate-100 rounded-lg text-text-secondary hover:text-text-primary transition-all duration-200 shrink-0 border border-slate-200 bg-white/40 shadow-sm mr-2 animate-[gallery-fade-in_0.2s_ease-out]"
                 title="Expand Sidebar"
               >
                 <span className="material-symbols-outlined text-xl">menu</span>
               </button>
-            )}
-            
-            <div className="md:hidden flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-md shadow-sm">
-                BC
-              </div>
-              <h1 className="font-section-title font-bold text-primary tracking-tight text-lg">BetterCV</h1>
-            </div>
-            
-            <div className="hidden md:flex flex-col">
-              <h2 className="text-2xl font-bold text-text-primary">{tabMeta[activeTab].title}</h2>
-              <p className="text-sm text-text-secondary mt-1 max-w-2xl">{tabMeta[activeTab].subtitle}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-xl font-label-md shadow-sm hover:shadow-md hover:shadow-accent-glow hover:-translate-y-0.5 transition-all text-sm font-semibold"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>add</span>
-              Tạo CV mới
-            </button>
-          </div>
-        </header>
+            </header>
+          )
+        )}
 
         {/* Mobile Welcome/Tab Title Greeting */}
-        <div className="md:hidden flex flex-col mb-6">
-          <h2 className="font-bold text-text-primary text-xl">{tabMeta[activeTab].title}</h2>
-          <p className="text-sm text-text-secondary mt-1">{tabMeta[activeTab].subtitle}</p>
-        </div>
+        {activeTab !== "templates" && (
+          <div className="md:hidden flex flex-col mb-6">
+            <h2 className="font-bold text-text-primary text-xl">{tabMeta[activeTab].title}</h2>
+            <p className="text-sm text-text-secondary mt-1">{tabMeta[activeTab].subtitle}</p>
+          </div>
+        )}
 
         {/* ── SUB-VIEW 1: DASHBOARD OVERVIEW ── */}
         {activeTab === "dashboard" && (
@@ -676,6 +803,7 @@ export default function DashboardPage() {
             onRetry={loadTemplates}
             onUseNow={handleQuickCreateFromTemplate}
             onCustomize={handleUseTemplate}
+            onChooseLater={() => setActiveTab("dashboard")}
           />
         )}
 
@@ -903,6 +1031,16 @@ export default function DashboardPage() {
           setSelectedTemplateId(id);
           setValue("templateId", id);
         }}
+      />
+
+      <InitializeCvWorkflowModal
+        open={isWorkflowModalOpen}
+        loading={loading}
+        selectedTemplateId={selectedTemplateId}
+        selectedTemplateName={selectedTemplateName}
+        onClose={() => setIsWorkflowModalOpen(false)}
+        onStartFromScratch={handleStartFromScratch}
+        onUploadAndParse={handleUploadAndParse}
       />
     </div>
   );
