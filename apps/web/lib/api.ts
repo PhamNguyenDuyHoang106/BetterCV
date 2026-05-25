@@ -19,15 +19,22 @@ export const apiFetch = async <T>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ message: "Request failed" }));
-    throw new Error(body.message || `Request failed with status ${response.status}`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: "Request failed" }));
+      throw new Error(body.message || `Request failed with status ${response.status}`);
+    }
+
+    return response.json();
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TypeError" || err.message.toLowerCase().includes("fetch"))) {
+      throw new Error("Không thể kết nối đến máy chủ backend (NestJS). Vui lòng kiểm tra xem bạn đã khởi động NestJS API bằng lệnh 'npm run dev:api' chưa.");
+    }
+    throw err;
   }
-
-  return response.json();
 };
