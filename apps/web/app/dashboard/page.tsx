@@ -10,7 +10,14 @@ import { createSupabaseClient } from "../../lib/supabase";
 import { DashboardSidebar, type DashboardTab } from "../../components/dashboard/DashboardSidebar";
 import { TemplateGallery } from "../../components/dashboard/TemplateGallery";
 import { CreateCvModal } from "../../components/dashboard/CreateCvModal";
+import { DashPageHero } from "../../components/dashboard/dashboard-ui";
+import { DashboardOverviewTab } from "../../components/dashboard/views/DashboardOverviewTab";
+import { DashboardResumesTab } from "../../components/dashboard/views/DashboardResumesTab";
+import { DashboardUpgradeTab } from "../../components/dashboard/views/DashboardUpgradeTab";
+import { DashboardSettingsTab } from "../../components/dashboard/views/DashboardSettingsTab";
+import { DashboardProfileTab } from "../../components/dashboard/views/DashboardProfileTab";
 import { FALLBACK_TEMPLATES } from "../../lib/dashboard-templates";
+import { syncSessionToApp } from "../../lib/auth-session";
 
 type Template = {
   id: string;
@@ -69,6 +76,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     hydrate();
+    if (!useAuthStore.getState().accessToken) {
+      syncSessionToApp().catch(() => {});
+    }
   }, [hydrate]);
 
   // Set default full name in profile form when user loads
@@ -116,27 +126,26 @@ export default function DashboardPage() {
   // Log in check
   if (!accessToken) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-24 flex flex-col items-center text-center">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
-          <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>lock</span>
-        </div>
-        <h1 className="text-3xl font-bold text-text-primary">Welcome to BetterCV</h1>
-        <p className="mt-3 text-text-secondary max-w-md">
-          Please log in or register a new account to start building and managing your professional CVs.
-        </p>
-        <div className="mt-8 flex gap-4">
-          <Link
-            href="/login"
-            className="rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 hover:-translate-y-0.5 transition-all"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-xl bg-white border border-slate-200 px-6 py-3 text-sm font-semibold text-text-primary hover:bg-slate-50 hover:-translate-y-0.5 transition-all"
-          >
-            Register
-          </Link>
+      <main className="min-h-screen auth-page-bg flex items-center justify-center p-6">
+        <div className="auth-card max-w-md w-full p-10 text-center">
+          <div className="mx-auto w-14 h-14 bg-gradient-to-br from-primary to-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-5">
+            BC
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">Welcome to BetterCV</h1>
+          <p className="mt-3 text-slate-500 text-sm leading-relaxed">
+            Please log in or register a new account to start building and managing your professional CVs.
+          </p>
+          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/login" className="auth-primary-btn inline-flex items-center justify-center">
+              Sign In
+            </Link>
+            <Link
+              href="/register"
+              className="inline-flex items-center justify-center px-6 py-3.5 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all"
+            >
+              Register
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -346,10 +355,8 @@ export default function DashboardPage() {
     });
   };
 
-  const activeDrafts = cvs.length;
-
   return (
-    <div className="bg-background text-on-surface font-body-md radial-bg min-h-screen flex selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">
+    <div className="dashboard-shell text-on-surface font-body-md min-h-screen flex selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">
       {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 bg-white/20 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -375,299 +382,95 @@ export default function DashboardPage() {
 
       <main className="w-full min-h-screen px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
         
-        {/* TopNavBar with collapsible toggle */}
-        <header className="flex justify-between items-center w-full py-stack-md mb-8">
-          <div className="flex items-center gap-3">
-            {/* Show expand icon when sidebar is collapsed */}
+        <header className="flex flex-wrap justify-between items-center gap-4 w-full mb-6">
+          <div className="flex items-center gap-3 min-w-0">
             {!isSidebarOpen && (
               <button
+                type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-text-secondary hover:text-text-primary transition-all duration-200 shrink-0 border border-slate-200 bg-white/40 shadow-sm mr-2"
+                className="p-2.5 hover:bg-white rounded-xl text-slate-500 border border-slate-200/80 bg-white/80 shadow-sm shrink-0"
                 title="Expand Sidebar"
               >
-                <span className="material-symbols-outlined text-xl">menu</span>
+                <span className="material-symbols-outlined">menu</span>
               </button>
             )}
-            
-            <div className="md:hidden flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-md shadow-sm">
+            <div className="md:hidden flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
                 BC
               </div>
-              <h1 className="font-section-title font-bold text-primary tracking-tight text-lg">BetterCV</h1>
-            </div>
-            
-            <div className="hidden md:flex flex-col">
-              <h2 className="text-2xl font-bold text-text-primary">{tabMeta[activeTab].title}</h2>
-              <p className="text-sm text-text-secondary mt-1 max-w-2xl">{tabMeta[activeTab].subtitle}</p>
+              <span className="font-bold text-primary">BetterCV</span>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-xl font-label-md shadow-sm hover:shadow-md hover:shadow-accent-glow hover:-translate-y-0.5 transition-all text-sm font-semibold"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>add</span>
-              Tạo CV mới
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="dash-btn-primary flex items-center gap-2 shrink-0"
+          >
+            <span className="material-symbols-outlined text-xl">add</span>
+            Tạo CV mới
+          </button>
         </header>
 
-        {/* Mobile Welcome/Tab Title Greeting */}
-        <div className="md:hidden flex flex-col mb-6">
-          <h2 className="font-bold text-text-primary text-xl">{tabMeta[activeTab].title}</h2>
-          <p className="text-sm text-text-secondary mt-1">{tabMeta[activeTab].subtitle}</p>
-        </div>
+        {activeTab !== "templates" && (
+          <>
+            <div className="hidden md:block">
+              <DashPageHero
+                title={tabMeta[activeTab].title}
+                subtitle={tabMeta[activeTab].subtitle}
+                accent={
+                  activeTab === "upgrade"
+                    ? "amber"
+                    : activeTab === "settings"
+                      ? "teal"
+                      : activeTab === "profile"
+                        ? "violet"
+                        : activeTab === "resumes"
+                          ? "violet"
+                          : "blue"
+                }
+              />
+            </div>
+            <div className="md:hidden mb-6">
+              <DashPageHero
+                title={tabMeta[activeTab].title}
+                subtitle={tabMeta[activeTab].subtitle}
+                accent={
+                  activeTab === "upgrade"
+                    ? "amber"
+                    : activeTab === "resumes"
+                      ? "violet"
+                      : "blue"
+                }
+              />
+            </div>
+          </>
+        )}
 
-        {/* ── SUB-VIEW 1: DASHBOARD OVERVIEW ── */}
         {activeTab === "dashboard" && (
-          <div className="flex-grow flex flex-col gap-8">
-            {/* Stats Summary cards */}
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="glass-panel p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary-container/20 flex items-center justify-center text-primary">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>description</span>
-                  </div>
-                  <span className="bg-surface-container-high text-primary text-xs font-semibold px-3 py-1 rounded-full border border-primary/10">
-                    {activeDrafts} Active Resumes
-                  </span>
-                </div>
-                <h3 className="font-body-md text-sm text-text-secondary mb-1">Total Resumes</h3>
-                <p className="text-3xl font-bold text-text-primary">{cvs.length}</p>
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-primary-container to-primary-fixed opacity-50 group-hover:opacity-100 transition-opacity"></div>
-              </div>
-
-              <div className="glass-panel p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-surface-variant flex items-center justify-center text-secondary">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>fact_check</span>
-                  </div>
-                  <span className="bg-sky-100 text-primary text-xs font-semibold px-3 py-1 rounded-full border border-primary/10">
-                    ATS Calibrated
-                  </span>
-                </div>
-                <h3 className="font-body-md text-sm text-text-secondary mb-1">Average ATS Score</h3>
-                <p className="text-3xl font-bold text-text-primary">88%</p>
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-primary-container to-primary-fixed opacity-50 group-hover:opacity-100 transition-opacity"></div>
-              </div>
-
-              <div className="glass-panel p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-secondary-container/40 flex items-center justify-center text-primary">
-                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>generating_tokens</span>
-                    </div>
-                  </div>
-                  <h3 className="font-body-md text-sm text-text-secondary mb-1">AI Credits</h3>
-                  <p className="text-3xl font-bold text-text-primary">150 left</p>
-                </div>
-                <button
-                  onClick={() => setActiveTab("upgrade")}
-                  className="mt-4 w-full bg-white/50 hover:bg-white border border-white/60 text-primary text-xs font-semibold py-2 rounded-lg transition-colors shadow-sm"
-                >
-                  Top Up Credits
-                </button>
-              </div>
-            </section>
-
-            {/* Quick Actions / Recent drafts panel */}
-            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
-              <section className="glass-panel p-6 rounded-2xl border border-white/40 shadow-sm flex flex-col justify-between min-h-[300px]">
-                <div>
-                  <h3 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">schedule</span>
-                    Most Recent Drafts
-                  </h3>
-                  
-                  {cvs.length === 0 ? (
-                    <div className="py-12 text-center text-text-secondary text-sm">
-                      {"You haven't created any resumes yet. Start creating now!"}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {cvs.slice(0, 3).map((cv) => (
-                        <div key={cv.id} className="flex items-center justify-between p-3.5 bg-white/30 border border-glass-border/40 rounded-xl hover:bg-white/50 transition-all">
-                          <div className="truncate max-w-[65%]">
-                            <p className="text-sm font-bold text-text-primary truncate">{cv.title}</p>
-                            <p className="text-[10px] text-text-secondary mt-0.5">Updated: {formatDate(cv.updatedAt || cv.createdAt)}</p>
-                          </div>
-                          
-                          <div className="flex gap-2">
-                            <Link
-                              href={`/cv/${cv.id}`}
-                              className="px-3.5 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg shadow-sm hover:bg-primary/95 transition-all"
-                            >
-                              Edit
-                            </Link>
-                            <button
-                              onClick={(e) => onDuplicate(cv.id, e)}
-                              className="p-1.5 hover:bg-slate-100 rounded-lg text-text-secondary transition-all"
-                              title="Duplicate"
-                            >
-                              <span className="material-symbols-outlined text-md">content_copy</span>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {cvs.length > 0 && (
-                  <button
-                    onClick={() => setActiveTab("resumes")}
-                    className="mt-4 text-xs font-bold text-primary hover:underline flex items-center gap-1 self-start"
-                  >
-                    View all resumes ({cvs.length})
-                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </button>
-                )}
-              </section>
-
-              {/* Quick Template Recommendation info */}
-              <section className="glass-panel p-6 rounded-2xl border border-white/40 shadow-sm flex flex-col justify-between min-h-[300px]">
-                <div>
-                  <h3 className="text-lg font-bold text-text-primary mb-3">Recruiter Standard</h3>
-                  <p className="text-xs text-text-secondary leading-relaxed">
-                    Our **Standard ATS** template is audited to maximize structural match-rates on Enterprise Applicant Tracking Software.
-                  </p>
-                  <div className="mt-4 bg-white/40 border border-glass-border rounded-xl p-3 flex flex-col gap-2">
-                    <div className="h-3 w-1/3 bg-slate-300 rounded"></div>
-                    <div className="h-2 w-full bg-slate-200 rounded"></div>
-                    <div className="h-2 w-4/5 bg-slate-200 rounded"></div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("templates")}
-                  className="w-full py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-sm hover:bg-primary/90 transition-all"
-                >
-                  Xem mẫu CV
-                </button>
-              </section>
-            </div>
-          </div>
+          <DashboardOverviewTab
+            cvs={cvs}
+            onGoResumes={() => setActiveTab("resumes")}
+            onGoTemplates={() => setActiveTab("templates")}
+            onGoUpgrade={() => setActiveTab("upgrade")}
+            onDuplicate={onDuplicate}
+            formatDate={formatDate}
+          />
         )}
 
-        {/* ── SUB-VIEW 2: MY RESUME ── */}
         {activeTab === "resumes" && (
-          <div className="flex-grow flex flex-col">
-            {/* Search Box */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-              <h2 className="font-bold text-text-primary text-xl">Danh sách CV</h2>
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <div className="relative w-full sm:w-64">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">search</span>
-                  <input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-glass-bg border border-glass-border rounded-xl pl-10 pr-4 py-2 text-sm text-text-primary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm placeholder:text-text-secondary/70"
-                    placeholder="Search resumes..."
-                    type="text"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {filteredCvs.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center flex flex-col items-center flex-grow">
-                <span className="material-symbols-outlined text-5xl mb-4 text-primary/50">description</span>
-                <p className="text-lg font-semibold text-text-primary">Chưa có CV nào</p>
-                <p className="text-sm text-text-secondary mt-2 max-w-sm">
-                  Tạo CV đầu tiên hoặc chọn mẫu có sẵn tại tab <strong>Mẫu CV</strong>.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("templates")}
-                  className="mt-6 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90"
-                >
-                  Chọn mẫu CV
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 flex-grow">
-                {filteredCvs.map((cv) => {
-                  const score = getAtsScore(cv.id);
-                  const scoreColorClass =
-                    score >= 88
-                      ? "bg-green-100 text-green-700 border-green-200"
-                      : score >= 80
-                      ? "bg-sky-100 text-primary border-primary/10"
-                      : "bg-yellow-100 text-yellow-700 border-yellow-200";
-
-                  return (
-                    <div
-                      key={cv.id}
-                      className="glass-panel rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300 group hover:bg-white/60 border border-white/40 flex flex-col justify-between h-[340px]"
-                    >
-                      <div>
-                        <Link href={`/cv/${cv.id}`} className="block h-40 bg-surface-variant/30 rounded-xl mb-4 relative overflow-hidden border border-white/30 flex items-center justify-center cursor-pointer">
-                          <div className="w-3/4 h-[90%] bg-white rounded shadow-sm p-4 flex flex-col gap-2 opacity-80 transition-transform duration-300 group-hover:scale-105">
-                            <div className="w-1/2 h-4 bg-tertiary-fixed rounded"></div>
-                            <div className="w-full h-2 bg-surface-variant rounded mt-2"></div>
-                            <div className="w-full h-2 bg-surface-variant rounded"></div>
-                          </div>
-                          <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-4">
-                            <span className="bg-primary text-on-primary text-xs font-semibold px-4 py-2 rounded-full shadow-md hover:bg-primary/90 flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all">
-                              <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>edit</span> Edit
-                            </span>
-                          </div>
-                        </Link>
-
-                        <div className="flex justify-between items-start">
-                          <div className="truncate pr-2">
-                            <h3 className="font-label-md text-text-primary font-bold text-md mb-1 truncate" title={cv.title}>
-                              {cv.title}
-                            </h3>
-                            <p className="text-xs text-text-secondary flex items-center gap-1">
-                              <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>schedule</span>
-                              Updated: {formatDate(cv.updatedAt || cv.createdAt)}
-                            </p>
-                          </div>
-                          <div className="flex flex-col items-end shrink-0">
-                            <span className={`text-xs px-2 py-1 rounded-md font-bold shadow-sm border ${scoreColorClass}`}>
-                              {score} / 100
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-4 border-t border-glass-border flex justify-between">
-                        <Link
-                          href={`/cv/${cv.id}`}
-                          className="text-text-secondary hover:text-primary transition-colors p-1"
-                          title="Edit CV"
-                        >
-                          <span className="material-symbols-outlined text-lg">edit</span>
-                        </Link>
-                        
-                        <button
-                          onClick={(e) => onDuplicate(cv.id, e)}
-                          className="text-text-secondary hover:text-primary transition-colors p-1"
-                          title="Duplicate"
-                        >
-                          <span className="material-symbols-outlined text-lg">content_copy</span>
-                        </button>
-                        
-                        <button
-                          onClick={(e) => onDelete(cv.id, e)}
-                          className="text-text-secondary hover:text-error transition-colors p-1"
-                          title="Delete"
-                        >
-                          <span className="material-symbols-outlined text-lg">delete</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <DashboardResumesTab
+            filteredCvs={filteredCvs}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onGoTemplates={() => setActiveTab("templates")}
+            getAtsScore={getAtsScore}
+            formatDate={formatDate}
+            onDuplicate={onDuplicate}
+            onDelete={onDelete}
+          />
         )}
 
-        {/* ── SUB-VIEW 3: TEMPLATES SELECTION GALLERY ── */}
+        {/* Templates */}
         {activeTab === "templates" && (
           <TemplateGallery
             templates={templates}
@@ -679,210 +482,19 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* ── SUB-VIEW 4: NÂNG CẤP GÓI (PRICING PLANS) ── */}
-        {activeTab === "upgrade" && (
-          <div className="flex-grow flex flex-col items-center justify-center max-w-4xl mx-auto py-8">
-            <div className="text-center mb-12">
-              <h2 className="text-2xl font-bold text-text-primary">Upgrade to Unlock Professional AI Features</h2>
-              <p className="text-sm text-text-secondary mt-2">Choose the plan that suits your career goals.</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
-              {/* Plan 1 */}
-              <div className="glass-panel p-8 rounded-3xl border border-white/40 shadow-md relative flex flex-col justify-between h-[450px]">
-                <div>
-                  <h3 className="text-lg font-bold text-text-primary">Free Canvas Plan</h3>
-                  <p className="text-xs text-text-secondary mt-1">Perfect for beginners and quick drafts.</p>
-                  <p className="text-3xl font-extrabold text-text-primary mt-6">$0 <span className="text-xs font-semibold text-text-secondary">/ forever</span></p>
-                  
-                  <ul className="space-y-3 mt-8 text-xs font-semibold text-text-secondary">
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-green-500 text-sm">check</span>
-                      Build up to 3 resumes
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-green-500 text-sm">check</span>
-                      Standard recruit templates
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-green-500 text-sm">check</span>
-                      Basic PDF export format
-                    </li>
-                  </ul>
-                </div>
-                
-                <button className="w-full py-3 bg-white/60 border border-slate-200 text-text-primary text-xs font-bold rounded-xl transition-all shadow-sm" disabled>
-                  Active Plan
-                </button>
-              </div>
+        {activeTab === "upgrade" && <DashboardUpgradeTab />}
 
-              {/* Plan 2 */}
-              <div className="glass-panel p-8 rounded-3xl border-2 border-primary shadow-xl relative flex flex-col justify-between h-[450px] overflow-hidden group">
-                <div className="absolute top-0 right-0 bg-primary text-on-primary text-[10px] font-bold px-4 py-1.5 rounded-bl-2xl shadow-sm">
-                  Recommended
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-text-primary flex items-center gap-1.5">
-                    Pro Builder Plan
-                    <span className="material-symbols-outlined text-primary text-sm">star</span>
-                  </h3>
-                  <p className="text-xs text-text-secondary mt-1">Audited templates built to secure high response rates.</p>
-                  <p className="text-3xl font-extrabold text-text-primary mt-6">$15 <span className="text-xs font-semibold text-text-secondary">/ month</span></p>
-                  
-                  <ul className="space-y-3 mt-8 text-xs font-semibold text-text-primary">
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-sm">check</span>
-                      Unlimited resume drafts
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-sm">check</span>
-                      Premium Recruiter-audited designs
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-sm">check</span>
-                      Dynamic AI bullet point rephraser
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-sm">check</span>
-                      250 AI Credit tokens monthly
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-sm">check</span>
-                      Enterprise priority support
-                    </li>
-                  </ul>
-                </div>
-                
-                <button
-                  onClick={() => alert("Redirecting to Stripe checkout portal...")}
-                  className="w-full py-3 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-accent-glow"
-                >
-                  Upgrade to Pro
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === "settings" && <DashboardSettingsTab />}
 
-        {/* ── SUB-VIEW 5: CÀI ĐẶT (SETTINGS) ── */}
-        {activeTab === "settings" && (
-          <div className="flex-grow max-w-2xl mx-auto w-full py-8">
-            <div className="glass-panel p-6 rounded-3xl border border-white/40 shadow-md">
-              <h3 className="text-lg font-bold text-text-primary mb-6 border-b border-glass-border/40 pb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">settings</span>
-                System Settings
-              </h3>
-              
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-xs font-bold text-text-primary mb-1">Language preferences</label>
-                  <select className="w-full bg-white/40 border border-glass-border focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-2.5 text-xs font-semibold text-text-primary focus:outline-none shadow-sm">
-                    <option value="vi">Tiếng Việt (Vietnamese)</option>
-                    <option value="en">English (US)</option>
-                  </select>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 bg-white/20 rounded-xl border border-glass-border/30 mt-4">
-                  <div>
-                    <p className="text-xs font-bold text-text-primary">Email Notifications</p>
-                    <p className="text-[10px] text-text-secondary mt-0.5">Receive weekly resume tips and career match scoring reports.</p>
-                  </div>
-                  <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-white/20 rounded-xl border border-glass-border/30 mt-3">
-                  <div>
-                    <p className="text-xs font-bold text-text-primary">Auto-save Document State</p>
-                    <p className="text-[10px] text-text-secondary mt-0.5">Saves work in background database every 30 seconds.</p>
-                  </div>
-                  <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" defaultChecked />
-                </div>
-                
-                <div className="pt-4">
-                  <button
-                    onClick={() => alert("Thiết lập hệ thống đã lưu!")}
-                    className="px-6 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-sm hover:bg-primary/95 transition-all"
-                  >
-                    Save Settings
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── SUB-VIEW 6: THÔNG TIN CÁ NHÂN (PROFILE INFO) ── */}
         {activeTab === "profile" && (
-          <div className="flex-grow max-w-2xl mx-auto w-full py-8">
-            <div className="glass-panel p-6 rounded-3xl border border-white/40 shadow-md">
-              <div className="flex items-center gap-4 mb-6 border-b border-glass-border/40 pb-5">
-                <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0">
-                  {user?.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "ME"}
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-text-primary">{user?.fullName || "BetterCV User"}</h3>
-                  <p className="text-xs text-text-secondary">{"Member of BetterCV"}</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleSubmitProfile(onUpdateProfile)} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-text-secondary mb-1">Email Address</label>
-                    <input
-                      type="text"
-                      className="w-full bg-slate-100 border border-glass-border rounded-xl px-3 py-2.5 text-xs text-text-secondary font-semibold focus:outline-none cursor-not-allowed shadow-sm"
-                      value={user?.email || "user@example.com"}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-text-secondary mb-1">Account Role</label>
-                    <input
-                      type="text"
-                      className="w-full bg-slate-100 border border-glass-border rounded-xl px-3 py-2.5 text-xs text-text-secondary font-bold focus:outline-none cursor-not-allowed shadow-sm"
-                      value={user?.role || "FREE MEMBER"}
-                      disabled
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-text-primary mb-1">Full Name (Họ tên)</label>
-                  <input
-                    type="text"
-                    className="w-full bg-white/40 border border-glass-border focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-2.5 text-xs font-semibold text-text-primary focus:outline-none shadow-sm"
-                    {...registerProfile("fullName", { required: true })}
-                  />
-                </div>
-
-                {errorMsg && (
-                  <div className="text-xs text-error font-semibold mt-1">
-                    {errorMsg}
-                  </div>
-                )}
-
-                <div className="pt-4 flex gap-3">
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold rounded-xl shadow-md hover:shadow-accent-glow transition-all"
-                  >
-                    Cập nhật họ tên
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="px-6 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-sm">logout</span>
-                    Đăng xuất
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <DashboardProfileTab
+            user={user}
+            errorMsg={errorMsg}
+            register={registerProfile}
+            onSubmit={handleSubmitProfile}
+            onUpdate={onUpdateProfile}
+            onLogout={handleLogout}
+          />
         )}
 
       </main>
