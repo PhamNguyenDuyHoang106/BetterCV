@@ -1,99 +1,105 @@
+"use client";
+
+import { useLayoutEffect, useRef, useState } from "react";
 import type { TemplatePreviewVariant } from "../../lib/dashboard-templates";
+import { getPreviewFontClass } from "./resume-preview-fonts";
+import { PREVIEW_LAYOUTS } from "./resume-preview-layouts";
 
 type Props = {
   variant: TemplatePreviewVariant;
+  size?: "card" | "large";
+  /** Fill parent box (gallery card) — scales to max readable size */
+  fill?: boolean;
   className?: string;
 };
 
-export function TemplatePreview({ variant, className = "" }: Props) {
-  const base = `w-full h-full bg-white shadow-sm border border-slate-200/80 rounded-lg overflow-hidden flex ${className}`;
+/** A4 proportions (210 × 297 mm) */
+export const DOC_W = 360;
+export const DOC_H = Math.round(DOC_W * (297 / 210));
 
-  if (variant === "sidebar") {
-    return (
-      <div className={base}>
-        <div className="w-[28%] bg-primary/15 p-2 flex flex-col gap-1.5">
-          <div className="h-3 w-3/4 rounded bg-primary/40" />
-          <div className="h-1.5 w-full rounded bg-primary/25" />
-          <div className="h-1.5 w-4/5 rounded bg-primary/25" />
-          <div className="mt-auto h-1.5 w-2/3 rounded bg-primary/20" />
-        </div>
-        <div className="flex-1 p-2.5 flex flex-col gap-1.5">
-          <div className="h-2.5 w-1/2 rounded bg-slate-300" />
-          <div className="h-1.5 w-full rounded bg-slate-200" />
-          <div className="h-1.5 w-11/12 rounded bg-slate-200" />
-          <div className="h-1.5 w-4/5 rounded bg-slate-200" />
-        </div>
-      </div>
-    );
-  }
+const FIXED_SCALE = { card: 1, large: 0.92 } as const;
 
-  if (variant === "minimal") {
-    return (
-      <div className={`${base} flex-col p-3 gap-2`}>
-        <div className="h-2 w-1/3 rounded bg-slate-800 mx-auto" />
-        <div className="h-px w-full bg-slate-200" />
-        <div className="h-1.5 w-full rounded bg-slate-200" />
-        <div className="h-1.5 w-10/12 rounded bg-slate-200 mx-auto" />
-        <div className="h-1.5 w-full rounded bg-slate-200" />
-      </div>
-    );
-  }
+function useFitScale(enabled: boolean, maxScale = 1.15) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number>(FIXED_SCALE.card);
 
-  if (variant === "creative") {
-    return (
-      <div className={`${base} flex-col`}>
-        <div className="h-[30%] bg-gradient-to-r from-primary/30 to-violet-200/50 p-2">
-          <div className="h-3 w-1/2 rounded bg-white/80" />
-        </div>
-        <div className="flex-1 p-2.5 flex flex-col gap-1.5">
-          <div className="h-1.5 w-full rounded bg-slate-200" />
-          <div className="h-1.5 w-5/6 rounded bg-slate-200" />
-          <div className="h-8 w-full rounded bg-slate-100 border border-dashed border-slate-200" />
-        </div>
-      </div>
-    );
-  }
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-  if (variant === "ats") {
-    return (
-      <div className={`${base} flex-col p-2.5 gap-1 font-mono text-[6px] text-slate-500`}>
-        <div className="h-2.5 w-2/5 rounded bg-slate-800" />
-        <div className="text-[7px] font-bold text-slate-700 uppercase tracking-wide">
-          Professional Summary
-        </div>
-        <div className="h-1 w-full rounded bg-slate-200" />
-        <div className="h-1 w-full rounded bg-slate-200" />
-        <div className="text-[7px] font-bold text-slate-700 uppercase tracking-wide mt-1">
-          Experience
-        </div>
-        <div className="h-1 w-11/12 rounded bg-slate-200" />
-        <div className="h-1 w-10/12 rounded bg-slate-200" />
-      </div>
-    );
-  }
+    const update = () => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width < 1 || height < 1) return;
+      const fit = Math.min(width / DOC_W, height / DOC_H);
+      setScale(Math.min(fit, maxScale));
+    };
 
-  if (variant === "modern") {
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [enabled, maxScale]);
+
+  return { containerRef, scale };
+}
+
+/**
+ * High-fidelity résumé thumbnail — fills gallery cards, crisp A4 mockup.
+ */
+export function TemplatePreview({
+  variant,
+  size = "card",
+  fill = false,
+  className = "",
+}: Props) {
+  const maxScale = size === "large" ? 1.2 : 1.12;
+  const { containerRef, scale: fitScale } = useFitScale(fill, maxScale);
+  const scale = fill ? fitScale : FIXED_SCALE[size];
+  const outerW = Math.round(DOC_W * scale);
+  const outerH = Math.round(DOC_H * scale);
+  const Layout = PREVIEW_LAYOUTS[variant] ?? PREVIEW_LAYOUTS["compact-ats"];
+  const fontClass = getPreviewFontClass(variant);
+
+  const paper = (
+    <div
+      className="resume-paper-mockup absolute top-0 left-1/2"
+      style={{
+        width: DOC_W,
+        height: DOC_H,
+        transform: `translateX(-50%) scale(${scale})`,
+        transformOrigin: "top center",
+      }}
+    >
+      <article
+        className={`resume-preview-doc h-full w-full text-slate-900 overflow-hidden ${fontClass}`}
+      >
+        <Layout />
+      </article>
+    </div>
+  );
+
+  if (fill) {
     return (
-      <div className={`${base} flex-col p-2.5 gap-1.5`}>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-primary/30 shrink-0" />
-          <div className="flex-1 space-y-1">
-            <div className="h-2.5 w-2/3 rounded bg-slate-700" />
-            <div className="h-1.5 w-1/2 rounded bg-primary/40" />
-          </div>
-        </div>
-        <div className="h-1.5 w-full rounded bg-slate-200" />
-        <div className="h-1.5 w-4/5 rounded bg-slate-200" />
+      <div
+        ref={containerRef}
+        className={`relative w-full h-full min-h-0 ${className}`}
+        aria-hidden
+      >
+        {paper}
       </div>
     );
   }
 
   return (
-    <div className={`${base} flex-col p-2.5 gap-1.5`}>
-      <div className="h-3 w-2/5 rounded bg-slate-700" />
-      <div className="h-1.5 w-full rounded bg-slate-200" />
-      <div className="h-1.5 w-11/12 rounded bg-slate-200" />
-      <div className="h-1.5 w-4/5 rounded bg-slate-200" />
+    <div
+      className={`relative shrink-0 pointer-events-none select-none z-[1] ${className}`}
+      style={{ width: outerW, height: outerH }}
+      aria-hidden
+    >
+      {paper}
     </div>
   );
 }
+
+export const PREVIEW_DOC_ASPECT = DOC_W / DOC_H;
