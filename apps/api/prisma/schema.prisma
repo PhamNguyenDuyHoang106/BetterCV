@@ -110,15 +110,19 @@ model Invoice {
 // ─── CV & Templates ─────────────────────────────────────────────────────────
 
 model Cv {
-  id         String      @id @default(cuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title      String
-  locale     String      @default("en")
-  templateId String?
-  isDeleted  Boolean     @default(false)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id                    String      @id @default(cuid())
+  userId                String
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  locale                String      @default("en")
+  templateId            String?
+  isDeleted             Boolean     @default(false)
+  version               Int         @default(1)
+  lastEditedSessionId   String?
+  lastEditedDevice      String?
+  lastEditedAt          DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   versions   CvVersion[]
   sections   CvSection[]

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database';
@@ -12,7 +12,11 @@ import { BillingModule } from './modules/billing/billing.module';
 import { HealthModule } from './modules/health/health.module';
 import { ExportModule } from './modules/export/export.module';
 import { ShareModule } from './modules/share/share.module';
+import { AtsModule } from './modules/ats/ats.module';
+import { OcrModule } from './modules/ocr/ocr.module';
 import { AppController } from './app.controller';
+import { RequestIdMiddleware } from './core/middleware/request-id.middleware';
+import { CoreModule } from './core/core.module';
 
 @Module({
   imports: [
@@ -27,6 +31,9 @@ import { AppController } from './app.controller';
     HealthModule,
     ExportModule,
     ShareModule,
+    AtsModule,
+    OcrModule,
+    CoreModule,
   ],
   controllers: [AppController],
   providers: [
@@ -36,4 +43,10 @@ import { AppController } from './app.controller';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(RequestIdMiddleware)
+      .forRoutes('*');
+  }
+}

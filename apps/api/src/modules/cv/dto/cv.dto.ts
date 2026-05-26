@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 
 export class CvCreateDto {
   @IsString()
@@ -24,4 +24,8 @@ export class CvUpdateDto {
   @IsOptional()
   @IsString()
   templateId?: string;
+
+  @IsOptional()
+  @IsInt()
+  version?: number;
 }

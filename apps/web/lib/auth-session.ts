@@ -20,12 +20,13 @@ export async function syncSessionToApp(fullName?: string): Promise<AuthProfile |
 
   useAuthStore.setState({ accessToken: session.access_token });
 
-  const profile = await apiFetch<AuthProfile>(
+  const res = await apiFetch<any>(
     fullName ? "/auth/sync" : "/auth/me",
     fullName
       ? { method: "POST", body: JSON.stringify({ fullName }) }
       : undefined,
   );
+  const profile = res?.data || res;
 
   useAuthStore.getState().setAuth(session.access_token, profile);
   return profile;

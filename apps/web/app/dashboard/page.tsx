@@ -80,9 +80,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     hydrate();
-    if (!useAuthStore.getState().accessToken) {
-      syncSessionToApp().catch(() => {});
-    }
+    // Always sync session on mount to ensure we refresh any expired tokens hydrated from localStorage
+    syncSessionToApp().catch(() => {});
   }, [hydrate]);
 
   // Set default full name in profile form when user loads
@@ -95,8 +94,9 @@ export default function DashboardPage() {
   const loadTemplates = useCallback(() => {
     setTemplatesLoading(true);
     setTemplatesError(null);
-    apiFetch<Template[]>("/templates")
-      .then((data) => {
+    apiFetch<any>("/templates")
+      .then((res) => {
+        const data = Array.isArray(res) ? res : res?.data || [];
         const list = data?.length ? data : FALLBACK_TEMPLATES;
         setTemplates(list);
         if (!data?.length) {
@@ -118,8 +118,11 @@ export default function DashboardPage() {
   // Fetch CVs when user logged in
   const fetchCvs = useCallback(() => {
     if (!accessToken) return;
-    apiFetch<Cv[]>("/cvs")
-      .then(setCvs)
+    apiFetch<any>("/cvs")
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data || [];
+        setCvs(list);
+      })
       .catch(() => setCvs([]));
   }, [accessToken]);
 
@@ -165,10 +168,11 @@ export default function DashboardPage() {
         locale: values.locale,
         templateId: values.templateId || undefined
       };
-      const cv = await apiFetch<Cv>("/cvs", {
+      const res = await apiFetch<any>("/cvs", {
         method: "POST",
         body: JSON.stringify(payload)
       });
+      const cv = res?.data || res;
       setCvs((prev) => [cv, ...prev]);
       setIsCreateModalOpen(false);
       reset({ title: "", locale: "vi", templateId: "" });
@@ -199,7 +203,7 @@ export default function DashboardPage() {
     setErrorMsg(null);
     const templateName = templates.find((t) => t.id === templateId)?.name || "Mẫu đã chọn";
     try {
-      const cv = await apiFetch<Cv>("/cvs", {
+      const res = await apiFetch<any>("/cvs", {
         method: "POST",
         body: JSON.stringify({
           title: `CV — ${templateName}`,
@@ -207,6 +211,7 @@ export default function DashboardPage() {
           templateId,
         }),
       });
+      const cv = res?.data || res;
       setCvs((prev) => [cv, ...prev]);
       setIsWorkflowModalOpen(false);
       router.push(`/cv/${cv.id}`);
@@ -226,76 +231,55 @@ export default function DashboardPage() {
     setErrorMsg(null);
     try {
       onProgress("Đang tải tệp lên máy chủ AI...");
-      await new Promise((r) => setTimeout(r, 1200));
-      onProgress("AI đang quét cấu trúc PDF/Word...");
-      await new Promise((r) => setTimeout(r, 1500));
-      onProgress("Đang trích xuất thông tin cá nhân...");
-      await new Promise((r) => setTimeout(r, 1200));
-      onProgress("Đang phân tích kỹ năng & kinh nghiệm...");
-      await new Promise((r) => setTimeout(r, 1500));
-      onProgress("Đang cấu trúc lại bố cục chuẩn ATS...");
-      await new Promise((r) => setTimeout(r, 1000));
+      
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const cv = await apiFetch<Cv>("/cvs", {
+      const uploadRes = await apiFetch<any>("/ai/upload-cv", {
         method: "POST",
-        body: JSON.stringify({
-          title: `CV Trích xuất từ ${file.name.split(".")[0]}`,
-          locale: "vi",
-          templateId,
-        }),
+        body: formData,
       });
+      const job = uploadRes?.data || uploadRes;
 
-      const parsedSections = [
-        {
-          type: "personal_info",
-          content: {
-            fullName: user?.fullName || "Nguyễn Văn A",
-            email: user?.email || "nguyenvana@example.com",
-            phone: "0901234567",
-            title: "Frontend Developer",
-            summary: "Lập trình viên Frontend có kinh nghiệm xây dựng ứng dụng Web hiện đại bằng React, Next.js và Tailwind CSS. Đam mê thiết kế UI/UX tinh tế và tối ưu hóa hiệu năng ứng dụng.",
-          },
-          order: 0,
-        },
-        {
-          type: "experience",
-          content: {
-            list: [
-              {
-                role: "Senior Frontend Engineer",
-                company: "Công ty AI Tech Việt Nam",
-                duration: "2024 - Hiện tại",
-                description: "Dẫn dắt phát triển hệ thống Dashboard tạo và quản lý CV thông minh. Tối ưu hóa hiệu năng render trang web giúp giảm 35% thời gian phản hồi.",
-              },
-              {
-                role: "Software Developer",
-                company: "Vina Web Solution",
-                duration: "2022 - 2024",
-                description: "Xây dựng các giao diện web app đáp ứng (Responsive Layouts) cho các đối tác quốc tế. Quản lý thư viện thành phần React dùng chung.",
-              }
-            ]
-          },
-          order: 1,
-        },
-        {
-          type: "skills",
-          content: {
-            list: ["React/Next.js", "TypeScript", "Tailwind CSS", "REST API", "Git & CI/CD", "AI Model integration"]
-          },
-          order: 2,
+      let status = job.status;
+      let currentJob = job;
+
+      onProgress("Đang đưa CV vào hàng đợi xử lý AI...");
+
+      while (status === "uploaded" || status === "queued" || status === "processing") {
+        await new Promise((r) => setTimeout(r, 2000));
+        const statusRes = await apiFetch<any>(`/ai/ocr/status/${job.id}`);
+        currentJob = statusRes?.data || statusRes;
+        status = currentJob.status;
+
+        if (status === "processing") {
+          onProgress("AI đang tiến hành quét OCR và phân tích cấu trúc CV...");
         }
-      ];
-
-      for (const sect of parsedSections) {
-        await apiFetch(`/cvs/${cv.id}/sections`, {
-          method: "POST",
-          body: JSON.stringify(sect),
-        });
       }
 
-      setCvs((prev) => [cv, ...prev]);
-      setIsWorkflowModalOpen(false);
-      router.push(`/cv/${cv.id}`);
+      if (status === "completed" && currentJob.extractedCvId) {
+        onProgress("Trích xuất hoàn tất! Đang áp dụng thiết kế giao diện...");
+        
+        // Save the chosen templateId onto the extracted CV
+        if (templateId) {
+          await apiFetch(`/cvs/${currentJob.extractedCvId}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              title: `Imported - ${file.name.replace(/\.[^/.]+$/, "")}`,
+              locale: "vi",
+              templateId,
+              version: 1, // Start with version 1
+            }),
+          }).catch((err) => console.warn("Failed to set templateId on extracted CV:", err));
+        }
+
+        // Fetch refreshed CVs list
+        fetchCvs();
+        setIsWorkflowModalOpen(false);
+        router.push(`/cv/${currentJob.extractedCvId}`);
+      } else {
+        throw new Error(currentJob.error || "Quá trình trích xuất CV bằng AI gặp lỗi.");
+      }
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : "Có lỗi xảy ra khi phân tích tệp CV cũ.");
     } finally {
@@ -356,17 +340,19 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       // 1. Fetch source CV details including sections
-      const sourceCv = await apiFetch<Cv>(`/cvs/${cvId}`);
+      const sourceCvRes = await apiFetch<any>(`/cvs/${cvId}`);
+      const sourceCv = sourceCvRes?.data || sourceCvRes;
       // 2. Create the copied CV
       const payload = {
         title: `${sourceCv.title} (Copy)`,
         locale: sourceCv.locale as "en" | "vi",
         templateId: sourceCv.sections?.[0]?.id ? undefined : undefined // or map templateId if present
       };
-      const newCv = await apiFetch<Cv>("/cvs", {
+      const newCvRes = await apiFetch<any>("/cvs", {
         method: "POST",
         body: JSON.stringify(payload)
       });
+      const newCv = newCvRes?.data || newCvRes;
       
       // 3. Upsert each section onto the new CV
       if (sourceCv.sections && sourceCv.sections.length > 0) {
@@ -396,15 +382,11 @@ export default function DashboardPage() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const profile = await apiFetch<{
-        id: string;
-        email: string;
-        fullName: string;
-        role: string;
-      }>("/auth/sync", {
+      const profileRes = await apiFetch<any>("/auth/sync", {
         method: "POST",
         body: JSON.stringify({ fullName: values.fullName })
       });
+      const profile = profileRes?.data || profileRes;
       
       setAuth(accessToken, profile);
       alert("Họ tên đã được cập nhật thành công!");

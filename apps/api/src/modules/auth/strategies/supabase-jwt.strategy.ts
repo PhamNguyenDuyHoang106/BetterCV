@@ -15,7 +15,14 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
   constructor(config: ConfigService) {
     const supabaseUrl = config.get<string>('SUPABASE_URL');
 
-    const secretOrKeyProvider = supabaseUrl
+    let hmacSecret: string | Buffer | undefined = config.get<string>('SUPABASE_JWT_SECRET');
+    if (hmacSecret && hmacSecret.length > 40 && hmacSecret.endsWith('=')) {
+      try {
+        hmacSecret = Buffer.from(hmacSecret, 'base64');
+      } catch {}
+    }
+
+    const jwksProvider = supabaseUrl
       ? passportJwtSecret({
           cache: true,
           rateLimit: true,
@@ -24,17 +31,35 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
         })
       : undefined;
 
-    const secretOrKey = secretOrKeyProvider
-      ? undefined
-      : (config.get<string>('SUPABASE_JWT_SECRET') ??
-        'super-secret-jwt-token-with-at-least-32-characters');
+    const dynamicSecretProvider = (
+      req: any,
+      rawJwtToken: string,
+      done: (err: any, secret?: any) => void,
+    ) => {
+      try {
+        const parts = rawJwtToken.split('.');
+        if (parts.length > 0) {
+          const headerJson = Buffer.from(parts[0], 'base64').toString('utf8');
+          const header = JSON.parse(headerJson);
+          if (header.alg === 'HS256' && hmacSecret) {
+            return done(null, hmacSecret);
+          }
+        }
+      } catch (err) {
+        // Fallback to JWKS
+      }
+
+      if (jwksProvider) {
+        return jwksProvider(req, rawJwtToken, done);
+      }
+      return done(null, hmacSecret ?? 'super-secret-jwt-token-with-at-least-32-characters');
+    };
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKeyProvider,
-      secretOrKey,
-      algorithms: ['HS256', 'ES256'],
+      secretOrKeyProvider: dynamicSecretProvider,
+      algorithms: ['HS256', 'ES256', 'RS256'],
     });
   }
 

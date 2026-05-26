@@ -19,8 +19,8 @@ export default function SharePage() {
     if (!token) {
       return;
     }
-    apiFetch<ShareCv>(`/share/${token}`)
-      .then(setCv)
+    apiFetch<any>(`/share/${token}`)
+      .then((res) => setCv(res?.data || res))
       .catch(() => setCv(null));
   }, [token]);
 

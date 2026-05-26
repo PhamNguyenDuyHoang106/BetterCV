@@ -61,15 +61,11 @@ export default function RegisterPage() {
       const token = data.session.access_token;
       useAuthStore.setState({ accessToken: token });
 
-      const profile = await apiFetch<{
-        id: string;
-        email: string;
-        fullName: string;
-        role: string;
-      }>("/auth/sync", {
+      const res = await apiFetch<any>("/auth/sync", {
         method: "POST",
         body: JSON.stringify({ fullName: values.fullName }),
       });
+      const profile = res?.data || res;
 
       setAuth(token, profile);
       router.push("/dashboard");

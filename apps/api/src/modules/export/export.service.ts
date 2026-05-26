@@ -103,18 +103,57 @@ export class ExportService {
     return { cv, template };
   }
 
-  private async renderPdf(html: string): Promise<Buffer> {
-    const browser = await puppeteer.launch({
+  private printCount = 0;
+  private browserInstance: any = null;
+
+  private async getBrowser(): Promise<any> {
+    if (this.browserInstance) {
+      if (this.printCount >= 25) {
+        this.logger.log('Recycling Puppeteer browser pool to prevent memory leaks (25 prints threshold hit)...');
+        await this.closeBrowser();
+      } else {
+        return this.browserInstance;
+      }
+    }
+    this.logger.log('Launching warm, sandboxed Puppeteer browser instance for exports...');
+    this.browserInstance = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process'
+      ],
     });
+    this.printCount = 0;
+    return this.browserInstance;
+  }
+
+  private async closeBrowser() {
+    if (this.browserInstance) {
+      try {
+        await this.browserInstance.close();
+      } catch (err) {
+        this.logger.error(`Error closing browser: ${(err as Error).message}`);
+      }
+      this.browserInstance = null;
+      this.printCount = 0;
+    }
+  }
+
+  private async renderPdf(html: string): Promise<Buffer> {
+    const browser = await this.getBrowser();
+    this.printCount++;
+    const page = await browser.newPage();
     try {
-      const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' as any });
       const pdf = await page.pdf({ format: 'A4', printBackground: true });
       return Buffer.from(pdf);
     } finally {
-      await browser.close();
+      await page.close();
     }
   }
 

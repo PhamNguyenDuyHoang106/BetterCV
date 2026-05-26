@@ -28,21 +28,34 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : 'Internal server error';
 
     const errorResponse = {
-      statusCode: status,
-      message,
+      success: false,
+      data: null,
+      error: {
+        statusCode: status,
+        message,
+      },
+      meta: {
+        requestId: (request as any).requestId || null,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+      },
+    };
+
+    const logPayload = {
       timestamp: new Date().toISOString(),
-      path: request.url,
+      requestId: (request as any).requestId || null,
+      userId: (request as any).user?.sub || null,
+      method: request.method,
+      url: request.url,
+      statusCode: status,
+      errorMessage: message,
+      errorStack: status >= 500 && exception instanceof Error ? exception.stack : undefined,
     };
 
     if (status >= 500) {
-      this.logger.error(
-        `${request.method} ${request.url} ${status}`,
-        exception instanceof Error ? exception.stack : undefined,
-      );
+      this.logger.error(JSON.stringify(logPayload));
     } else {
-      this.logger.warn(
-        `${request.method} ${request.url} ${status} — ${message}`,
-      );
+      this.logger.warn(JSON.stringify(logPayload));
     }
 
     response.status(status).json(errorResponse);

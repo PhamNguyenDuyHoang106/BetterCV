@@ -22,4 +22,8 @@ export class CvSectionUpsertDto {
 
   @IsInt()
   order!: number;
+
+  @IsOptional()
+  @IsInt()
+  version?: number;
 }

@@ -55,12 +55,8 @@ export default function LoginFormClient() {
       }
 
       useAuthStore.setState({ accessToken: data.session.access_token });
-      const profile = await apiFetch<{
-        id: string;
-        email: string;
-        fullName: string;
-        role: string;
-      }>("/auth/me");
+      const res = await apiFetch<any>("/auth/me");
+      const profile = res?.data || res;
 
       setAuth(data.session.access_token, profile);
       router.push("/dashboard");

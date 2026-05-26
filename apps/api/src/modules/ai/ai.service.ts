@@ -1,15 +1,10 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { AiGenerateDto, AiRewriteDto, AiScoreDto } from './dto/ai.dto';
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
-
-type PromptPayload = {
-  system: string;
-  user: string;
-  input: unknown;
-};
+import { AiProvider, PromptPayload } from './providers/ai-provider.interface';
 
 @Injectable()
 export class AiService {
@@ -18,50 +13,76 @@ export class AiService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    @Inject('AiProvider') private aiProvider: AiProvider,
   ) {}
 
   async generate(supabaseId: string, dto: AiGenerateDto) {
-    return this.runPrompt(supabaseId, 'cv_generate', {
-      system:
-        'You are a CV generator. Return valid JSON. Keep output ATS-friendly and concise.',
-      user: 'Generate a CV structure from the provided user profile and job description.',
-      input: dto,
-    });
+    return this.runPrompt(
+      supabaseId,
+      'cv_generate',
+      {
+        system:
+          'You are a CV generator. Return valid JSON. Keep output ATS-friendly and concise.',
+        user: 'Generate a CV structure from the provided user profile and job description.',
+        input: dto,
+      },
+      0.0,
+    );
   }
 
   async rewrite(supabaseId: string, dto: AiRewriteDto) {
-    return this.runPrompt(supabaseId, 'cv_rewrite', {
-      system:
-        'You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.',
-      user: 'Rewrite the section to match the requested style.',
-      input: dto,
-    });
+    return this.runPrompt(
+      supabaseId,
+      'cv_rewrite',
+      {
+        system:
+          'You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.',
+        user: 'Rewrite the section to match the requested style.',
+        input: dto,
+      },
+      0.4,
+    );
   }
 
   async score(supabaseId: string, dto: AiScoreDto) {
-    return this.runPrompt(supabaseId, 'cv_score', {
-      system: 'You score CV vs JD. Return JSON with score 0-100 and reasoning.',
-      user: 'Score the CV content against the job description.',
-      input: dto,
-    });
+    return this.runPrompt(
+      supabaseId,
+      'cv_score',
+      {
+        system: 'You score CV vs JD. Return JSON with score 0-100 and reasoning.',
+        user: 'Score the CV content against the job description.',
+        input: dto,
+      },
+      0.0,
+    );
   }
 
   async keywords(supabaseId: string, dto: AiScoreDto) {
-    return this.runPrompt(supabaseId, 'cv_keywords', {
-      system:
-        'You extract keywords and missing skills. Return JSON with keywords and gaps.',
-      user: 'Analyze CV content against job description for keywords and missing skills.',
-      input: dto,
-    });
+    return this.runPrompt(
+      supabaseId,
+      'cv_keywords',
+      {
+        system:
+          'You extract keywords and missing skills. Return JSON with keywords and gaps.',
+        user: 'Analyze CV content against job description for keywords and missing skills.',
+        input: dto,
+      },
+      0.0,
+    );
   }
 
   async analyzeJobDescription(supabaseId: string, jobDescription: string) {
-    return this.runPrompt(supabaseId, 'jd_analyze', {
-      system:
-        'You analyze job descriptions. Return JSON summary and required skills.',
-      user: 'Analyze the job description for key requirements.',
-      input: { jobDescription },
-    });
+    return this.runPrompt(
+      supabaseId,
+      'jd_analyze',
+      {
+        system:
+          'You analyze job descriptions. Return JSON summary and required skills.',
+        user: 'Analyze the job description for key requirements.',
+        input: { jobDescription },
+      },
+      0.0,
+    );
   }
 
   async generateStream(supabaseId: string, dto: AiGenerateDto, res: Response) {
@@ -75,6 +96,7 @@ export class AiService {
         input: dto,
       },
       res,
+      0.0,
     );
   }
 
@@ -89,8 +111,11 @@ export class AiService {
         input: dto,
       },
       res,
+      0.4,
     );
   }
+
+  // ── Core AI Pipeline ──────────────────────────────────────────
 
   // ── Core AI Pipeline ──────────────────────────────────────────
 
@@ -98,6 +123,7 @@ export class AiService {
     supabaseId: string,
     promptKey: string,
     payload: PromptPayload,
+    temperature = 0.4,
   ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertQuota(userId);
@@ -108,11 +134,14 @@ export class AiService {
       data: { userId, promptKey, input: toInputJson(payload.input) },
     });
 
-    const response = await this.callModel({
-      system: promptVersion.content,
-      user: payload.user,
-      input: payload.input,
-    });
+    const response = await this.aiProvider.generate(
+      {
+        system: promptVersion.content,
+        user: payload.user,
+        input: payload.input,
+      },
+      temperature,
+    );
 
     await this.prisma.aiResponse.create({
       data: {
@@ -131,6 +160,7 @@ export class AiService {
     promptKey: string,
     payload: PromptPayload,
     res: Response,
+    temperature = 0.4,
   ) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -146,13 +176,14 @@ export class AiService {
       data: { userId, promptKey, input: toInputJson(payload.input) },
     });
 
-    const result = await this.callModelStream(
+    const result = await this.aiProvider.stream(
       {
         system: promptVersion.content,
         user: payload.user,
         input: payload.input,
       },
       res,
+      temperature,
     );
 
     await this.prisma.aiResponse.create({
@@ -166,115 +197,6 @@ export class AiService {
 
     res.write(`event: done\ndata: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
-  }
-
-  // ── OpenAI Client ─────────────────────────────────────────────
-
-  private async callModel(payload: PromptPayload) {
-    const { baseUrl, apiKey } = this.getAiConfig();
-    const body = this.buildChatBody(payload, false);
-
-    const result = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!result.ok) {
-      this.logger.error(`AI request failed: ${result.status}`);
-      throw new ForbiddenException('AI request failed');
-    }
-
-    const json = (await result.json()) as any;
-    const content = json.choices?.[0]?.message?.content ?? '{}';
-    const tokens = json.usage?.total_tokens ?? 0;
-
-    return { output: safeJsonParse(content), tokens };
-  }
-
-  private async callModelStream(payload: PromptPayload, res: Response) {
-    const { baseUrl, apiKey } = this.getAiConfig();
-    const body = this.buildChatBody(payload, true);
-
-    const result = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!result.ok || !result.body) {
-      throw new ForbiddenException('AI request failed');
-    }
-
-    const reader = result.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let fullText = '';
-    let totalTokens = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') continue;
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content ?? '';
-          if (delta) {
-            fullText += delta;
-            res.write(`data: ${delta}\n\n`);
-          }
-          if (parsed.usage?.total_tokens) {
-            totalTokens = parsed.usage.total_tokens;
-          }
-        } catch {
-          continue;
-        }
-      }
-    }
-
-    return { text: fullText, tokens: totalTokens || 0 };
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────
-
-  private getAiConfig() {
-    const baseUrl = this.config.get<string>('OPENAI_BASE_URL');
-    const apiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (!baseUrl || !apiKey) {
-      throw new ForbiddenException('AI provider not configured');
-    }
-    return { baseUrl, apiKey };
-  }
-
-  private buildChatBody(payload: PromptPayload, stream: boolean) {
-    return {
-      model: this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
-      messages: [
-        { role: 'system', content: payload.system },
-        {
-          role: 'user',
-          content: `${payload.user}\n\nINPUT:\n${JSON.stringify(payload.input)}`,
-        },
-      ],
-      temperature: 0.4,
-      ...(stream
-        ? { stream: true, stream_options: { include_usage: true } }
-        : {}),
-    };
   }
 
   private async resolveUserId(supabaseId: string): Promise<string> {

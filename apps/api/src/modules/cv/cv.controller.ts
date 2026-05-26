@@ -6,9 +6,11 @@ import {
   Param,
   Post,
   Put,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Request } from 'express';
 import { CvService } from './cv.service';
 import { CvCreateDto, CvUpdateDto } from './dto/cv.dto';
 import { CvSectionUpsertDto } from './dto/section.dto';
@@ -39,8 +41,11 @@ export class CvController {
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() dto: CvUpdateDto,
+    @Req() req: Request,
   ) {
-    return this.cvService.update(user.sub, id, dto);
+    const sessionId = req.headers['x-session-id'] as string;
+    const device = getDeviceFromUserAgent(req.headers['user-agent']);
+    return this.cvService.update(user.sub, id, dto, { sessionId, device });
   }
 
   @Delete(':id')
@@ -53,8 +58,11 @@ export class CvController {
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() dto: CvSectionUpsertDto,
+    @Req() req: Request,
   ) {
-    return this.cvService.upsertSection(user.sub, id, dto);
+    const sessionId = req.headers['x-session-id'] as string;
+    const device = getDeviceFromUserAgent(req.headers['user-agent']);
+    return this.cvService.upsertSection(user.sub, id, dto, { sessionId, device });
   }
 
   @Get(':id/versions')
@@ -62,8 +70,37 @@ export class CvController {
     return this.cvService.listVersions(user.sub, id);
   }
 
+  @Post(':id/versions/:versionId/restore')
+  async restoreVersion(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.cvService.restoreVersion(user.sub, id, versionId);
+  }
+
   @Post(':id/share')
   async share(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.cvService.createShareLink(user.sub, id);
   }
+}
+
+function getDeviceFromUserAgent(userAgent?: string): string {
+  if (!userAgent) return 'Unknown Device';
+  const ua = userAgent.toLowerCase();
+  let os = 'Unknown OS';
+  let browser = 'Unknown Browser';
+
+  if (ua.includes('windows')) os = 'Windows';
+  else if (ua.includes('macintosh') || ua.includes('mac os')) os = 'macOS';
+  else if (ua.includes('linux')) os = 'Linux';
+  else if (ua.includes('android')) os = 'Android';
+  else if (ua.includes('iphone') || ua.includes('ipad')) os = 'iOS';
+
+  if (ua.includes('chrome') || ua.includes('chromium')) browser = 'Chrome';
+  else if (ua.includes('firefox')) browser = 'Firefox';
+  else if (ua.includes('safari') && !ua.includes('chrome')) browser = 'Safari';
+  else if (ua.includes('edge')) browser = 'Edge';
+
+  return `${browser} on ${os}`;
 }

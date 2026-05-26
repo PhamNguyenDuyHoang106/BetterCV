@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CvCreateDto, CvUpdateDto } from './dto/cv.dto';
 import { CvSectionUpsertDto } from './dto/section.dto';
 import { Prisma } from '@prisma/client';
+import { migrateCvData } from './migrations';
 
 @Injectable()
 export class CvService {
@@ -43,18 +45,55 @@ export class CvService {
     if (!cv || cv.userId !== userId || cv.isDeleted) {
       throw new NotFoundException('CV not found');
     }
+
+    // Run the on-read migration pipeline
+    const assembled = this.assembleResumeData(cv);
+    const { migrated, data: migratedData } = migrateCvData(assembled);
+
+    if (migrated) {
+      await this.persistMigratedData(cv.id, migratedData);
+      // Reload CV with updated sections
+      const updatedCv = await this.prisma.cv.findUnique({
+        where: { id },
+        include: { sections: { orderBy: { order: 'asc' } } },
+      });
+      if (updatedCv) return updatedCv;
+    }
+
     return cv;
   }
 
-  async update(supabaseId: string, id: string, dto: CvUpdateDto) {
+  async update(
+    supabaseId: string,
+    id: string,
+    dto: CvUpdateDto,
+    clientSession?: { sessionId?: string; device?: string },
+  ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, id);
+
+    const existing = await this.prisma.cv.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('CV not found');
+
+    if (dto.version !== undefined && existing.version !== dto.version) {
+      throw new ConflictException({
+        message: 'Xung đột dữ liệu: CV này đã được chỉnh sửa trên thiết bị khác.',
+        latestVersion: existing.version,
+        lastEditedAt: existing.lastEditedAt,
+        lastEditedDevice: existing.lastEditedDevice,
+      });
+    }
+
     const cv = await this.prisma.cv.update({
       where: { id },
       data: {
         title: dto.title,
         locale: dto.locale,
         templateId: dto.templateId,
+        version: { increment: 1 },
+        lastEditedSessionId: clientSession?.sessionId || null,
+        lastEditedDevice: clientSession?.device || null,
+        lastEditedAt: new Date(),
       },
     });
     await this.snapshotVersion(id);
@@ -75,11 +114,26 @@ export class CvService {
     supabaseId: string,
     cvId: string,
     dto: CvSectionUpsertDto,
+    clientSession?: { sessionId?: string; device?: string },
   ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, cvId);
+
+    const existingCv = await this.prisma.cv.findUnique({ where: { id: cvId } });
+    if (!existingCv) throw new NotFoundException('CV not found');
+
+    if (dto.version !== undefined && existingCv.version !== dto.version) {
+      throw new ConflictException({
+        message: 'Xung đột dữ liệu: CV này đã được chỉnh sửa ở tab hoặc thiết bị khác.',
+        latestVersion: existingCv.version,
+        lastEditedAt: existingCv.lastEditedAt,
+        lastEditedDevice: existingCv.lastEditedDevice,
+      });
+    }
+
+    let section;
     if (dto.id) {
-      const section = await this.prisma.cvSection.update({
+      section = await this.prisma.cvSection.update({
         where: { id: dto.id },
         data: {
           type: dto.type,
@@ -87,17 +141,28 @@ export class CvService {
           order: dto.order,
         },
       });
-      await this.snapshotVersion(cvId);
-      return section;
+    } else {
+      section = await this.prisma.cvSection.create({
+        data: {
+          cvId,
+          type: dto.type,
+          content: dto.content as Prisma.InputJsonValue,
+          order: dto.order,
+        },
+      });
     }
-    const section = await this.prisma.cvSection.create({
+
+    // Increment document version and update edit attributions
+    await this.prisma.cv.update({
+      where: { id: cvId },
       data: {
-        cvId,
-        type: dto.type,
-        content: dto.content as Prisma.InputJsonValue,
-        order: dto.order,
+        version: { increment: 1 },
+        lastEditedSessionId: clientSession?.sessionId || null,
+        lastEditedDevice: clientSession?.device || null,
+        lastEditedAt: new Date(),
       },
     });
+
     await this.snapshotVersion(cvId);
     return section;
   }
@@ -110,6 +175,55 @@ export class CvService {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
+  }
+
+  async restoreVersion(supabaseId: string, cvId: string, versionId: string) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+
+    const cvVersion = await this.prisma.cvVersion.findFirst({
+      where: { id: versionId, cvId },
+    });
+    if (!cvVersion) throw new NotFoundException('Version not found');
+
+    const snapshot = cvVersion.snapshot as any;
+    
+    // Clear all existing sections for this CV
+    await this.prisma.cvSection.deleteMany({
+      where: { cvId },
+    });
+
+    // Recreate sections from snapshot
+    if (snapshot.sections && Array.isArray(snapshot.sections)) {
+      for (const sec of snapshot.sections) {
+        await this.prisma.cvSection.create({
+          data: {
+            cvId,
+            type: sec.type,
+            content: sec.content,
+            order: sec.order,
+          },
+        });
+      }
+    }
+
+    // Update CV details, incrementing version to push to other tabs
+    const updated = await this.prisma.cv.update({
+      where: { id: cvId },
+      data: {
+        title: snapshot.title || 'Untitled CV',
+        locale: snapshot.locale || 'en',
+        templateId: snapshot.templateId || null,
+        version: { increment: 1 },
+        lastEditedSessionId: 'rollback',
+        lastEditedDevice: 'Hệ thống (Phục hồi phiên bản)',
+        lastEditedAt: new Date(),
+      },
+      include: { sections: { orderBy: { order: 'asc' } } },
+    });
+
+    await this.snapshotVersion(cvId);
+    return updated;
   }
 
   async createShareLink(supabaseId: string, cvId: string) {
@@ -162,4 +276,41 @@ export class CvService {
       },
     });
   }
+
+  private assembleResumeData(cv: { title: string; sections: Array<{ type: string; content: any }> }): any {
+    const data: Record<string, any> = { schemaVersion: 1 };
+    for (const section of cv.sections) {
+      data[section.type.toLowerCase()] = section.content;
+    }
+    // If schemaVersion is inside PROFILE section, extract it.
+    if (data.profile && typeof data.profile === 'object') {
+      data.schemaVersion = data.profile.schemaVersion ?? 1;
+    }
+    return data;
+  }
+
+  private async persistMigratedData(cvId: string, migratedData: any) {
+    const sectionTypes = ['PROFILE', 'SUMMARY', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'PROJECTS'];
+    for (const type of sectionTypes) {
+      const lowerType = type.toLowerCase();
+      const content = migratedData[lowerType];
+      if (content !== undefined) {
+        const existing = await this.prisma.cvSection.findFirst({
+          where: { cvId, type: type as any }
+        });
+        if (existing) {
+          // If this is the PROFILE section, save the updated schemaVersion within its content
+          const updatedContent = type === 'PROFILE'
+            ? { ...content, schemaVersion: migratedData.schemaVersion }
+            : content;
+
+          await this.prisma.cvSection.update({
+            where: { id: existing.id },
+            data: { content: updatedContent as Prisma.InputJsonValue }
+          });
+        }
+      }
+    }
+  }
 }
+
