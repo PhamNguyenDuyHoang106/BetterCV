@@ -15,7 +15,9 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
   constructor(config: ConfigService) {
     const supabaseUrl = config.get<string>('SUPABASE_URL');
 
-    let hmacSecret: string | Buffer | undefined = config.get<string>('SUPABASE_JWT_SECRET');
+    let hmacSecret: string | Buffer | undefined = config.get<string>(
+      'SUPABASE_JWT_SECRET',
+    );
     if (hmacSecret && hmacSecret.length > 40 && hmacSecret.endsWith('=')) {
       try {
         hmacSecret = Buffer.from(hmacSecret, 'base64');
@@ -52,7 +54,10 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
       if (jwksProvider) {
         return jwksProvider(req, rawJwtToken, done);
       }
-      return done(null, hmacSecret ?? 'super-secret-jwt-token-with-at-least-32-characters');
+      return done(
+        null,
+        hmacSecret ?? 'super-secret-jwt-token-with-at-least-32-characters',
+      );
     };
 
     super({

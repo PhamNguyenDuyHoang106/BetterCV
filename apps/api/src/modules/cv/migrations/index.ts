@@ -32,7 +32,10 @@ const migrations: Record<number, (data: RawCvData) => RawCvData> = {
  * If the CV data's version is older than CURRENT_SCHEMA_VERSION,
  * this function runs all applicable transformations in sequence.
  */
-export function migrateCvData(data: RawCvData): { migrated: boolean; data: RawCvData } {
+export function migrateCvData(data: RawCvData): {
+  migrated: boolean;
+  data: RawCvData;
+} {
   let version = data.schemaVersion ?? 1;
   let currentData: RawCvData = { ...data, schemaVersion: version };
   let migrated = false;
@@ -40,12 +43,14 @@ export function migrateCvData(data: RawCvData): { migrated: boolean; data: RawCv
   while (version < CURRENT_SCHEMA_VERSION) {
     const migrationFn = migrations[version];
     if (!migrationFn) {
-      logger.warn(`No migration found for schema version v${version}. Stopping migration.`);
+      logger.warn(
+        `No migration found for schema version v${version}. Stopping migration.`,
+      );
       break;
     }
 
     currentData = migrationFn(currentData);
-    version = currentData.schemaVersion ?? (version + 1);
+    version = currentData.schemaVersion ?? version + 1;
     migrated = true;
   }
 

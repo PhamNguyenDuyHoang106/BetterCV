@@ -1,7 +1,11 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
-import { AiProvider, PromptPayload, AiResponseEnvelope } from './ai-provider.interface';
+import {
+  AiProvider,
+  PromptPayload,
+  AiResponseEnvelope,
+} from './ai-provider.interface';
 
 @Injectable()
 export class OpenAiProvider implements AiProvider {
@@ -9,7 +13,10 @@ export class OpenAiProvider implements AiProvider {
 
   constructor(private config: ConfigService) {}
 
-  async generate(payload: PromptPayload, temperature = 0.4): Promise<AiResponseEnvelope> {
+  async generate(
+    payload: PromptPayload,
+    temperature = 0.4,
+  ): Promise<AiResponseEnvelope> {
     const { baseUrl, apiKey } = this.getAiConfig();
     const body = this.buildChatBody(payload, false, temperature);
 
@@ -52,7 +59,9 @@ export class OpenAiProvider implements AiProvider {
     });
 
     if (!result.ok || !result.body) {
-      this.logger.error(`OpenAI Stream Request Failed: Status ${result.status}`);
+      this.logger.error(
+        `OpenAI Stream Request Failed: Status ${result.status}`,
+      );
       throw new ForbiddenException('AI provider streaming request failed');
     }
 
@@ -133,7 +142,9 @@ export class OpenAiProvider implements AiProvider {
     });
 
     if (!result.ok) {
-      this.logger.error(`OpenAI Vision Request Failed: Status ${result.status}`);
+      this.logger.error(
+        `OpenAI Vision Request Failed: Status ${result.status}`,
+      );
       throw new ForbiddenException('AI provider vision request failed');
     }
 
@@ -153,7 +164,11 @@ export class OpenAiProvider implements AiProvider {
     return { baseUrl, apiKey };
   }
 
-  private buildChatBody(payload: PromptPayload, stream: boolean, temperature: number) {
+  private buildChatBody(
+    payload: PromptPayload,
+    stream: boolean,
+    temperature: number,
+  ) {
     return {
       model: this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
       messages: [

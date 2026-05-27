@@ -1,11 +1,17 @@
-import { Inject, Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
-import { AiProvider } from "../ai/providers/ai-provider.interface";
-import { QueueService } from "../../core/services/queue.service";
-import { PrismaService } from "../../database/prisma.service";
-import { CvService } from "../cv/cv.service";
-import sharp from "sharp";
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { AiProvider } from '../ai/providers/ai-provider.interface';
+import { QueueService } from '../../core/services/queue.service';
+import { PrismaService } from '../../database/prisma.service';
+import { CvService } from '../cv/cv.service';
+import sharp from 'sharp';
 
-export type OcrJobStatus = "uploaded" | "queued" | "processing" | "reviewing" | "completed" | "failed";
+export type OcrJobStatus =
+  | 'uploaded'
+  | 'queued'
+  | 'processing'
+  | 'reviewing'
+  | 'completed'
+  | 'failed';
 
 export interface OcrJob {
   id: string;
@@ -21,7 +27,7 @@ export interface OcrJob {
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
-  
+
   // In-memory state machine for OCR jobs (can be backed by DB/Redis)
   private jobs: Map<string, OcrJob> = new Map();
 
@@ -29,7 +35,7 @@ export class OcrService {
     private prisma: PrismaService,
     private queueService: QueueService,
     private cvService: CvService,
-    @Inject("AiProvider") private aiProvider: AiProvider,
+    @Inject('AiProvider') private aiProvider: AiProvider,
   ) {
     // Start background queue listener for processing queued OCR jobs
     this.startWorker();
@@ -40,14 +46,14 @@ export class OcrService {
       where: { supabaseId },
       select: { id: true },
     });
-    if (!user) throw new NotFoundException("User not found");
+    if (!user) throw new NotFoundException('User not found');
 
     const jobId = Math.random().toString(36).substring(7);
     const job: OcrJob = {
       id: jobId,
       userId: user.id,
       filename: file.originalname,
-      status: "uploaded",
+      status: 'uploaded',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -56,19 +62,28 @@ export class OcrService {
     this.logger.log(`OCR Job ${jobId} initialized for user ${user.id}`);
 
     // Transition status to queued and push to BullMQ-style QueueService
-    this.updateJobStatus(jobId, "queued");
-    await this.queueService.addJob("ocr", "medium", { jobId, fileBuffer: file.buffer, filename: file.originalname, mimetype: file.mimetype });
+    this.updateJobStatus(jobId, 'queued');
+    await this.queueService.addJob('ocr', 'medium', {
+      jobId,
+      fileBuffer: file.buffer,
+      filename: file.originalname,
+      mimetype: file.mimetype,
+    });
 
     return job;
   }
 
   getJobStatus(jobId: string): OcrJob {
     const job = this.jobs.get(jobId);
-    if (!job) throw new NotFoundException("OCR job not found");
+    if (!job) throw new NotFoundException('OCR job not found');
     return job;
   }
 
-  private updateJobStatus(jobId: string, status: OcrJobStatus, extra: Partial<OcrJob> = {}) {
+  private updateJobStatus(
+    jobId: string,
+    status: OcrJobStatus,
+    extra: Partial<OcrJob> = {},
+  ) {
     const job = this.jobs.get(jobId);
     if (job) {
       job.status = status;
@@ -83,23 +98,32 @@ export class OcrService {
   private async startWorker() {
     setInterval(async () => {
       const activeJob = await this.queueService.getNextJob();
-      if (!activeJob || activeJob.type !== "ocr") return;
+      if (!activeJob || activeJob.type !== 'ocr') return;
 
       const { jobId, fileBuffer, filename, mimetype } = activeJob.payload;
-      this.updateJobStatus(jobId, "processing");
+      this.updateJobStatus(jobId, 'processing');
 
       try {
         let extractedData: any;
         const buffer = Buffer.from(fileBuffer);
 
         // 1. PDF Hybrid Classifier
-        if (mimetype === "application/pdf") {
+        if (mimetype === 'application/pdf') {
           const classification = this.classifyPdf(buffer);
-          if (classification.type === "native" && classification.extractedText) {
-            this.logger.log(`Job ${jobId}: Native PDF detected. Performing deterministic parsing...`);
-            extractedData = await this.parseTextDeterministically(classification.extractedText);
+          if (
+            classification.type === 'native' &&
+            classification.extractedText
+          ) {
+            this.logger.log(
+              `Job ${jobId}: Native PDF detected. Performing deterministic parsing...`,
+            );
+            extractedData = await this.parseTextDeterministically(
+              classification.extractedText,
+            );
           } else {
-            this.logger.log(`Job ${jobId}: Scanned PDF detected. Converting and processing via Sharp + Vision OCR...`);
+            this.logger.log(
+              `Job ${jobId}: Scanned PDF detected. Converting and processing via Sharp + Vision OCR...`,
+            );
             extractedData = await this.processVisionOCR(buffer);
           }
         } else {
@@ -113,13 +137,20 @@ export class OcrService {
           const cv = await this.prisma.cv.create({
             data: {
               userId: job.userId,
-              title: `Imported - ${filename.replace(/\.[^/.]+$/, "")}`,
-              locale: "vi",
+              title: `Imported - ${filename.replace(/\.[^/.]+$/, '')}`,
+              locale: 'vi',
             },
           });
 
           // Insert sections
-          const sectionTypes = ["PROFILE", "SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"];
+          const sectionTypes = [
+            'PROFILE',
+            'SUMMARY',
+            'EXPERIENCE',
+            'EDUCATION',
+            'SKILLS',
+            'PROJECTS',
+          ];
           for (const type of sectionTypes) {
             const lowerType = type.toLowerCase();
             const content = extractedData[lowerType] || {};
@@ -133,12 +164,12 @@ export class OcrService {
             });
           }
 
-          this.updateJobStatus(jobId, "completed", { extractedCvId: cv.id });
+          this.updateJobStatus(jobId, 'completed', { extractedCvId: cv.id });
           await this.queueService.completeJob(activeJob.id);
         }
       } catch (err: any) {
         this.logger.error(`Job ${jobId} failed: ${err.message}`);
-        this.updateJobStatus(jobId, "failed", { error: err.message });
+        this.updateJobStatus(jobId, 'failed', { error: err.message });
         await this.queueService.failJob(activeJob.id, err.message);
       }
     }, 3000);
@@ -147,29 +178,42 @@ export class OcrService {
   /**
    * PDF Hybrid Classifier: checks characters density and scans for common resume keywords
    */
-  private classifyPdf(buffer: Buffer): { type: "native" | "scan"; extractedText?: string } {
-    const textContent = buffer.toString("utf8");
-    
+  private classifyPdf(buffer: Buffer): {
+    type: 'native' | 'scan';
+    extractedText?: string;
+  } {
+    const textContent = buffer.toString('utf8');
+
     // Quick search for typical CV words
-    const commonKeywords = ["education", "experience", "skills", "profile", "projects", "học vấn", "kinh nghiệm", "kỹ năng", "tóm tắt"];
+    const commonKeywords = [
+      'education',
+      'experience',
+      'skills',
+      'profile',
+      'projects',
+      'học vấn',
+      'kinh nghiệm',
+      'kỹ năng',
+      'tóm tắt',
+    ];
     let matchCount = 0;
-    
+
     for (const word of commonKeywords) {
-      const regex = new RegExp(word, "gi");
+      const regex = new RegExp(word, 'gi');
       const matches = textContent.match(regex);
       if (matches) matchCount += matches.length;
     }
 
     // Clean up extracted ASCII characters to represent plain text
     const cleanText = textContent
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, "")
-      .replace(/\s+/g, " ")
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
 
     if (matchCount > 6 && cleanText.length > 100) {
-      return { type: "native", extractedText: cleanText };
+      return { type: 'native', extractedText: cleanText };
     }
-    return { type: "scan" };
+    return { type: 'scan' };
   }
 
   /**
@@ -183,14 +227,16 @@ export class OcrService {
         .jpeg({ quality: 80 }) // compressed high quality JPEG
         .toBuffer();
     } catch (err) {
-      this.logger.warn(`Sharp processing failed, using original buffer: ${(err as Error).message}`);
+      this.logger.warn(
+        `Sharp processing failed, using original buffer: ${(err as Error).message}`,
+      );
       return buffer;
     }
   }
 
   private async processVisionOCR(buffer: Buffer): Promise<any> {
     const cleanedImage = await this.preprocessImage(buffer);
-    
+
     const systemPrompt = `You are an expert ATS CV extraction engine.
 Analyze the image CV and extract all sections strictly matching this JSON schema:
 {
@@ -206,9 +252,14 @@ CRITICAL ETHICAL RULES:
 - If a section or detail is missing, leave it blank or omit it.
 - Return ONLY valid JSON.`;
 
-    const userPrompt = "Perform OCR extraction on this resume scan. Make sure to represent bullet points as Markdown inside description fields.";
+    const userPrompt =
+      'Perform OCR extraction on this resume scan. Make sure to represent bullet points as Markdown inside description fields.';
 
-    const envelope = await this.aiProvider.visionOCR(cleanedImage, systemPrompt, userPrompt);
+    const envelope = await this.aiProvider.visionOCR(
+      cleanedImage,
+      systemPrompt,
+      userPrompt,
+    );
     return envelope.output;
   }
 
@@ -226,11 +277,14 @@ Extract all details from the raw CV text into this JSON format:
 }
 Return ONLY valid JSON. Never fabricate content.`;
 
-    const envelope = await this.aiProvider.generate({
-      system: systemPrompt,
-      user: "Parse this CV text:",
-      input: { text },
-    }, 0.0);
+    const envelope = await this.aiProvider.generate(
+      {
+        system: systemPrompt,
+        user: 'Parse this CV text:',
+        input: { text },
+      },
+      0.0,
+    );
 
     return envelope.output;
   }

@@ -49,7 +49,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       url: request.url,
       statusCode: status,
       errorMessage: message,
-      errorStack: status >= 500 && exception instanceof Error ? exception.stack : undefined,
+      errorStack:
+        status >= 500 && exception instanceof Error
+          ? exception.stack
+          : undefined,
     };
 
     if (status >= 500) {

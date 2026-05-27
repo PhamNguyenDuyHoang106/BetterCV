@@ -45,8 +45,6 @@ import { CoreModule } from './core/core.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(RequestIdMiddleware)
-      .forRoutes('*');
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
   }
 }

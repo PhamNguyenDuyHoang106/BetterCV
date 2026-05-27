@@ -14,7 +14,9 @@ export class CleanupService implements OnApplicationBootstrap {
   }
 
   async runCleanup() {
-    this.logger.log('Starting automated cleanup of stale guest accounts and data...');
+    this.logger.log(
+      'Starting automated cleanup of stale guest accounts and data...',
+    );
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -33,20 +35,27 @@ export class CleanupService implements OnApplicationBootstrap {
         return;
       }
 
-      this.logger.log(`Found ${staleGuests.length} stale guest accounts to purge.`);
+      this.logger.log(
+        `Found ${staleGuests.length} stale guest accounts to purge.`,
+      );
 
       // Prisma cascades will automatically purge CVs, Sections, and snapshots!
       const guestIds = staleGuests.map((g) => g.id);
-      
+
       const { count } = await this.prisma.user.deleteMany({
         where: {
           id: { in: guestIds },
         },
       });
 
-      this.logger.log(`Successfully purged ${count} stale guest accounts and all cascaded resume contents.`);
+      this.logger.log(
+        `Successfully purged ${count} stale guest accounts and all cascaded resume contents.`,
+      );
     } catch (error) {
-      this.logger.error('Failed to run automated guest cleanup job', error instanceof Error ? error.stack : undefined);
+      this.logger.error(
+        'Failed to run automated guest cleanup job',
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 }

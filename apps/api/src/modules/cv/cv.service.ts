@@ -77,7 +77,8 @@ export class CvService {
 
     if (dto.version !== undefined && existing.version !== dto.version) {
       throw new ConflictException({
-        message: 'Xung đột dữ liệu: CV này đã được chỉnh sửa trên thiết bị khác.',
+        message:
+          'Xung đột dữ liệu: CV này đã được chỉnh sửa trên thiết bị khác.',
         latestVersion: existing.version,
         lastEditedAt: existing.lastEditedAt,
         lastEditedDevice: existing.lastEditedDevice,
@@ -124,7 +125,8 @@ export class CvService {
 
     if (dto.version !== undefined && existingCv.version !== dto.version) {
       throw new ConflictException({
-        message: 'Xung đột dữ liệu: CV này đã được chỉnh sửa ở tab hoặc thiết bị khác.',
+        message:
+          'Xung đột dữ liệu: CV này đã được chỉnh sửa ở tab hoặc thiết bị khác.',
         latestVersion: existingCv.version,
         lastEditedAt: existingCv.lastEditedAt,
         lastEditedDevice: existingCv.lastEditedDevice,
@@ -187,7 +189,7 @@ export class CvService {
     if (!cvVersion) throw new NotFoundException('Version not found');
 
     const snapshot = cvVersion.snapshot as any;
-    
+
     // Clear all existing sections for this CV
     await this.prisma.cvSection.deleteMany({
       where: { cvId },
@@ -343,7 +345,10 @@ export class CvService {
     }
   }
 
-  private assembleResumeData(cv: { title: string; sections: Array<{ type: string; content: any }> }): any {
+  private assembleResumeData(cv: {
+    title: string;
+    sections: Array<{ type: string; content: any }>;
+  }): any {
     const data: Record<string, any> = { schemaVersion: 1 };
     for (const section of cv.sections) {
       data[section.type.toLowerCase()] = section.content;
@@ -356,27 +361,34 @@ export class CvService {
   }
 
   private async persistMigratedData(cvId: string, migratedData: any) {
-    const sectionTypes = ['PROFILE', 'SUMMARY', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'PROJECTS'];
+    const sectionTypes = [
+      'PROFILE',
+      'SUMMARY',
+      'EXPERIENCE',
+      'EDUCATION',
+      'SKILLS',
+      'PROJECTS',
+    ];
     for (const type of sectionTypes) {
       const lowerType = type.toLowerCase();
       const content = migratedData[lowerType];
       if (content !== undefined) {
         const existing = await this.prisma.cvSection.findFirst({
-          where: { cvId, type: type as any }
+          where: { cvId, type: type as any },
         });
         if (existing) {
           // If this is the PROFILE section, save the updated schemaVersion within its content
-          const updatedContent = type === 'PROFILE'
-            ? { ...content, schemaVersion: migratedData.schemaVersion }
-            : content;
+          const updatedContent =
+            type === 'PROFILE'
+              ? { ...content, schemaVersion: migratedData.schemaVersion }
+              : content;
 
           await this.prisma.cvSection.update({
             where: { id: existing.id },
-            data: { content: updatedContent as Prisma.InputJsonValue }
+            data: { content: updatedContent as Prisma.InputJsonValue },
           });
         }
       }
     }
   }
 }
-

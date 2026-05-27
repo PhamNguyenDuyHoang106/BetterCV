@@ -16,12 +16,12 @@ export class TransformInterceptor<T> implements NestInterceptor<T, any> {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
-    
+
     // Check if bypass transform decorator is present on the controller or handler
-    const bypass = this.reflector.getAllAndOverride<boolean>(BYPASS_TRANSFORM_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const bypass = this.reflector.getAllAndOverride<boolean>(
+      BYPASS_TRANSFORM_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (bypass) {
       return next.handle();

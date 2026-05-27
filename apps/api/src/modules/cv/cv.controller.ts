@@ -62,7 +62,10 @@ export class CvController {
   ) {
     const sessionId = req.headers['x-session-id'] as string;
     const device = getDeviceFromUserAgent(req.headers['user-agent']);
-    return this.cvService.upsertSection(user.sub, id, dto, { sessionId, device });
+    return this.cvService.upsertSection(user.sub, id, dto, {
+      sessionId,
+      device,
+    });
   }
 
   @Get(':id/versions')

@@ -24,17 +24,17 @@ export class FeatureFlagService {
    * Evaluates if a given feature flag is enabled.
    * Can accept an optional userId to handle targeted rollouts or beta groups.
    */
-  isEnabled(flag: string, userId?: string): boolean {
+  isEnabled(flag: string, _userId?: string): boolean {
     const isEnabled = this.flags[flag];
     if (isEnabled === undefined) {
       return false;
     }
-    
+
     // Extensible targeting logic can be placed here later, e.g.:
     // if (flag === 'experimentalATS' && userId) {
     //   return userId.startsWith('beta_');
     // }
-    
+
     return isEnabled;
   }
 

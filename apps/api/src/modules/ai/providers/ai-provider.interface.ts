@@ -15,7 +15,10 @@ export interface AiProvider {
   /**
    * Generates a structured response based on the system and user instructions.
    */
-  generate(payload: PromptPayload, temperature?: number): Promise<AiResponseEnvelope>;
+  generate(
+    payload: PromptPayload,
+    temperature?: number,
+  ): Promise<AiResponseEnvelope>;
 
   /**
    * Streams a response directly into the Express HTTP response for live UX updates.
@@ -29,5 +32,9 @@ export interface AiProvider {
   /**
    * Performs vision-based OCR extraction from an image buffer.
    */
-  visionOCR(imageBuffer: Buffer, systemPrompt: string, userPrompt: string): Promise<AiResponseEnvelope>;
+  visionOCR(
+    imageBuffer: Buffer,
+    systemPrompt: string,
+    userPrompt: string,
+  ): Promise<AiResponseEnvelope>;
 }

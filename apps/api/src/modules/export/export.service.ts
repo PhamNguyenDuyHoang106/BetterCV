@@ -114,13 +114,17 @@ export class ExportService {
   private async getBrowser(): Promise<any> {
     if (this.browserInstance) {
       if (this.printCount >= 25) {
-        this.logger.log('Recycling Puppeteer browser pool to prevent memory leaks (25 prints threshold hit)...');
+        this.logger.log(
+          'Recycling Puppeteer browser pool to prevent memory leaks (25 prints threshold hit)...',
+        );
         await this.closeBrowser();
       } else {
         return this.browserInstance;
       }
     }
-    this.logger.log('Launching warm, sandboxed Puppeteer browser instance for exports...');
+    this.logger.log(
+      'Launching warm, sandboxed Puppeteer browser instance for exports...',
+    );
     this.browserInstance = await puppeteer.launch({
       headless: true,
       args: [
@@ -130,7 +134,7 @@ export class ExportService {
         '--disable-dev-shm-usage',
         '--no-first-run',
         '--no-zygote',
-        '--single-process'
+        '--single-process',
       ],
     });
     this.printCount = 0;

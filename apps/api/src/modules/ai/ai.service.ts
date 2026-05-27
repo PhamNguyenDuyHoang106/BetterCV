@@ -53,7 +53,8 @@ export class AiService {
       supabaseId,
       'cv_score',
       {
-        system: 'You score CV vs JD. Return JSON with score 0-100 and reasoning.',
+        system:
+          'You score CV vs JD. Return JSON with score 0-100 and reasoning.',
         user: 'Score the CV content against the job description.',
         input: dto,
       },
@@ -334,16 +335,6 @@ export class AiService {
     await this.prisma.aiUsage.create({ data: { userId, tokens, requests: 1 } });
   }
 }
-
-// ── Utilities ─────────────────────────────────────────────────────
-
-const safeJsonParse = (value: string): Record<string, unknown> => {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return { raw: value };
-  }
-};
 
 const toInputJson = (
   value: unknown,
