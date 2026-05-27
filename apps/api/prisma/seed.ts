@@ -15,30 +15,34 @@ const templateSchema = (opts: {
       {
         type: "PROFILE",
         blocks: [
-          { key: "profile.name", label: "Name" },
-          { key: "profile.title", label: "Title" },
-          { key: "profile.contact", label: "Contact" }
+          { key: "profile.fullName", label: "Họ và tên" },
+          { key: "profile.title", label: "Chức danh" },
+          { key: "profile.email", label: "Email" },
+          { key: "profile.phone", label: "Số điện thoại" },
+          { key: "profile.linkedin", label: "LinkedIn" },
+          { key: "profile.github", label: "GitHub" },
+          { key: "profile.website", label: "Website" }
         ]
       },
       {
         type: "SUMMARY",
-        blocks: [{ key: "summary.text", label: "Summary" }]
+        blocks: [{ key: "summary.text", label: "Giới thiệu" }]
       },
       {
         type: "EXPERIENCE",
-        blocks: [{ key: "experience.items", label: "Experience" }]
+        blocks: [{ key: "experience", label: "Kinh nghiệm làm việc" }]
       },
       {
         type: "EDUCATION",
-        blocks: [{ key: "education.items", label: "Education" }]
+        blocks: [{ key: "education", label: "Học vấn & Bằng cấp" }]
       },
       {
         type: "SKILLS",
-        blocks: [{ key: "skills.items", label: "Skills" }]
+        blocks: [{ key: "skills", label: "Kỹ năng chuyên môn" }]
       },
       {
         type: "PROJECTS",
-        blocks: [{ key: "projects.items", label: "Projects" }]
+        blocks: [{ key: "projects", label: "Dự án tiêu biểu" }]
       }
     ]
   }

@@ -96,7 +96,7 @@ export class CvService {
         lastEditedAt: new Date(),
       },
     });
-    await this.snapshotVersion(id);
+    await this.snapshotVersion(id, true);
     return cv;
   }
 
@@ -132,7 +132,7 @@ export class CvService {
     }
 
     let section;
-    if (dto.id) {
+    if (dto.id && !dto.id.startsWith('temp_')) {
       section = await this.prisma.cvSection.update({
         where: { id: dto.id },
         data: {
@@ -163,7 +163,7 @@ export class CvService {
       },
     });
 
-    await this.snapshotVersion(cvId);
+    await this.snapshotVersion(cvId, false);
     return section;
   }
 
@@ -222,7 +222,7 @@ export class CvService {
       include: { sections: { orderBy: { order: 'asc' } } },
     });
 
-    await this.snapshotVersion(cvId);
+    await this.snapshotVersion(cvId, true);
     return updated;
   }
 
@@ -258,12 +258,27 @@ export class CvService {
     }
   }
 
-  private async snapshotVersion(cvId: string) {
+  async snapshotVersion(cvId: string, force = false, isExport = false) {
     const cv = await this.prisma.cv.findUnique({
       where: { id: cvId },
       include: { sections: true },
     });
     if (!cv) return;
+
+    if (!force) {
+      const latest = await this.prisma.cvVersion.findFirst({
+        where: { cvId },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (latest) {
+        const timeDiff = Date.now() - new Date(latest.createdAt).getTime();
+        if (timeDiff < 120000) {
+          // Skip autosave if it has been less than 2 minutes
+          return;
+        }
+      }
+    }
+
     await this.prisma.cvVersion.create({
       data: {
         cvId,
@@ -272,9 +287,60 @@ export class CvService {
           locale: cv.locale,
           templateId: cv.templateId,
           sections: cv.sections,
-        },
+          metadata: {
+            isManual: force && !isExport,
+            isExport: isExport,
+            createdAt: new Date().toISOString(),
+          },
+        } as Prisma.InputJsonValue,
       },
     });
+
+    // Run Retention Policy Cleanups
+    try {
+      const versions = await this.prisma.cvVersion.findMany({
+        where: { cvId },
+      });
+
+      const now = Date.now();
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      const ninetyDays = 90 * 24 * 60 * 60 * 1000;
+
+      const idsToDelete: string[] = [];
+
+      for (const ver of versions) {
+        const age = now - new Date(ver.createdAt).getTime();
+        const snap = ver.snapshot as any;
+        const meta = snap?.metadata || {};
+
+        if (meta.isManual) {
+          // Manual checkpoints are kept forever
+          continue;
+        }
+
+        if (meta.isExport) {
+          // Export checkpoints are kept for 90 days
+          if (age > ninetyDays) {
+            idsToDelete.push(ver.id);
+          }
+        } else {
+          // Autosave checkpoints are kept for 30 days
+          if (age > thirtyDays) {
+            idsToDelete.push(ver.id);
+          }
+        }
+      }
+
+      if (idsToDelete.length > 0) {
+        await this.prisma.cvVersion.deleteMany({
+          where: {
+            id: { in: idsToDelete },
+          },
+        });
+      }
+    } catch (cleanupErr) {
+      console.error('Failed to run version retention cleanup:', cleanupErr);
+    }
   }
 
   private assembleResumeData(cv: { title: string; sections: Array<{ type: string; content: any }> }): any {

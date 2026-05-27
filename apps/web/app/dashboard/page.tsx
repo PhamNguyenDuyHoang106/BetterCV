@@ -496,7 +496,7 @@ export default function DashboardPage() {
           </div>
           <button
             type="button"
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => setActiveTab("templates")}
             className="dash-btn-primary flex items-center gap-2 shrink-0"
           >
             <span className="material-symbols-outlined text-xl">add</span>

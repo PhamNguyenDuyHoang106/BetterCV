@@ -5,6 +5,7 @@ import { renderHtml } from '@acv/template-engine';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import puppeteer from 'puppeteer';
 import { Document, HeadingLevel, Packer, Paragraph } from 'docx';
+import { CvService } from '../cv/cv.service';
 
 @Injectable()
 export class ExportService {
@@ -15,6 +16,7 @@ export class ExportService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private cvService: CvService,
   ) {
     const supabaseUrl = this.config.get<string>('SUPABASE_URL');
     const supabaseKey = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY');
@@ -33,6 +35,9 @@ export class ExportService {
     if (!template) {
       throw new ForbiddenException('Template not found');
     }
+
+    // Force immediate snapshot tagged as export checkpoint
+    await this.cvService.snapshotVersion(cvId, true, true);
 
     const html = renderHtml({
       template: template.schema as any,

@@ -67,6 +67,7 @@ const config: Config = {
         "card-padding": "32px"
       },
       fontFamily: {
+        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica", "Arial", "sans-serif"],
         "hero-title": ["Inter", "sans-serif"],
         "label-sm": ["Inter", "sans-serif"],
         "body-lg": ["Inter", "sans-serif"],

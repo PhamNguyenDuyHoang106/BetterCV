@@ -9,6 +9,10 @@
 @tailwind components;
 @tailwind utilities;
 
+body, input, textarea, select, button {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+}
+
 body {
   @apply bg-slate-50 text-slate-900;
 }

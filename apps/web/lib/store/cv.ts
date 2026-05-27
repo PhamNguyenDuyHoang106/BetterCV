@@ -64,7 +64,8 @@ export const useCvStore = create<CvState>((set, get) => {
           body: JSON.stringify({ ...dto, version: currentVersion }),
         });
         const updated = res?.data || res;
-        set({ cv: updated, saveStatus: "saved" });
+        const sections = state.cv.sections || [];
+        set({ cv: { ...state.cv, ...updated, sections }, saveStatus: "saved" });
       } catch (err: any) {
         // If NestJS threw ConflictException (409)
         if (err.message && (err.message.includes("chỉnh sửa") || err.message.includes("thiết bị khác") || err.message.includes("Conflict"))) {
@@ -119,12 +120,17 @@ export const useCvStore = create<CvState>((set, get) => {
         set({ cv: { ...state.cv, sections: updatedSections } });
 
         // Save section to backend
+        const saveDto = { ...dto };
+        if (saveDto.id && saveDto.id.startsWith("temp_")) {
+          delete saveDto.id;
+        }
+
         await apiFetch(`/cvs/${state.cv.id}/sections`, {
           method: "POST",
           headers: {
             "x-session-id": sessionId,
           },
-          body: JSON.stringify({ ...dto, version: currentVersion }),
+          body: JSON.stringify({ ...saveDto, version: currentVersion }),
         });
 
         // Pull fully synced CV from server to resolve temp IDs and get new version count

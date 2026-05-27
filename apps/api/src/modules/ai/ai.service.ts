@@ -36,8 +36,12 @@ export class AiService {
       'cv_rewrite',
       {
         system:
-          'You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.',
-        user: 'Rewrite the section to match the requested style.',
+          'You are an expert CV enhancer. Your task is to rewrite and optimize CV sections to make them polished and ATS-friendly. ' +
+          'CRITICAL: Return ONLY the rewritten plain text. Never return JSON, never wrap in markdown code blocks, and never include any conversational filler. Just the polished plain text.',
+        user:
+          'Read the INPUT JSON which contains the CV section data and the target style. ' +
+          'Extract the text content (either from "text" or "description" field), rewrite it to fit the requested "style" and "locale", ' +
+          'and output ONLY the resulting plain text. Do NOT output any JSON structure.',
         input: dto,
       },
       0.4,
@@ -106,8 +110,12 @@ export class AiService {
       'cv_rewrite',
       {
         system:
-          'You rewrite CV sections. Return valid JSON. Keep output ATS-friendly and consistent.',
-        user: 'Rewrite the section to match the requested style.',
+          'You are an expert CV enhancer. Your task is to rewrite and optimize CV sections to make them polished and ATS-friendly. ' +
+          'CRITICAL: Return ONLY the rewritten plain text. Never return JSON, never wrap in markdown code blocks, and never include any conversational filler. Just the polished plain text.',
+        user:
+          'Read the INPUT JSON which contains the CV section data and the target style. ' +
+          'Extract the text content (either from "text" or "description" field), rewrite it to fit the requested "style" and "locale", ' +
+          'and output ONLY the resulting plain text. Do NOT output any JSON structure.',
         input: dto,
       },
       res,
@@ -225,7 +233,26 @@ export class AiService {
     const active = await this.prisma.promptVersion.findFirst({
       where: { promptId: prompt.id, isActive: true },
     });
-    if (active) return active;
+    if (active) {
+      if (active.content !== fallback) {
+        // Deactivate old active version
+        await this.prisma.promptVersion.update({
+          where: { id: active.id },
+          data: { isActive: false },
+        });
+        // Create new active version with the updated code fallback
+        const nextVersion = active.version + 1;
+        return this.prisma.promptVersion.create({
+          data: {
+            promptId: prompt.id,
+            version: nextVersion,
+            content: fallback,
+            isActive: true,
+          },
+        });
+      }
+      return active;
+    }
     return this.prisma.promptVersion.create({
       data: {
         promptId: prompt.id,

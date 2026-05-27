@@ -46,6 +46,15 @@ export default function CvEditorPage() {
   const router = useRouter();
   const cvId = params?.id as string;
   
+  const saveTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      Object.values(saveTimersRef.current).forEach(clearTimeout);
+    };
+  }, []);
+
   const { accessToken, hydrate } = useAuthStore();
   const {
     cv,
@@ -144,7 +153,7 @@ export default function CvEditorPage() {
     }
 
     // Populate local form states from CV sections
-    if (cv) {
+    if (cv && cv.sections) {
       const profileSec = cv.sections.find((s) => s.type === "PROFILE");
       if (profileSec && profileSec.content) {
         setProfileForm({
@@ -240,31 +249,99 @@ export default function CvEditorPage() {
 
   // Autosave triggers for metadata and sections
   const saveMetadata = (updates: { title?: string; locale?: "en" | "vi"; templateId?: string }) => {
-    updateCvMetadata(updates);
+    // Update local Zustand store immediately for snappy UI
+    if (cv) {
+      useCvStore.setState({ cv: { ...cv, ...updates } });
+    }
+
+    const key = "metadata";
+    if (saveTimersRef.current[key]) {
+      clearTimeout(saveTimersRef.current[key]);
+    }
+    saveTimersRef.current[key] = setTimeout(() => {
+      updateCvMetadata(updates);
+      delete saveTimersRef.current[key];
+    }, 1000);
   };
 
   const saveProfile = (updatedProfile = profileForm) => {
-    const existing = cv?.sections.find((s) => s.type === "PROFILE");
-    upsertSection({
-      id: existing?.id,
-      type: "PROFILE",
-      content: updatedProfile,
-      order: 1,
-    });
+    // Update local Zustand store immediately for snappy UI
+    if (cv && cv.sections) {
+      const existing = cv.sections.find((s) => s.type === "PROFILE");
+      const updatedSections = [...cv.sections];
+      const matchIndex = existing ? updatedSections.findIndex((s) => s.id === existing.id) : -1;
+      
+      const newSec = {
+        id: existing?.id || `temp_${Math.random()}`,
+        type: "PROFILE",
+        content: updatedProfile,
+        order: 1,
+      };
+
+      if (matchIndex !== -1) {
+        updatedSections[matchIndex] = newSec;
+      } else {
+        updatedSections.push(newSec);
+      }
+      useCvStore.setState({ cv: { ...cv, sections: updatedSections } });
+    }
+
+    const key = "profile";
+    if (saveTimersRef.current[key]) {
+      clearTimeout(saveTimersRef.current[key]);
+    }
+    saveTimersRef.current[key] = setTimeout(() => {
+      const existing = cv?.sections?.find((s) => s.type === "PROFILE");
+      upsertSection({
+        id: existing?.id,
+        type: "PROFILE",
+        content: updatedProfile,
+        order: 1,
+      });
+      delete saveTimersRef.current[key];
+    }, 1000);
   };
 
   const saveSummary = (text = summaryText) => {
-    const existing = cv?.sections.find((s) => s.type === "SUMMARY");
-    upsertSection({
-      id: existing?.id,
-      type: "SUMMARY",
-      content: { text },
-      order: 2,
-    });
+    // Update local Zustand store immediately for snappy UI
+    if (cv && cv.sections) {
+      const existing = cv.sections.find((s) => s.type === "SUMMARY");
+      const updatedSections = [...cv.sections];
+      const matchIndex = existing ? updatedSections.findIndex((s) => s.id === existing.id) : -1;
+      
+      const newSec = {
+        id: existing?.id || `temp_${Math.random()}`,
+        type: "SUMMARY",
+        content: { text },
+        order: 2,
+      };
+
+      if (matchIndex !== -1) {
+        updatedSections[matchIndex] = newSec;
+      } else {
+        updatedSections.push(newSec);
+      }
+      useCvStore.setState({ cv: { ...cv, sections: updatedSections } });
+    }
+
+    const key = "summary";
+    if (saveTimersRef.current[key]) {
+      clearTimeout(saveTimersRef.current[key]);
+    }
+    saveTimersRef.current[key] = setTimeout(() => {
+      const existing = cv?.sections?.find((s) => s.type === "SUMMARY");
+      upsertSection({
+        id: existing?.id,
+        type: "SUMMARY",
+        content: { text },
+        order: 2,
+      });
+      delete saveTimersRef.current[key];
+    }, 1000);
   };
 
   const saveExperiences = (items = experiences) => {
-    const existing = cv?.sections.find((s) => s.type === "EXPERIENCE");
+    const existing = cv?.sections?.find((s) => s.type === "EXPERIENCE");
     upsertSection({
       id: existing?.id,
       type: "EXPERIENCE",
@@ -274,7 +351,7 @@ export default function CvEditorPage() {
   };
 
   const saveEducations = (items = educations) => {
-    const existing = cv?.sections.find((s) => s.type === "EDUCATION");
+    const existing = cv?.sections?.find((s) => s.type === "EDUCATION");
     upsertSection({
       id: existing?.id,
       type: "EDUCATION",
@@ -284,7 +361,7 @@ export default function CvEditorPage() {
   };
 
   const saveSkills = (items = skills) => {
-    const existing = cv?.sections.find((s) => s.type === "SKILLS");
+    const existing = cv?.sections?.find((s) => s.type === "SKILLS");
     upsertSection({
       id: existing?.id,
       type: "SKILLS",
@@ -294,7 +371,7 @@ export default function CvEditorPage() {
   };
 
   const saveProjects = (items = projects) => {
-    const existing = cv?.sections.find((s) => s.type === "PROJECTS");
+    const existing = cv?.sections?.find((s) => s.type === "PROJECTS");
     upsertSection({
       id: existing?.id,
       type: "PROJECTS",
@@ -459,7 +536,7 @@ export default function CvEditorPage() {
           body: JSON.stringify(payload),
         });
         const result = res?.data || res;
-        const outputText = result.text || result.description || JSON.stringify(result);
+        const outputText = typeof result === "string" ? result : result.text || result.description || result.raw || JSON.stringify(result);
         setAiStreamingOutput(outputText);
       } catch (postErr) {
         alert("Trợ lý AI đang bận. Vui lòng thử lại sau.");
@@ -1360,37 +1437,6 @@ export default function CvEditorPage() {
                       <option value="en">Tiếng Anh (en)</option>
                       <option value="ja">Tiếng Nhật (ja)</option>
                     </select>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Mẫu CV giao diện chuyên nghiệp</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {templates.map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        onClick={() => {
-                          setSelectedTemplate(tpl);
-                          saveMetadata({ templateId: tpl.id });
-                        }}
-                        className={`rounded-xl border p-4 text-left flex flex-col justify-between h-[120px] transition-all ${
-                          selectedTemplate?.id === tpl.id
-                            ? "bg-slate-800 border-indigo-500 ring-2 ring-indigo-500/20"
-                            : "bg-slate-900/60 border-slate-800 hover:bg-slate-800/40"
-                        }`}
-                      >
-                        <div>
-                          <div className="text-sm font-bold text-white">{tpl.name}</div>
-                          <div className="text-xs text-slate-500 mt-1">Loại: {tpl.schema.category || "General"}</div>
-                        </div>
-                        <div className="flex items-center gap-1.5 self-end text-xs font-semibold text-indigo-400">
-                          {selectedTemplate?.id === tpl.id ? "Đang áp dụng" : "Áp dụng mẫu này"}
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                          </svg>
-                        </div>
-                      </button>
-                    ))}
                   </div>
                 </div>
               </div>

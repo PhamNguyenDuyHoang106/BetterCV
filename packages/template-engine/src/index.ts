@@ -1,58 +1,107 @@
-export type TemplateSchema = {
-  id: string;
-  name: string;
-  category: "TECH" | "BUSINESS" | "DESIGN";
-  layout: {
-    sections: Array<{
-      type: string;
-      blocks: Array<{
-        key: string;
-        label: string;
-      }>;
-    }>;
-  };
-};
+import { z } from "zod";
+
+export const TemplateSchemaZod = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: z.enum(["TECH", "BUSINESS", "DESIGN"]),
+  layout: z.object({
+    sections: z.array(
+      z.object({
+        type: z.string(),
+        blocks: z.array(
+          z.object({
+            key: z.string(),
+            label: z.string(),
+          })
+        ),
+      })
+    ),
+  }),
+});
+
+export type TemplateSchema = z.infer<typeof TemplateSchemaZod>;
 
 export type RenderInput = {
   template: TemplateSchema;
   data: Record<string, unknown>;
-  localFontsDir?: string; // Optional local path for Puppeteer offline rendering
+  localFontsDir?: string;
 };
 
+export type ThemeTokens = {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  dividerColor: string;
+  fontHeader: string;
+  fontBody: string;
+  sidebarWidth: string;
+  sectionGap: string;
+  timelineBorderColor: string;
+  headerBackground: string;
+  headerTextColor: string;
+};
+
+export type LayoutConfig = {
+  layoutMode: "single-column" | "sidebar-left" | "sidebar-right" | "minimal";
+  columns: {
+    sidebar?: string[];
+    main: string[];
+  };
+  order: string[];
+};
+
+// ─── Whitelist Entry-point Sanitizer ──────────────────────────────────────────
+
 /**
- * A fast, lightweight, zero-dependency Markdown-to-HTML compiler.
- * Correctly compiles standard resume markdown including bold, italics, bullets, and paragraphs.
+ * A secure, fast, and XSS-immune markdown compiler.
+ * Force-escapes all HTML tags first, then compiles whitelist safe tags.
  */
 export const compileMarkdown = (markdown: string): string => {
   if (!markdown) return "";
   
-  let html = markdown
+  // Normalize Windows newlines to handle cross-platform parity
+  const cleanMarkdown = markdown.replace(/\r\n/g, "\n");
+
+  // 1. Strict HTML escape to defeat all HTML injection (XSS protection)
+  let escaped = cleanMarkdown
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    // Bold: **text**
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    // Italics: *text*
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    // Bullet items: - item or * item
-    .replace(/^\s*[-*]\s+(.*)$/gm, "<li>$1</li>");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 
-  // Group continuous <li> elements into <ul> containers
-  html = html.replace(/(<li>.*?<\/li>)+/gs, (match) => `<ul>${match}</ul>`);
+  // 2. Compile bold (non-nested)
+  escaped = escaped.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  
+  // 3. Compile italics
+  escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
+  
+  // 4. Compile bullets
+  escaped = escaped.replace(/^[ \t]*[-*][ \t]+(.*)$/gm, "<li>$1</li>");
+  escaped = escaped.replace(/(?:<li>.*?<\/li>\n*)+/gs, (match) => `<ul>${match.trim()}</ul>`);
 
-  // Handle double newlines as paragraphs and single newlines as line breaks
-  html = html
+  // 5. Compile paragraphs and line breaks
+  escaped = escaped
     .split("\n\n")
     .map((p) => {
       const trimmed = p.trim();
       if (!trimmed) return "";
-      if (trimmed.startsWith("<ul>")) return trimmed;
-      return `<p>${trimmed.replace(/\n/g, "<br />")}</p>`;
+      if (trimmed.startsWith("<ul>") && trimmed.endsWith("</ul>")) return trimmed;
+      
+      let lineBroken = trimmed.replace(/\n/g, "<br />");
+      lineBroken = lineBroken.replace(/<\/li><br \/><li>/g, "</li>\n<li>");
+      return `<p>${lineBroken}</p>`;
     })
     .filter(Boolean)
     .join("");
 
-  return html;
+  // 6. Compile links [text](url)
+  escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+  // 7. Security Link filtering: ensure no "javascript:" links can be loaded
+  escaped = escaped.replace(/href=["']\s*javascript:/gi, 'href="#"');
+
+  return escaped;
 };
 
 const escapeHtml = (value: string): string =>
@@ -63,92 +112,486 @@ const escapeHtml = (value: string): string =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-export const renderHtml = ({ template, data, localFontsDir }: RenderInput): string => {
-  const sections = template.layout.sections
-    .map((section) => {
-      const blocks = section.blocks
-        .map((block) => {
-          const raw = getValue(data, block.key);
-          
-          let value = "";
-          if (typeof raw === "string") {
-            const isRichText = block.key.endsWith(".description") || 
-                               block.key.endsWith(".summary") || 
-                               block.key === "summary";
-            value = isRichText ? compileMarkdown(raw) : escapeHtml(raw);
-          } else if (Array.isArray(raw)) {
-            // Check key to render lists and sub-blocks beautifully
-            if (block.key === "experience") {
-              value = raw.map((item: any) => `
-                <div class="experience-item" style="margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">
-                  <div style="display: flex; justify-content: space-between; font-weight: 600; color: #0f172a; font-size: 13px;">
-                    <span>${escapeHtml(item.position || '')}</span>
-                    <span style="font-weight: 400; color: #64748b; font-size: 12px;">${escapeHtml(item.startDate || '')} - ${item.current ? 'Hiện tại' : escapeHtml(item.endDate || '')}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569; font-style: italic; margin-bottom: 4px;">
-                    <span>${escapeHtml(item.company || '')} ${item.location ? `| ${escapeHtml(item.location)}` : ''}</span>
-                  </div>
-                  <div style="font-size: 12px; color: #334155;">${compileMarkdown(item.description || '')}</div>
-                </div>
-              `).join("");
-            } else if (block.key === "education") {
-              value = raw.map((item: any) => `
-                <div class="education-item" style="margin-bottom: 8px; page-break-inside: avoid; break-inside: avoid;">
-                  <div style="display: flex; justify-content: space-between; font-weight: 600; color: #0f172a; font-size: 13px;">
-                    <span>${escapeHtml(item.institution || '')}</span>
-                    <span style="font-weight: 400; color: #64748b; font-size: 12px;">${escapeHtml(item.startDate || '')} - ${escapeHtml(item.endDate || '')}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 12px; color: #475569;">
-                    <span>${escapeHtml(item.degree || '')} ${item.fieldOfStudy ? `| Chuyên ngành: ${escapeHtml(item.fieldOfStudy)}` : ''}</span>
-                    ${item.gpa ? `<span>GPA: ${escapeHtml(item.gpa)}</span>` : ''}
-                  </div>
-                </div>
-              `).join("");
-            } else if (block.key === "skills") {
-              value = `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">${
-                raw.map((item: any) => `
-                  <span style="background-color: #f8fafc; color: #334155; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 4px; border: 1px solid #e2e8f0; display: inline-block;">
-                    ${escapeHtml(item.name || '')}${item.level ? ` (${escapeHtml(item.level)})` : ''}
-                  </span>
-                `).join("")
-              }</div>`;
-            } else if (block.key === "projects") {
-              value = raw.map((item: any) => `
-                <div class="project-item" style="margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">
-                  <div style="display: flex; justify-content: space-between; font-weight: 600; color: #0f172a; font-size: 13px;">
-                    <span>${escapeHtml(item.name || '')} ${item.role ? `(${escapeHtml(item.role)})` : ''}</span>
-                    ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" style="color: #3b82f6; text-decoration: underline; font-size: 11px;">Link dự án</a>` : ''}
-                  </div>
-                  <div style="font-size: 12px; color: #334155; margin-top: 2px;">${compileMarkdown(item.description || '')}</div>
-                  ${item.technologies && item.technologies.length > 0 ? `
-                    <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
-                      ${item.technologies.map((t: string) => `<span style="font-size: 10px; background-color: #f1f5f9; color: #475569; padding: 1px 4px; border-radius: 2px; font-weight: 500; border: 1px solid #e2e8f0;">${escapeHtml(t)}</span>`).join("")}
-                    </div>
-                  ` : ''}
-                </div>
-              `).join("");
-            } else {
-              value = `<pre class="json-value">${escapeHtml(JSON.stringify(raw, null, 2))}</pre>`;
-            }
-          } else if (raw !== null && raw !== undefined) {
-            value = `<pre class="json-value">${escapeHtml(JSON.stringify(raw, null, 2))}</pre>`;
-          }
+// ─── Data Normalization Rules ────────────────────────────────────────────────
 
-          return `<div class="block">
-            <h4>${escapeHtml(block.label)}</h4>
-            <div class="value">${value}</div>
-          </div>`;
-        })
-        .join("");
+export const normalizeData = (data: Record<string, any>): Record<string, any> => {
+  const normalized: Record<string, any> = {};
 
-      return `<section class="section">
-        <h3>${escapeHtml(section.type)}</h3>
-        <div class="section-content">${blocks}</div>
-      </section>`;
-    })
-    .join("");
+  // Normalize profile
+  const profile = data.profile || {};
+  normalized.profile = {
+    fullName: (profile.fullName || profile.name || "").trim(),
+    title: (profile.title || "").trim(),
+    email: (profile.email || "").trim(),
+    phone: (profile.phone || "").trim(),
+    website: stripUnsafeUrls(profile.website || ""),
+    github: stripUnsafeUrls(profile.github || ""),
+    linkedin: stripUnsafeUrls(profile.linkedin || ""),
+    avatarUrl: stripUnsafeUrls(profile.avatarUrl || ""),
+  };
 
-  // Determine standard font loaders: Local file paths for Puppeteer offline vs. Google Fonts CDN for live Web preview
+  // Normalize summary
+  const summary = data.summary || {};
+  normalized.summary = {
+    text: (summary.text || "").trim(),
+  };
+
+  // Normalize experience
+  const rawExp = data.experience || [];
+  const expItems = Array.isArray(rawExp) ? rawExp : (rawExp.items || []);
+  normalized.experience = expItems.map((item: any) => ({
+    id: item.id || `exp_${Math.random()}`,
+    position: (item.position || "").trim(),
+    company: (item.company || "").trim(),
+    location: (item.location || "").trim(),
+    startDate: (item.startDate || "").trim(),
+    endDate: item.current ? "" : (item.endDate || "").trim(),
+    current: !!item.current,
+    description: (item.description || "").trim(),
+  }));
+
+  // Normalize education
+  const rawEdu = data.education || [];
+  const eduItems = Array.isArray(rawEdu) ? rawEdu : (rawEdu.items || []);
+  normalized.education = eduItems.map((item: any) => ({
+    id: item.id || `edu_${Math.random()}`,
+    institution: (item.institution || "").trim(),
+    degree: (item.degree || "").trim(),
+    fieldOfStudy: (item.fieldOfStudy || "").trim(),
+    startDate: (item.startDate || "").trim(),
+    endDate: (item.endDate || "").trim(),
+    gpa: (item.gpa || "").trim(),
+  }));
+
+  // Normalize skills (with deduplication!)
+  const rawSkills = data.skills || [];
+  const skillItems = Array.isArray(rawSkills) ? rawSkills : (rawSkills.items || []);
+  const seenSkills = new Set<string>();
+  const uniqueSkills: any[] = [];
+  
+  for (const item of skillItems) {
+    const name = (item.name || "").trim();
+    if (name && !seenSkills.has(name.toLowerCase())) {
+      seenSkills.add(name.toLowerCase());
+      uniqueSkills.push({
+        id: item.id || `skill_${Math.random()}`,
+        name,
+        level: item.level || "Advanced",
+      });
+    }
+  }
+  normalized.skills = uniqueSkills;
+
+  // Normalize projects
+  const rawProjects = data.projects || [];
+  const projectItems = Array.isArray(rawProjects) ? rawProjects : (rawProjects.items || []);
+  normalized.projects = projectItems.map((item: any) => ({
+    id: item.id || `proj_${Math.random()}`,
+    name: (item.name || "").trim(),
+    role: (item.role || "").trim(),
+    url: stripUnsafeUrls(item.url || ""),
+    description: (item.description || "").trim(),
+    technologies: Array.isArray(item.technologies)
+      ? item.technologies.map((t: string) => t.trim()).filter(Boolean)
+      : [],
+  }));
+
+  return normalized;
+};
+
+const stripUnsafeUrls = (url: string): string => {
+  const trimmed = url.trim();
+  if (trimmed.toLowerCase().startsWith("javascript:")) {
+    return "#";
+  }
+  return trimmed;
+};
+
+// ─── Semantic Theme Tokens & Layout Registry ────────────────────────────────
+
+export const getTemplateStyles = (templateId: string): ThemeTokens => {
+  const defaults: ThemeTokens = {
+    primaryColor: "#1e293b",
+    secondaryColor: "#475569",
+    accentColor: "#3b82f6",
+    dividerColor: "#cbd5e1",
+    fontHeader: "'Merriweather', serif",
+    fontBody: "'Inter', sans-serif",
+    sidebarWidth: "30%",
+    sectionGap: "20px",
+    timelineBorderColor: "#e2e8f0",
+    headerBackground: "transparent",
+    headerTextColor: "#1e293b",
+  };
+
+  switch (templateId) {
+    case "business-classic":
+      return {
+        ...defaults,
+        primaryColor: "#1e3a8a", // Deep Navy
+        accentColor: "#1d4ed8",
+        dividerColor: "#3b82f6",
+        fontHeader: "'Playfair Display', serif",
+      };
+    case "tech-classic":
+      return {
+        ...defaults,
+        primaryColor: "#0f172a", // Charcoal
+        accentColor: "#0d9488", // Teal Accent
+        dividerColor: "#0d9488",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+        fontBody: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "techstack":
+      return {
+        ...defaults,
+        primaryColor: "#111827",
+        accentColor: "#6366f1", // Indigo
+        dividerColor: "#818cf8",
+        fontHeader: "'Manrope', sans-serif",
+      };
+    case "dublin":
+      return {
+        ...defaults,
+        primaryColor: "#312e81",
+        accentColor: "#4338ca",
+        headerBackground: "#312e81",
+        headerTextColor: "#ffffff",
+      };
+    case "design-classic":
+      return {
+        ...defaults,
+        primaryColor: "#581c87", // Purple Accent
+        accentColor: "#7e22ce",
+        dividerColor: "#a855f7",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "nova":
+      return {
+        ...defaults,
+        primaryColor: "#030712",
+        accentColor: "#ec4899", // High Contrast Pink
+        dividerColor: "#f472b6",
+        fontHeader: "'Manrope', sans-serif",
+        fontBody: "'Manrope', sans-serif",
+        timelineBorderColor: "#ec4899",
+      };
+    case "monarch":
+      return {
+        ...defaults,
+        primaryColor: "#701a75", // Burgundy
+        accentColor: "#d97706", // Gold
+        dividerColor: "#f59e0b",
+        fontHeader: "'Cormorant Garamond', serif",
+        fontBody: "'Cormorant Garamond', serif",
+      };
+    case "minimalist":
+      return {
+        ...defaults,
+        primaryColor: "#1e293b",
+        accentColor: "#475569",
+        dividerColor: "#e2e8f0",
+        fontHeader: "'Cormorant Garamond', serif",
+      };
+    default:
+      return defaults;
+  }
+};
+
+export const getLayoutConfig = (templateId: string): LayoutConfig => {
+  switch (templateId) {
+    case "techstack":
+    case "dublin":
+    case "nova":
+    case "design-classic":
+      return {
+        layoutMode: "sidebar-left",
+        columns: {
+          sidebar: ["SKILLS", "EDUCATION"],
+          main: ["SUMMARY", "EXPERIENCE", "PROJECTS"],
+        },
+        order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+      };
+    case "minimalist":
+      return {
+        layoutMode: "minimal",
+        columns: {
+          main: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+        },
+        order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+      };
+    default:
+      return {
+        layoutMode: "single-column",
+        columns: {
+          main: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+        },
+        order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+      };
+  }
+};
+
+// ─── Componentized Section Renderers ────────────────────────────────────────
+
+const renderSummary = (data: any): string => {
+  if (!data || !data.text) return "";
+  return `<div class="summary-text">${compileMarkdown(data.text)}</div>`;
+};
+
+const renderExperience = (data: any): string => {
+  if (!Array.isArray(data) || data.length === 0) return "";
+  return data.map((item: any) => `
+    <div class="experience-item">
+      <div class="item-header">
+        <span class="item-title">${escapeHtml(item.position || '')}</span>
+        <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? 'Hiện tại' : escapeHtml(item.endDate || '')}</span>
+      </div>
+      <div class="item-subtitle">
+        <span>${escapeHtml(item.company || '')} ${item.location ? `| ${escapeHtml(item.location)}` : ''}</span>
+      </div>
+      <div class="item-description">${compileMarkdown(item.description || '')}</div>
+    </div>
+  `).join("");
+};
+
+const renderEducation = (data: any): string => {
+  if (!Array.isArray(data) || data.length === 0) return "";
+  return data.map((item: any) => `
+    <div class="education-item">
+      <div class="item-header">
+        <span class="item-title">${escapeHtml(item.institution || '')}</span>
+        <span class="item-date">${escapeHtml(item.startDate || '')} - ${escapeHtml(item.endDate || '')}</span>
+      </div>
+      <div class="item-subtitle">
+        <span>${escapeHtml(item.degree || '')} ${item.fieldOfStudy ? `| Chuyên ngành: ${escapeHtml(item.fieldOfStudy)}` : ''}</span>
+        ${item.gpa ? `<span style="font-weight: 500; color: var(--accent-color);">GPA: ${escapeHtml(item.gpa)}</span>` : ''}
+      </div>
+    </div>
+  `).join("");
+};
+
+const renderSkills = (data: any): string => {
+  if (!Array.isArray(data) || data.length === 0) return "";
+  return `<div class="skills-container">${
+    data.map((item: any) => `
+      <span class="skill-badge">${escapeHtml(item.name || '')}${item.level ? ` (${escapeHtml(item.level)})` : ''}</span>
+    `).join("")
+  }</div>`;
+};
+
+const renderProjects = (data: any): string => {
+  if (!Array.isArray(data) || data.length === 0) return "";
+  return data.map((item: any) => `
+    <div class="project-item">
+      <div class="item-header">
+        <span class="item-title">${escapeHtml(item.name || '')} ${item.role ? `(${escapeHtml(item.role)})` : ''}</span>
+        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="project-link">Link dự án</a>` : ''}
+      </div>
+      <div class="project-description">${compileMarkdown(item.description || '')}</div>
+      ${item.technologies && item.technologies.length > 0 ? `
+        <div class="tech-container">
+          ${item.technologies.map((t: string) => `<span class="tech-badge">${escapeHtml(t)}</span>`).join("")}
+        </div>
+      ` : ''}
+    </div>
+  `).join("");
+};
+
+const SECTION_RENDERERS: Record<string, (data: any) => string> = {
+  SUMMARY: renderSummary,
+  EXPERIENCE: renderExperience,
+  EDUCATION: renderEducation,
+  SKILLS: renderSkills,
+  PROJECTS: renderProjects,
+};
+
+// ─── Deterministic Rendering Cache Layer ───────────────────────────────────
+
+export const ThemeTokensSchema = z.object({
+  primaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid primaryColor hex color"),
+  secondaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid secondaryColor hex color"),
+  accentColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid accentColor hex color"),
+  dividerColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid dividerColor hex color"),
+  fontHeader: z.string(),
+  fontBody: z.string(),
+  sidebarWidth: z.string(),
+  sectionGap: z.string(),
+  timelineBorderColor: z.string(),
+  headerBackground: z.string(),
+  headerTextColor: z.string(),
+});
+
+export const LayoutConfigSchema = z.object({
+  layoutMode: z.enum(["single-column", "sidebar-left", "sidebar-right", "minimal"]),
+  columns: z.object({
+    sidebar: z.array(z.string()).optional(),
+    main: z.array(z.string()),
+  }),
+  order: z.array(z.string()),
+});
+
+const getHashCode = (str: string): string => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const chr = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash.toString(36);
+};
+
+const renderCache = new Map<string, string>();
+
+export const renderHtml = (input: RenderInput): string => {
+  const hashKey = getHashCode(JSON.stringify({
+    templateId: input.template.id,
+    data: input.data,
+    localFontsDir: input.localFontsDir,
+  }));
+
+  if (renderCache.has(hashKey)) {
+    return renderCache.get(hashKey)!;
+  }
+
+  const result = renderHtmlDirect(input);
+  if (renderCache.size >= 100) {
+    const firstKey = renderCache.keys().next().value;
+    if (firstKey) renderCache.delete(firstKey);
+  }
+  renderCache.set(hashKey, result);
+  return result;
+};
+
+// ─── Core Compilation Pipeline ─────────────────────────────────────────────
+
+const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): string => {
+  // 1. Stage 1: Data Validation & Normalization
+  const validatedTemplate = TemplateSchemaZod.parse(template);
+  const normalized = normalizeData(data);
+
+  let styles = getTemplateStyles(validatedTemplate.id);
+  try {
+    styles = ThemeTokensSchema.parse(styles);
+  } catch (err) {
+    console.warn("Theme validation failed, using defaults:", err);
+    styles = ThemeTokensSchema.parse(getTemplateStyles("default"));
+  }
+
+  let layout = getLayoutConfig(validatedTemplate.id);
+  try {
+    layout = LayoutConfigSchema.parse(layout);
+  } catch (err) {
+    console.warn("Layout validation failed, using defaults:", err);
+    layout = LayoutConfigSchema.parse(getLayoutConfig("default"));
+  }
+
+  // 2. Stage 2: Render Profile Block
+  const profile = normalized.profile;
+  const fullName = profile.fullName;
+  const title = profile.title;
+  const email = profile.email;
+  const phone = profile.phone;
+  const linkedin = profile.linkedin;
+  const github = profile.github;
+  const website = profile.website;
+  const avatarUrl = profile.avatarUrl;
+
+  const contacts: string[] = [];
+  if (phone) contacts.push(`<span class="contact-item">📞 ${escapeHtml(phone)}</span>`);
+  if (email) contacts.push(`<span class="contact-item">✉️ ${escapeHtml(email)}</span>`);
+  if (linkedin) contacts.push(`<span class="contact-item">🔗 <a href="${escapeHtml(linkedin)}" target="_blank">LinkedIn</a></span>`);
+  if (github) contacts.push(`<span class="contact-item">💻 <a href="${escapeHtml(github)}" target="_blank">GitHub</a></span>`);
+  if (website) contacts.push(`<span class="contact-item">🌐 <a href="${escapeHtml(website)}" target="_blank">Website</a></span>`);
+
+  const contactBar = contacts.length > 0
+    ? `<div class="contact-bar">${contacts.join(" | ")}</div>`
+    : "";
+
+  const avatarHtml = avatarUrl
+    ? `<img src="${escapeHtml(avatarUrl)}" class="profile-avatar" alt="Avatar" />`
+    : "";
+
+  const profileHeader = `
+    <header class="profile-header">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 24px;">
+        <div style="flex: 1;">
+          <h1 class="profile-name">${escapeHtml(fullName || "Họ tên ứng viên")}</h1>
+          ${title ? `<h2 class="profile-title">${escapeHtml(title)}</h2>` : ""}
+          ${contactBar}
+        </div>
+        ${avatarHtml}
+      </div>
+    </header>
+  `;
+
+  // Helper mapping system sections to dynamic registry
+  const getSectionTitle = (type: string): string => {
+    const titleMap: Record<string, string> = {
+      SUMMARY: "Giới thiệu",
+      EXPERIENCE: "Kinh nghiệm làm việc",
+      EDUCATION: "Học vấn & Bằng cấp",
+      SKILLS: "Kỹ năng chuyên môn",
+      PROJECTS: "Dự án tiêu biểu"
+    };
+    return titleMap[type] || type;
+  };
+
+  const renderSectionNode = (type: string): string => {
+    const renderer = SECTION_RENDERERS[type];
+    if (!renderer) return "";
+    const contentHtml = renderer(normalized[type.toLowerCase()]);
+    if (!contentHtml) return "";
+
+    return `
+      <section class="section section-${type.toLowerCase()}">
+        <h3 class="section-title">${escapeHtml(getSectionTitle(type))}</h3>
+        <div class="section-content">${contentHtml}</div>
+      </section>
+    `;
+  };
+
+  // 3. Stage 3 & 4: Dynamic Layout Layouting & Assembly
+  let bodyHtml = "";
+  if (layout.layoutMode === "sidebar-left") {
+    const sidebarItems = layout.columns.sidebar || [];
+    const mainItems = layout.columns.main || [];
+
+    const sidebarHtml = layout.order
+      .filter(type => sidebarItems.includes(type))
+      .map(type => renderSectionNode(type))
+      .join("");
+
+    const mainHtml = layout.order
+      .filter(type => mainItems.includes(type))
+      .map(type => renderSectionNode(type))
+      .join("");
+
+    bodyHtml = `
+      ${profileHeader}
+      <div class="resume-container">
+        <div class="sidebar">
+          ${sidebarHtml}
+        </div>
+        <div class="main-content">
+          ${mainHtml}
+        </div>
+      </div>
+    `;
+  } else {
+    // Stacked and minimalist sequential rendering
+    const sectionsHtml = layout.order
+      .map(type => renderSectionNode(type))
+      .join("");
+
+    bodyHtml = `
+      ${profileHeader}
+      <div class="resume-sections-container">
+        ${sectionsHtml}
+      </div>
+    `;
+  }
+
+  // 4. Stage 5: Theme Processing & Stylesheet injection
   const fontCss = localFontsDir
     ? `
       @font-face {
@@ -163,103 +606,291 @@ export const renderHtml = ({ template, data, localFontsDir }: RenderInput): stri
         font-weight: 400 700;
         font-style: normal;
       }
-      body { font-family: 'Inter', sans-serif; }
-      h1, h2, h3 { font-family: 'Merriweather', serif; }
+      @font-face {
+        font-family: 'Playfair Display';
+        src: url('file://${localFontsDir}/PlayfairDisplay.ttf') format('truetype');
+        font-weight: 400 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Manrope';
+        src: url('file://${localFontsDir}/Manrope.ttf') format('truetype');
+        font-weight: 400 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Plus Jakarta Sans';
+        src: url('file://${localFontsDir}/PlusJakartaSans.ttf') format('truetype');
+        font-weight: 400 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Cormorant Garamond';
+        src: url('file://${localFontsDir}/CormorantGaramond.ttf') format('truetype');
+        font-weight: 400 700;
+        font-style: normal;
+      }
       `
     : `
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap');
-      body { font-family: 'Inter', sans-serif; }
-      h1, h2, h3 { font-family: 'Merriweather', serif; }
+      @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,700;1,400&display=swap');
       `;
 
   return `<!doctype html>
-<html>
+<html lang="vi">
   <head>
     <meta charset="utf-8" />
+    <title>BetterCV Document Preview</title>
     <style>
       ${fontCss}
       
-      /* Global Resets and Core Styles */
-      body { 
-        color: #1e293b; 
-        line-height: 1.6;
-        font-size: 13px;
+      :root {
+        --primary-color: ${styles.primaryColor};
+        --secondary-color: ${styles.secondaryColor};
+        --accent-color: ${styles.accentColor};
+        --divider-color: ${styles.dividerColor};
+        --font-header: ${styles.fontHeader};
+        --font-body: ${styles.fontBody};
+        
+        --sidebar-width: ${styles.sidebarWidth};
+        --section-gap: ${styles.sectionGap};
+        --timeline-border-color: ${styles.timelineBorderColor};
+        --header-background: ${styles.headerBackground};
+        --header-text-color: ${styles.headerTextColor};
+      }
+      
+      body {
+        font-family: var(--font-body);
+        color: #334155;
+        line-height: 1.5;
+        font-size: 11.5px;
         margin: 0;
         padding: 40px;
         background-color: #ffffff;
+        -webkit-font-smoothing: antialiased;
       }
       
-      .section { 
-        margin-bottom: 24px; 
+      /* Profile Header */
+      .profile-header {
+        margin-bottom: 24px;
+        border-bottom: 2px solid var(--divider-color);
+        padding-bottom: 12px;
+        background-color: var(--header-background);
+        color: var(--header-text-color);
+      }
+      
+      .profile-name {
+        font-family: var(--font-header);
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin: 0 0 4px 0;
+      }
+      .profile-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--accent-color);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin: 0 0 8px 0;
+      }
+      .contact-bar {
+        font-size: 10.5px;
+        color: #475569;
+        margin-top: 4px;
+      }
+      .contact-item {
+        display: inline-block;
+      }
+      .contact-item a {
+        color: #475569;
+        text-decoration: none;
+      }
+      .contact-item a:hover {
+        color: var(--accent-color);
+        text-decoration: underline;
+      }
+      .profile-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid var(--primary-color);
+      }
+      
+      /* Sections styling */
+      .section {
+        margin-bottom: var(--section-gap);
         page-break-inside: avoid;
         break-inside: avoid;
       }
-      
-      h3 { 
-        margin: 0 0 12px 0; 
-        font-size: 14px; 
-        color: #0f172a; 
-        border-bottom: 1.5px solid #cbd5e1;
-        padding-bottom: 4px;
+      .section-title {
+        font-family: var(--font-header);
+        color: var(--primary-color);
+        font-size: 12.5px;
+        font-weight: 700;
         text-transform: uppercase;
+        border-bottom: 1.5px solid var(--divider-color);
+        padding-bottom: 2px;
+        margin: 0 0 8px 0;
         letter-spacing: 0.5px;
         page-break-after: avoid;
         break-after: avoid;
       }
       
-      .section-content {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      
-      .block { 
-        margin-bottom: 6px; 
+      /* Items and Timelines with explicit Print Constraints */
+      .experience-item, .education-item, .project-item {
+        margin-bottom: 8px;
         page-break-inside: avoid;
         break-inside: avoid;
       }
       
-      h4 { 
-        margin: 0 0 4px 0; 
-        font-size: 13px; 
-        color: #334155; 
+      .item-header {
+        display: flex;
+        justify-content: space-between;
         font-weight: 600;
-        page-break-after: avoid;
-        break-after: avoid;
+        color: #0f172a;
+        font-size: 11.5px;
       }
       
-      .value { 
-        font-size: 12px; 
+      .item-title {
+        color: #0f172a;
+        font-weight: 600;
+      }
+      .item-date {
+        font-weight: 400;
+        color: #64748b;
+        font-size: 10.5px;
+      }
+      .item-subtitle {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10.5px;
         color: #475569;
+        font-style: italic;
+        margin-top: 1px;
+        margin-bottom: 3px;
       }
       
-      .value p {
-        margin: 0 0 8px 0;
+      .item-description, .project-description {
+        font-size: 11px;
+        color: #334155;
+      }
+      .item-description p, .project-description p {
+        margin: 0 0 4px 0;
+      }
+      .item-description ul, .project-description ul {
+        margin: 2px 0 4px 0;
+        padding-left: 16px;
+      }
+      .item-description li, .project-description li {
+        margin-bottom: 2px;
       }
       
-      .value p:last-child {
-        margin-bottom: 0;
+      /* Skills and badges */
+      .skills-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
       }
-      
-      .value ul {
-        margin: 4px 0 8px 0;
-        padding-left: 20px;
-      }
-      
-      .value li {
-        margin-bottom: 4px;
-      }
-      
-      .json-value {
-        margin: 0;
+      .skill-badge {
         background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: 10.5px;
+        font-weight: 500;
+        padding: 2px 6px;
         border-radius: 4px;
-        padding: 8px;
-        overflow-x: auto;
+        border: 1px solid var(--divider-color);
+      }
+      
+      /* Projects link */
+      .project-link {
+        color: var(--accent-color);
+        text-decoration: underline;
+        font-size: 10.5px;
+      }
+      .tech-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 4px;
+      }
+      .tech-badge {
+        font-size: 9.5px;
+        background-color: #f1f5f9;
+        color: #475569;
+        padding: 1px 4px;
+        border-radius: 2px;
+        font-weight: 500;
+        border: 1px solid var(--divider-color);
       }
 
-      /* Strict Printing Rules for Perfect A4 page cuts */
+      /* Dynamic Split Sidebar Columns */
+      .resume-container {
+        display: flex;
+        gap: 24px;
+      }
+      .sidebar {
+        width: var(--sidebar-width);
+        border-right: 1.5px solid var(--divider-color);
+        padding-right: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      
+      /* Template-specific semantic overrides */
+      .template-dublin .profile-header {
+        background-color: var(--primary-color);
+        color: #ffffff;
+        margin: -40px -40px 24px -40px;
+        padding: 28px 40px;
+        border-bottom: none;
+      }
+      .template-dublin .profile-name {
+        color: #ffffff;
+      }
+      .template-dublin .profile-title {
+        color: var(--accent-color);
+        filter: brightness(1.3);
+      }
+      .template-dublin .contact-bar {
+        color: rgba(255, 255, 255, 0.8);
+      }
+      .template-dublin .contact-item a {
+        color: rgba(255, 255, 255, 0.8);
+      }
+      
+      .template-minimalist .profile-header {
+        text-align: center;
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .template-minimalist .profile-header div {
+        justify-content: center !important;
+      }
+      .template-minimalist .profile-avatar {
+        display: none;
+      }
+      
+      .template-nova .section-title {
+        border-bottom: none;
+        background: #f1f5f9;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+      .template-nova .experience-item, .template-nova .education-item {
+        border-left: 2px solid var(--timeline-border-color);
+        padding-left: 10px;
+        margin-left: 4px;
+      }
+
+      /* Strict A4 Print-safe Rules */
       @media print {
         body { 
           padding: 0;
@@ -269,25 +900,18 @@ export const renderHtml = ({ template, data, localFontsDir }: RenderInput): stri
         .section {
           page-break-inside: avoid;
           break-inside: avoid;
+          orphans: 2;
+          widows: 2;
         }
-        h3, h4 {
+        .item-header {
           page-break-after: avoid;
           break-after: avoid;
         }
       }
     </style>
   </head>
-  <body>
-    ${sections}
+  <body class="template-${template.id}">
+    ${bodyHtml}
   </body>
 </html>`;
-};
-
-const getValue = (data: Record<string, unknown>, path: string) => {
-  return path.split(".").reduce<unknown>((acc, key) => {
-    if (acc && typeof acc === "object" && key in (acc as Record<string, unknown>)) {
-      return (acc as Record<string, unknown>)[key];
-    }
-    return undefined;
-  }, data);
 };
