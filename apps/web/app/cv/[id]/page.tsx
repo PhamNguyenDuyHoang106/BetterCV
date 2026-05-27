@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCvStore } from "../../../lib/store/cv";
 import { useAuthStore } from "../../../lib/store/auth";
@@ -10,7 +10,7 @@ import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
 
 // Import renderHtml from template-engine
-import { renderHtml } from "@acv/template-engine";
+import { renderHtml, getTemplateStyles } from "@acv/template-engine";
 
 type Template = {
   id: string;
@@ -47,6 +47,13 @@ export default function CvEditorPage() {
   const cvId = params?.id as string;
   
   const saveTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const loadedCvIdRef = useRef<string | null>(null);
+
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const initialHtmlRef = useRef<string>("");
+  const lastHtmlRef = useRef<string>("");
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState<boolean>(false);
+  const [isDragActive, setIsDragActive] = useState<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -83,6 +90,10 @@ export default function CvEditorPage() {
     github: "",
     linkedin: "",
     avatarUrl: "",
+    theme: {
+      primaryColor: "",
+      accentColor: "",
+    },
   });
 
   const [summaryText, setSummaryText] = useState("");
@@ -108,6 +119,35 @@ export default function CvEditorPage() {
   const [aiStyle, setAiStyle] = useState<"professional" | "concise" | "ats">("professional");
   const [aiStreamingOutput, setAiStreamingOutput] = useState<string>("");
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
+
+  // Compile local CV data for renderHtml
+  const assembleLocalResumeData = useCallback(() => {
+    return {
+      schemaVersion: 1,
+      profile: profileForm,
+      summary: { text: summaryText },
+      experience: experiences,
+      education: educations,
+      skills: skills,
+      projects: projects,
+      theme: profileForm.theme,
+    };
+  }, [profileForm, summaryText, experiences, educations, skills, projects]);
+
+  // Compile Live Preview HTML
+  const getCompiledHtml = useCallback(() => {
+    if (!selectedTemplate) return "";
+    const resumeData = assembleLocalResumeData();
+    try {
+      return renderHtml({
+        template: selectedTemplate.schema,
+        data: resumeData,
+      });
+    } catch (err) {
+      console.error("Template rendering error:", err);
+      return `<p style="padding: 20px; color: red;">Lỗi biên dịch giao diện CV: ${(err as Error).message}</p>`;
+    }
+  }, [selectedTemplate, assembleLocalResumeData]);
 
   // Load Auth Session
   useEffect(() => {
@@ -152,8 +192,9 @@ export default function CvEditorPage() {
       }
     }
 
-    // Populate local form states from CV sections
-    if (cv && cv.sections) {
+    // Populate local form states from CV sections only ONCE on initial CV load (to decouple typing lag)
+    if (cv && cv.sections && cv.id !== loadedCvIdRef.current) {
+      loadedCvIdRef.current = cv.id;
       const profileSec = cv.sections.find((s) => s.type === "PROFILE");
       if (profileSec && profileSec.content) {
         setProfileForm({
@@ -165,6 +206,10 @@ export default function CvEditorPage() {
           github: profileSec.content.github || "",
           linkedin: profileSec.content.linkedin || "",
           avatarUrl: profileSec.content.avatarUrl || "",
+          theme: {
+            primaryColor: profileSec.content.theme?.primaryColor || "",
+            accentColor: profileSec.content.theme?.accentColor || "",
+          },
         });
       }
 
@@ -212,6 +257,38 @@ export default function CvEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cv, templates]);
 
+  // Sync iframe via postMessage to completely eliminate typing lag & flickering
+  useEffect(() => {
+    const html = getCompiledHtml();
+    if (!html) return;
+
+    if (!initialHtmlRef.current) {
+      initialHtmlRef.current = html;
+      lastHtmlRef.current = html;
+      return;
+    }
+
+    if (html === lastHtmlRef.current) return;
+    lastHtmlRef.current = html;
+
+    const iframe = iframeRef.current;
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage(
+        {
+          type: "UPDATE_HTML",
+          html: html,
+        },
+        "*"
+      );
+    }
+  }, [getCompiledHtml]);
+
+  // Reset refs when loading a new CV to force initialization reload
+  useEffect(() => {
+    initialHtmlRef.current = "";
+    lastHtmlRef.current = "";
+  }, [cvId]);
+
   // Load versions history
   const fetchVersions = async () => {
     setIsLoadingVersions(true);
@@ -239,6 +316,7 @@ export default function CvEditorPage() {
     }
     try {
       await apiFetch(`/cvs/${cvId}/versions/${versionId}/restore`, { method: "POST" });
+      loadedCvIdRef.current = null;
       await loadCv(cvId);
       setShowHistory(false);
       alert("Đã phục hồi phiên bản thành công!");
@@ -300,6 +378,51 @@ export default function CvEditorPage() {
       });
       delete saveTimersRef.current[key];
     }, 1000);
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiFetch<any>("/exports/avatar", {
+        method: "POST",
+        body: formData,
+      });
+      const url = res?.data?.url || res?.url;
+      if (url) {
+        const newForm = { ...profileForm, avatarUrl: url };
+        setProfileForm(newForm);
+        saveProfile(newForm);
+      } else {
+        alert("Upload thất bại. Không nhận được URL ảnh từ server.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Lỗi khi tải ảnh lên. Vui lòng thử lại.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleAvatarUpload(e.dataTransfer.files[0]);
+    }
   };
 
   const saveSummary = (text = summaryText) => {
@@ -380,33 +503,7 @@ export default function CvEditorPage() {
     });
   };
 
-  // Compile local CV data for renderHtml
-  const assembleLocalResumeData = () => {
-    return {
-      schemaVersion: 1,
-      profile: profileForm,
-      summary: { text: summaryText },
-      experience: experiences,
-      education: educations,
-      skills: skills,
-      projects: projects,
-    };
-  };
 
-  // Compile Live Preview HTML
-  const getCompiledHtml = () => {
-    if (!selectedTemplate) return "";
-    const resumeData = assembleLocalResumeData();
-    try {
-      return renderHtml({
-        template: selectedTemplate.schema,
-        data: resumeData,
-      });
-    } catch (err) {
-      console.error("Template rendering error:", err);
-      return `<p style="padding: 20px; color: red;">Lỗi biên dịch giao diện CV: ${(err as Error).message}</p>`;
-    }
-  };
 
   // Actions
   const handleExportPDF = async () => {
@@ -887,7 +984,7 @@ export default function CvEditorPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium text-slate-400">Website khác</label>
                       <input
                         type="text"
@@ -901,19 +998,92 @@ export default function CvEditorPage() {
                         className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Ảnh đại diện URL</label>
-                      <input
-                        type="text"
-                        value={profileForm.avatarUrl}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, avatarUrl: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
+                    
+                    <div className="col-span-2 mt-2">
+                      <label className="block text-xs font-medium text-slate-400 mb-2">Ảnh đại diện (Avatar)</label>
+                      <div
+                        onDragEnter={handleDrag}
+                        onDragOver={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDrop={handleDrop}
+                        className={`relative rounded-xl border-2 border-dashed p-6 transition-all flex flex-col items-center justify-center gap-3 cursor-pointer ${
+                          isDragActive
+                            ? "border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/5"
+                            : "border-slate-850 bg-slate-900/30 hover:border-slate-700/80 hover:bg-slate-900/60"
+                        }`}
+                        onClick={() => {
+                          const input = document.getElementById("avatar-upload-input");
+                          input?.click();
                         }}
-                        placeholder="https://images.domain.com/avatar.jpg"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
+                      >
+                        <input
+                          id="avatar-upload-input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleAvatarUpload(e.target.files[0]);
+                            }
+                          }}
+                        />
+
+                        {isUploadingAvatar ? (
+                          <div className="flex flex-col items-center gap-2 py-2">
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
+                            <span className="text-xs font-medium text-indigo-400">Đang tải ảnh lên Supabase Cloud...</span>
+                          </div>
+                        ) : profileForm.avatarUrl ? (
+                          <div className="flex items-center gap-5 w-full">
+                            <img
+                              src={profileForm.avatarUrl}
+                              alt="Avatar Preview"
+                              className="h-16 w-16 rounded-full object-cover border-2 border-indigo-500 shadow-md shadow-indigo-500/15"
+                            />
+                            <div className="flex-1 min-w-0 text-left">
+                              <p className="text-sm font-semibold text-slate-200 truncate">Đã có ảnh đại diện</p>
+                              <p className="text-xs text-slate-500 mt-0.5 truncate">{profileForm.avatarUrl}</p>
+                              <div className="flex gap-3 mt-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const input = document.getElementById("avatar-upload-input");
+                                    input?.click();
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-xs font-semibold text-slate-300 border border-slate-700/60 transition-colors"
+                                >
+                                  Thay ảnh mới
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newForm = { ...profileForm, avatarUrl: "" };
+                                    setProfileForm(newForm);
+                                    saveProfile(newForm);
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-950/80 text-xs font-semibold text-rose-400 border border-rose-900/60 transition-colors"
+                                >
+                                  Xóa ảnh
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-center py-2">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/50 transition-transform">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-300">Kéo thả ảnh hoặc click để chọn</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">Hỗ trợ PNG, JPG, GIF (Tải trực tiếp lên Supabase Storage)</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1439,6 +1609,70 @@ export default function CvEditorPage() {
                     </select>
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Tùy biến dải màu CV</h3>
+                  <p className="text-xs text-slate-500">Tự do tinh chỉnh màu sắc chủ đạo và điểm nhấn để phù hợp với thương hiệu cá nhân của bạn.</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400">Màu chủ đạo (Primary Color)</label>
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="color"
+                          value={profileForm.theme?.primaryColor || (selectedTemplate ? getTemplateStyles(selectedTemplate.id).primaryColor : "#1e293b")}
+                          onChange={(e) => {
+                            const newTheme = { ...profileForm.theme, primaryColor: e.target.value };
+                            const newForm = { ...profileForm, theme: newTheme };
+                            setProfileForm(newForm);
+                            saveProfile(newForm);
+                          }}
+                          className="h-9 w-9 cursor-pointer rounded-lg border border-slate-700 bg-transparent p-0"
+                        />
+                        <input
+                          type="text"
+                          value={profileForm.theme?.primaryColor || ""}
+                          onChange={(e) => {
+                            const newTheme = { ...profileForm.theme, primaryColor: e.target.value };
+                            const newForm = { ...profileForm, theme: newTheme };
+                            setProfileForm(newForm);
+                            saveProfile(newForm);
+                          }}
+                          placeholder={selectedTemplate ? getTemplateStyles(selectedTemplate.id).primaryColor : "#1e293b"}
+                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400">Màu điểm nhấn (Accent Color)</label>
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="color"
+                          value={profileForm.theme?.accentColor || (selectedTemplate ? getTemplateStyles(selectedTemplate.id).accentColor : "#3b82f6")}
+                          onChange={(e) => {
+                            const newTheme = { ...profileForm.theme, accentColor: e.target.value };
+                            const newForm = { ...profileForm, theme: newTheme };
+                            setProfileForm(newForm);
+                            saveProfile(newForm);
+                          }}
+                          className="h-9 w-9 cursor-pointer rounded-lg border border-slate-700 bg-transparent p-0"
+                        />
+                        <input
+                          type="text"
+                          value={profileForm.theme?.accentColor || ""}
+                          onChange={(e) => {
+                            const newTheme = { ...profileForm.theme, accentColor: e.target.value };
+                            const newForm = { ...profileForm, theme: newTheme };
+                            setProfileForm(newForm);
+                            saveProfile(newForm);
+                          }}
+                          placeholder={selectedTemplate ? getTemplateStyles(selectedTemplate.id).accentColor : "#3b82f6"}
+                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1483,8 +1717,9 @@ export default function CvEditorPage() {
               }}
             >
               <iframe
+                ref={iframeRef}
                 title="Preview"
-                srcDoc={getCompiledHtml()}
+                srcDoc={initialHtmlRef.current || getCompiledHtml()}
                 sandbox="allow-same-origin allow-scripts"
                 className="w-full h-full border-none block"
                 style={{ minHeight: "1056px" }}

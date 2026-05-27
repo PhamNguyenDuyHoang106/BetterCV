@@ -261,9 +261,9 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
     case "design-classic":
       return {
         ...defaults,
-        primaryColor: "#581c87", // Purple Accent
-        accentColor: "#7e22ce",
-        dividerColor: "#a855f7",
+        primaryColor: "#0f766e", // Deep Teal Accent
+        accentColor: "#0d9488",
+        dividerColor: "#2dd4bf",
         fontHeader: "'Plus Jakarta Sans', sans-serif",
       };
     case "nova":
@@ -301,7 +301,6 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
 export const getLayoutConfig = (templateId: string): LayoutConfig => {
   switch (templateId) {
     case "techstack":
-    case "dublin":
     case "nova":
     case "design-classic":
       return {
@@ -470,6 +469,17 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
   const normalized = normalizeData(data);
 
   let styles = getTemplateStyles(validatedTemplate.id);
+  if (data.theme && typeof data.theme === "object") {
+    const themeOverrides = data.theme as any;
+    if (themeOverrides.primaryColor) {
+      styles.primaryColor = themeOverrides.primaryColor;
+    }
+    if (themeOverrides.accentColor) {
+      styles.accentColor = themeOverrides.accentColor;
+      styles.dividerColor = themeOverrides.accentColor;
+      styles.timelineBorderColor = themeOverrides.accentColor;
+    }
+  }
   try {
     styles = ThemeTokensSchema.parse(styles);
   } catch (err) {
@@ -524,6 +534,19 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
     </header>
   `;
 
+  const isSidebarHeader = validatedTemplate.id === "design-classic" || validatedTemplate.id === "techstack";
+
+  const profileHeaderSidebar = `
+    <div class="profile-header-sidebar">
+      ${avatarHtml}
+      <h1 class="profile-name" style="margin-top: 0;">${escapeHtml(fullName || "Họ tên ứng viên")}</h1>
+      ${title ? `<h2 class="profile-title">${escapeHtml(title)}</h2>` : ""}
+      <div class="contact-bar-sidebar" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+        ${contacts.map(c => `<div>${c}</div>`).join("")}
+      </div>
+    </div>
+  `;
+
   // Helper mapping system sections to dynamic registry
   const getSectionTitle = (type: string): string => {
     const titleMap: Record<string, string> = {
@@ -567,9 +590,10 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
       .join("");
 
     bodyHtml = `
-      ${profileHeader}
+      ${isSidebarHeader ? "" : profileHeader}
       <div class="resume-container">
         <div class="sidebar">
+          ${isSidebarHeader ? profileHeaderSidebar : ""}
           ${sidebarHtml}
         </div>
         <div class="main-content">
@@ -890,6 +914,152 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         margin-left: 4px;
       }
 
+      /* Tech Classic Centered border */
+      .template-tech-classic .profile-header {
+        border-bottom: 2.5px solid var(--accent-color);
+        padding-bottom: 8px;
+      }
+
+      /* Business Classic Centered style */
+      .template-business-classic .profile-header {
+        text-align: center;
+        border-bottom: 2px solid var(--primary-color);
+        padding-bottom: 16px;
+      }
+      .template-business-classic .profile-header div {
+        justify-content: center !important;
+        text-align: center;
+      }
+      .template-business-classic .profile-avatar {
+        display: none;
+      }
+
+      /* Monarch Centered Luxury serif style */
+      .template-monarch .profile-header {
+        border-bottom: 1px solid var(--primary-color);
+        padding-bottom: 12px;
+      }
+      .template-monarch .profile-name {
+        font-weight: 400;
+        letter-spacing: -0.5px;
+      }
+      .template-monarch .profile-title {
+        letter-spacing: 3px;
+        font-size: 11px;
+      }
+
+      /* Design Classic Creative Solid Green Sidebar style */
+      .template-design-classic {
+        padding: 0 !important;
+      }
+      .template-design-classic .resume-container {
+        display: flex;
+        gap: 0;
+        min-height: 1056px;
+      }
+      .template-design-classic .sidebar {
+        background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-color) 100%);
+        color: #ffffff;
+        width: 36%;
+        padding: 40px 24px;
+        border-right: none;
+        box-sizing: border-box;
+      }
+      .template-design-classic .sidebar .profile-name {
+        color: #ffffff;
+        font-size: 18px;
+        margin-bottom: 6px;
+        font-family: var(--font-header);
+      }
+      .template-design-classic .sidebar .profile-title {
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 11px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+        padding-bottom: 8px;
+        margin-bottom: 16px;
+      }
+      .template-design-classic .sidebar .contact-item {
+        display: block;
+        margin-bottom: 6px;
+        color: rgba(255, 255, 255, 0.85);
+      }
+      .template-design-classic .sidebar .contact-item a {
+        color: rgba(255, 255, 255, 0.85);
+      }
+      .template-design-classic .sidebar .section-title {
+        color: #ffffff;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+        margin-top: 16px;
+      }
+      .template-design-classic .sidebar .skill-badge {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+      }
+      .template-design-classic .main-content {
+        flex: 1;
+        padding: 40px 32px;
+        box-sizing: border-box;
+      }
+
+      /* TechStack Minimal Sidebar Style */
+      .template-techstack {
+        padding: 0 !important;
+      }
+      .template-techstack .resume-container {
+        display: flex;
+        gap: 0;
+        min-height: 1056px;
+      }
+      .template-techstack .sidebar {
+        background-color: #f4f4f1;
+        width: 30%;
+        padding: 40px 20px;
+        border-right: 1px solid var(--divider-color);
+        box-sizing: border-box;
+      }
+      .template-techstack .sidebar .profile-name {
+        color: var(--primary-color);
+        font-size: 16px;
+        margin-bottom: 4px;
+        font-family: var(--font-header);
+      }
+      .template-techstack .sidebar .profile-title {
+        color: var(--accent-color);
+        font-size: 10px;
+        margin-bottom: 16px;
+      }
+      .template-techstack .sidebar .contact-item {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .template-techstack .sidebar .section-title {
+        color: var(--primary-color);
+        border-bottom: 1px solid var(--divider-color);
+        margin-top: 16px;
+      }
+      .template-techstack .main-content {
+        flex: 1;
+        padding: 40px 32px;
+        box-sizing: border-box;
+      }
+
+      /* Modern Profile Nova styling */
+      .template-nova {
+        background-color: #f8fafc;
+        padding: 0 !important;
+      }
+      .template-nova .profile-header {
+        background: #ffffff;
+        padding: 24px 40px;
+        margin: 0;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .template-nova .resume-container {
+        padding: 24px 40px;
+        gap: 24px;
+      }
+
       /* Strict A4 Print-safe Rules */
       @media print {
         body { 
@@ -912,6 +1082,22 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
   </head>
   <body class="template-${template.id}">
     ${bodyHtml}
+    <script>
+      window.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'UPDATE_HTML') {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(event.data.html, 'text/html');
+          document.body.className = doc.body.className;
+          document.body.innerHTML = doc.body.innerHTML;
+          
+          const newStyles = doc.querySelectorAll('style');
+          const head = document.head;
+          const oldStyles = head.querySelectorAll('style');
+          oldStyles.forEach(s => s.remove());
+          newStyles.forEach(s => head.appendChild(s.cloneNode(true)));
+        }
+      });
+    </script>
   </body>
 </html>`;
 };

@@ -75,7 +75,12 @@ export class CvService {
     const existing = await this.prisma.cv.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('CV not found');
 
-    if (dto.version !== undefined && existing.version !== dto.version) {
+    if (
+      dto.version !== undefined &&
+      existing.version !== dto.version &&
+      (!clientSession?.sessionId ||
+        clientSession.sessionId !== existing.lastEditedSessionId)
+    ) {
       throw new ConflictException({
         message:
           'Xung đột dữ liệu: CV này đã được chỉnh sửa trên thiết bị khác.',
@@ -123,7 +128,12 @@ export class CvService {
     const existingCv = await this.prisma.cv.findUnique({ where: { id: cvId } });
     if (!existingCv) throw new NotFoundException('CV not found');
 
-    if (dto.version !== undefined && existingCv.version !== dto.version) {
+    if (
+      dto.version !== undefined &&
+      existingCv.version !== dto.version &&
+      (!clientSession?.sessionId ||
+        clientSession.sessionId !== existingCv.lastEditedSessionId)
+    ) {
       throw new ConflictException({
         message:
           'Xung đột dữ liệu: CV này đã được chỉnh sửa ở tab hoặc thiết bị khác.',

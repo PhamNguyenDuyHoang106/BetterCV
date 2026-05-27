@@ -4,6 +4,7 @@ import { QueueService } from '../../core/services/queue.service';
 import { PrismaService } from '../../database/prisma.service';
 import { CvService } from '../cv/cv.service';
 import sharp from 'sharp';
+import pdfParse = require('pdf-parse');
 
 export type OcrJobStatus =
   | 'uploaded'
@@ -107,24 +108,34 @@ export class OcrService {
         let extractedData: any;
         const buffer = Buffer.from(fileBuffer);
 
-        // 1. PDF Hybrid Classifier
+        // 1. PDF Hybrid Classifier & Parser
         if (mimetype === 'application/pdf') {
-          const classification = this.classifyPdf(buffer);
-          if (
-            classification.type === 'native' &&
-            classification.extractedText
-          ) {
+          this.logger.log(
+            `Job ${jobId}: PDF file received. Extracting text using pdf-parse...`,
+          );
+          let pdfText = '';
+          try {
+            const pdfData = await (pdfParse as any)(buffer);
+            pdfText = pdfData.text || '';
+          } catch (pdfErr) {
+            this.logger.error(
+              `Job ${jobId}: pdf-parse failed: ${(pdfErr as Error).message}`,
+            );
+          }
+
+          const cleanText = pdfText.replace(/\s+/g, ' ').trim();
+
+          if (cleanText.length > 150) {
             this.logger.log(
-              `Job ${jobId}: Native PDF detected. Performing deterministic parsing...`,
+              `Job ${jobId}: Native PDF detected (extracted ${cleanText.length} characters). Performing deterministic parsing...`,
             );
-            extractedData = await this.parseTextDeterministically(
-              classification.extractedText,
-            );
+            extractedData = await this.parseTextDeterministically(cleanText);
           } else {
             this.logger.log(
-              `Job ${jobId}: Scanned PDF detected. Converting and processing via Sharp + Vision OCR...`,
+              `Job ${jobId}: Scanned PDF detected (minimal extracted text). Extracting embedded image...`,
             );
-            extractedData = await this.processVisionOCR(buffer);
+            const extractedImage = await this.extractImageFromPdf(buffer);
+            extractedData = await this.processVisionOCR(extractedImage);
           }
         } else {
           // It's an image scan, process with Sharp and send to Vision API
@@ -176,44 +187,42 @@ export class OcrService {
   }
 
   /**
-   * PDF Hybrid Classifier: checks characters density and scans for common resume keywords
+   * Extract DCTDecode embedded JPEGs from scanned PDF files cleanly
    */
-  private classifyPdf(buffer: Buffer): {
-    type: 'native' | 'scan';
-    extractedText?: string;
-  } {
-    const textContent = buffer.toString('utf8');
+  private async extractImageFromPdf(buffer: Buffer): Promise<Buffer> {
+    try {
+      const soi = Buffer.from([0xff, 0xd8]);
+      const eoi = Buffer.from([0xff, 0xd9]);
 
-    // Quick search for typical CV words
-    const commonKeywords = [
-      'education',
-      'experience',
-      'skills',
-      'profile',
-      'projects',
-      'học vấn',
-      'kinh nghiệm',
-      'kỹ năng',
-      'tóm tắt',
-    ];
-    let matchCount = 0;
+      let startIdx = buffer.indexOf(soi);
+      while (startIdx !== -1) {
+        const endIdx = buffer.indexOf(eoi, startIdx + 2);
+        if (endIdx !== -1) {
+          const candidate = buffer.subarray(startIdx, endIdx + 2);
+          try {
+            await sharp(candidate).metadata();
+            this.logger.log(
+              `Successfully extracted embedded JPEG image from scanned PDF!`,
+            );
+            return candidate;
+          } catch {
+            startIdx = buffer.indexOf(soi, startIdx + 2);
+          }
+        } else {
+          break;
+        }
+      }
 
-    for (const word of commonKeywords) {
-      const regex = new RegExp(word, 'gi');
-      const matches = textContent.match(regex);
-      if (matches) matchCount += matches.length;
+      this.logger.warn(
+        `Could not extract valid DCTDecode image stream from PDF, using original buffer.`,
+      );
+      return buffer;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to extract image from PDF: ${(err as Error).message}`,
+      );
+      return buffer;
     }
-
-    // Clean up extracted ASCII characters to represent plain text
-    const cleanText = textContent
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (matchCount > 6 && cleanText.length > 100) {
-      return { type: 'native', extractedText: cleanText };
-    }
-    return { type: 'scan' };
   }
 
   /**

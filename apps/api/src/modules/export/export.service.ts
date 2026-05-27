@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
@@ -125,18 +126,57 @@ export class ExportService {
     this.logger.log(
       'Launching warm, sandboxed Puppeteer browser instance for exports...',
     );
-    this.browserInstance = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-gpu',
-        '--disable-dev-shm-usage',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-      ],
-    });
+
+    const launchArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--no-first-run',
+      '--no-zygote',
+    ];
+
+    try {
+      this.browserInstance = await puppeteer.launch({
+        headless: true,
+        args: launchArgs,
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to launch standard Puppeteer Chrome revision: ${err.message}. Trying system Chrome fallback...`,
+      );
+
+      const standardPaths = [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Local\\Google\\Chrome\\Application\\chrome.exe',
+      ];
+
+      let systemChromePath = null;
+      for (const p of standardPaths) {
+        if (fs.existsSync(p)) {
+          systemChromePath = p;
+          break;
+        }
+      }
+
+      if (systemChromePath) {
+        this.logger.log(
+          `Found system Chrome fallback path: ${systemChromePath}`,
+        );
+        this.browserInstance = await puppeteer.launch({
+          headless: true,
+          executablePath: systemChromePath,
+          args: launchArgs,
+        });
+      } else {
+        this.logger.error(
+          'No system Chrome installation found. PDF rendering might fail.',
+        );
+        throw err;
+      }
+    }
+
     this.printCount = 0;
     return this.browserInstance;
   }
@@ -188,6 +228,19 @@ export class ExportService {
     }
     const doc = new Document({ sections: [{ children }] });
     return Packer.toBuffer(doc);
+  }
+
+  async uploadAvatar(supabaseId: string, file: any) {
+    const user = await this.prisma.user.findUnique({
+      where: { supabaseId },
+      select: { id: true },
+    });
+    if (!user) throw new ForbiddenException('User not found');
+
+    const fileExtension = file.originalname?.split('.').pop() || 'jpg';
+    const key = `avatars/${user.id}/${Date.now()}.${fileExtension}`;
+    const url = await this.upload(key, file.buffer, file.mimetype);
+    return { url };
   }
 
   private async upload(
