@@ -4,7 +4,7 @@ import { QueueService } from '../../core/services/queue.service';
 import { PrismaService } from '../../database/prisma.service';
 import { CvService } from '../cv/cv.service';
 import sharp from 'sharp';
-import pdfParse = require('pdf-parse');
+import { PDFParse } from 'pdf-parse';
 
 export type OcrJobStatus =
   | 'uploaded'
@@ -115,7 +115,8 @@ export class OcrService {
           );
           let pdfText = '';
           try {
-            const pdfData = await (pdfParse as any)(buffer);
+            const parser = new PDFParse({ data: buffer });
+            const pdfData = await parser.getText();
             pdfText = pdfData.text || '';
           } catch (pdfErr) {
             this.logger.error(
