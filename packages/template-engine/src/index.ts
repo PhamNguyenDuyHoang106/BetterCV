@@ -128,6 +128,8 @@ export const normalizeData = (data: Record<string, any>): Record<string, any> =>
     github: stripUnsafeUrls(profile.github || ""),
     linkedin: stripUnsafeUrls(profile.linkedin || ""),
     avatarUrl: stripUnsafeUrls(profile.avatarUrl || ""),
+    address: (profile.address || "").trim(),
+    city: (profile.city || "").trim(),
   };
 
   // Normalize summary
@@ -159,13 +161,15 @@ export const normalizeData = (data: Record<string, any>): Record<string, any> =>
     degree: (item.degree || "").trim(),
     fieldOfStudy: (item.fieldOfStudy || "").trim(),
     startDate: (item.startDate || "").trim(),
-    endDate: (item.endDate || "").trim(),
+    endDate: item.current ? "" : (item.endDate || "").trim(),
+    current: !!item.current,
     gpa: (item.gpa || "").trim(),
   }));
 
   // Normalize skills (with deduplication!)
   const rawSkills = data.skills || [];
   const skillItems = Array.isArray(rawSkills) ? rawSkills : (rawSkills.items || []);
+  const showLevelSetting = Array.isArray(rawSkills) ? true : (rawSkills.showLevel !== false);
   const seenSkills = new Set<string>();
   const uniqueSkills: any[] = [];
   
@@ -180,6 +184,7 @@ export const normalizeData = (data: Record<string, any>): Record<string, any> =>
       });
     }
   }
+  (uniqueSkills as any).showLevel = showLevelSetting;
   normalized.skills = uniqueSkills;
 
   // Normalize projects
@@ -205,6 +210,28 @@ const stripUnsafeUrls = (url: string): string => {
     return "#";
   }
   return trimmed;
+};
+
+const ensureAbsoluteUrl = (url: string): string => {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (trimmed === "#") return "#";
+  if (/^(f|ht)tps?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+};
+
+const getDisplayUrl = (url: string): string => {
+  if (!url || url === "#") return "";
+  let clean = url.trim();
+  // Remove protocol
+  clean = clean.replace(/^(f|ht)tps?:\/\/(www\.)?/i, "");
+  // Remove trailing slash
+  if (clean.endsWith("/")) {
+    clean = clean.slice(0, -1);
+  }
+  return clean;
 };
 
 // ─── Semantic Theme Tokens & Layout Registry ────────────────────────────────
@@ -359,7 +386,7 @@ const renderEducation = (data: any): string => {
     <div class="education-item">
       <div class="item-header">
         <span class="item-title">${escapeHtml(item.institution || '')}</span>
-        <span class="item-date">${escapeHtml(item.startDate || '')} - ${escapeHtml(item.endDate || '')}</span>
+        <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? 'Hiện tại' : escapeHtml(item.endDate || '')}</span>
       </div>
       <div class="item-subtitle">
         <span>${escapeHtml(item.degree || '')} ${item.fieldOfStudy ? `| Chuyên ngành: ${escapeHtml(item.fieldOfStudy)}` : ''}</span>
@@ -370,11 +397,46 @@ const renderEducation = (data: any): string => {
 };
 
 const renderSkills = (data: any): string => {
-  if (!Array.isArray(data) || data.length === 0) return "";
+  const items = Array.isArray(data) ? data : (data?.items || []);
+  const showLevel = Array.isArray(data) ? (data as any).showLevel !== false : (data?.showLevel !== false);
+
+  if (items.length === 0) return "";
+  
+  if (showLevel) {
+    const getActiveCount = (level: string): number => {
+      switch (level) {
+        case "Beginner": return 1;
+        case "Intermediate": return 2;
+        case "Advanced": return 3;
+        case "Professional": return 4;
+        case "Expert": return 5;
+        default: return 3;
+      }
+    };
+
+    return `<div class="skills-container">${
+      items.map((item: any) => {
+        const activeCount = getActiveCount(item.level || "Advanced");
+        const barsHtml = Array.from({ length: 5 }, (_, i) => 
+          `<span class="level-bar${i < activeCount ? " active" : ""}"></span>`
+        ).join("");
+
+        return `
+          <div class="skill-item-with-level">
+            <span class="skill-name">${escapeHtml(item.name || '')}</span>
+            <div class="skill-level-bars">
+              ${barsHtml}
+            </div>
+          </div>
+        `;
+      }).join("")
+    }</div>`;
+  }
+
   return `<div class="skills-container">${
-    data.map((item: any) => `
-      <span class="skill-badge">${escapeHtml(item.name || '')}${item.level ? ` (${escapeHtml(item.level)})` : ''}</span>
-    `).join("")
+    items.map((item: any) => {
+      return `<span class="skill-badge">${escapeHtml(item.name || '')}</span>`;
+    }).join("")
   }</div>`;
 };
 
@@ -505,13 +567,19 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
   const github = profile.github;
   const website = profile.website;
   const avatarUrl = profile.avatarUrl;
+  const address = profile.address;
+  const city = profile.city;
 
   const contacts: string[] = [];
   if (phone) contacts.push(`<span class="contact-item">📞 ${escapeHtml(phone)}</span>`);
   if (email) contacts.push(`<span class="contact-item">✉️ ${escapeHtml(email)}</span>`);
-  if (linkedin) contacts.push(`<span class="contact-item">🔗 <a href="${escapeHtml(linkedin)}" target="_blank">LinkedIn</a></span>`);
-  if (github) contacts.push(`<span class="contact-item">💻 <a href="${escapeHtml(github)}" target="_blank">GitHub</a></span>`);
-  if (website) contacts.push(`<span class="contact-item">🌐 <a href="${escapeHtml(website)}" target="_blank">Website</a></span>`);
+  
+  const displayAddress = [address, city].filter(Boolean).join(", ");
+  if (displayAddress) contacts.push(`<span class="contact-item">📍 ${escapeHtml(displayAddress)}</span>`);
+  
+  if (linkedin) contacts.push(`<span class="contact-item">🔗 <a href="${escapeHtml(ensureAbsoluteUrl(linkedin))}" target="_blank">${escapeHtml(getDisplayUrl(linkedin))}</a></span>`);
+  if (github) contacts.push(`<span class="contact-item">💻 <a href="${escapeHtml(ensureAbsoluteUrl(github))}" target="_blank">${escapeHtml(getDisplayUrl(github))}</a></span>`);
+  if (website) contacts.push(`<span class="contact-item">🌐 <a href="${escapeHtml(ensureAbsoluteUrl(website))}" target="_blank">${escapeHtml(getDisplayUrl(website))}</a></span>`);
 
   const contactBar = contacts.length > 0
     ? `<div class="contact-bar">${contacts.join(" | ")}</div>`
@@ -814,7 +882,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
       .skills-container {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 12px 24px;
       }
       .skill-badge {
         background-color: #f8fafc;
@@ -824,6 +892,31 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         padding: 2px 6px;
         border-radius: 4px;
         border: 1px solid var(--divider-color);
+      }
+      .skill-item-with-level {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 140px;
+        margin-bottom: 6px;
+      }
+      .skill-name {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: #1e293b;
+      }
+      .skill-level-bars {
+        display: flex;
+        gap: 3.5px;
+      }
+      .level-bar {
+        width: 22px;
+        height: 3.5px;
+        border-radius: 1px;
+        background-color: #e2e8f0;
+      }
+      .level-bar.active {
+        background-color: var(--primary-color, #475569);
       }
       
       /* Projects link */
@@ -995,6 +1088,15 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         background-color: rgba(255, 255, 255, 0.1);
         color: #ffffff;
         border: 1px solid rgba(255, 255, 255, 0.25);
+      }
+      .template-design-classic .sidebar .skill-name {
+        color: #ffffff;
+      }
+      .template-design-classic .sidebar .level-bar {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      .template-design-classic .sidebar .level-bar.active {
+        background-color: #ffffff;
       }
       .template-design-classic .main-content {
         flex: 1;

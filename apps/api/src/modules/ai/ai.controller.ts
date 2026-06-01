@@ -48,6 +48,14 @@ export class AiController {
     return this.aiService.keywords(user.sub, dto);
   }
 
+  @Post('skills/suggest')
+  async suggestSkills(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: { jobTitle: string; locale: 'en' | 'vi'; currentSkills?: string[] },
+  ) {
+    return this.aiService.suggestSkills(dto);
+  }
+
   @Post('jd/analyze')
   async analyzeJd(
     @CurrentUser() user: JwtPayload,

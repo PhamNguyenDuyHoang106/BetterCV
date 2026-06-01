@@ -24,6 +24,10 @@ export class AiRewriteDto {
 
   @IsIn(['professional', 'concise', 'ats'])
   style!: 'professional' | 'concise' | 'ats';
+
+  @IsOptional()
+  @IsObject()
+  resumeContext?: Record<string, any>;
 }
 
 export class AiScoreDto {

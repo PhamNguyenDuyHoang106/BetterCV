@@ -48,6 +48,7 @@ export default function CvEditorPage() {
   
   const saveTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
   const loadedCvIdRef = useRef<string | null>(null);
+  const lastFetchedJobTitleRef = useRef<string>("");
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialHtmlRef = useRef<string>("");
@@ -90,6 +91,8 @@ export default function CvEditorPage() {
     github: "",
     linkedin: "",
     avatarUrl: "",
+    address: "",
+    city: "",
     theme: {
       primaryColor: "",
       accentColor: "",
@@ -102,6 +105,13 @@ export default function CvEditorPage() {
   const [educations, setEducations] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+
+  const [showLevel, setShowLevel] = useState<boolean>(true);
+  const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
+  const [isSuggestingSkills, setIsSuggestingSkills] = useState<boolean>(false);
+  const [suggestCount, setSuggestCount] = useState<number>(0);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const draggedIndexRef = useRef<number | null>(null);
 
   // Preview options
   const [previewScale, setPreviewScale] = useState<number>(100);
@@ -128,11 +138,11 @@ export default function CvEditorPage() {
       summary: { text: summaryText },
       experience: experiences,
       education: educations,
-      skills: skills,
+      skills: { items: skills, showLevel: showLevel },
       projects: projects,
       theme: profileForm.theme,
     };
-  }, [profileForm, summaryText, experiences, educations, skills, projects]);
+  }, [profileForm, summaryText, experiences, educations, skills, showLevel, projects]);
 
   // Compile Live Preview HTML
   const getCompiledHtml = useCallback(() => {
@@ -206,6 +216,8 @@ export default function CvEditorPage() {
           github: profileSec.content.github || "",
           linkedin: profileSec.content.linkedin || "",
           avatarUrl: profileSec.content.avatarUrl || "",
+          address: profileSec.content.address || "",
+          city: profileSec.content.city || "",
           theme: {
             primaryColor: profileSec.content.theme?.primaryColor || "",
             accentColor: profileSec.content.theme?.accentColor || "",
@@ -239,10 +251,17 @@ export default function CvEditorPage() {
       const skillSec = cv.sections.find((s) => s.type === "SKILLS");
       if (skillSec && skillSec.content && Array.isArray(skillSec.content.items)) {
         setSkills(skillSec.content.items);
+        if (skillSec.content.showLevel !== undefined) {
+          setShowLevel(!!skillSec.content.showLevel);
+        } else {
+          setShowLevel(true);
+        }
       } else if (skillSec && skillSec.content && Array.isArray(skillSec.content)) {
         setSkills(skillSec.content);
+        setShowLevel(true);
       } else {
         setSkills([]);
+        setShowLevel(true);
       }
 
       const projSec = cv.sections.find((s) => s.type === "PROJECTS");
@@ -302,6 +321,53 @@ export default function CvEditorPage() {
       setIsLoadingVersions(false);
     }
   };
+
+  const fetchSkillSuggestions = async () => {
+    const jobTitle = profileForm.title || "";
+    if (!jobTitle.trim()) return;
+    lastFetchedJobTitleRef.current = jobTitle.trim();
+    setIsSuggestingSkills(true);
+    try {
+      const res = await apiFetch<any>("/ai/skills/suggest", {
+        method: "POST",
+        body: JSON.stringify({
+          jobTitle,
+          locale: cv?.locale || "vi",
+          currentSkills: skills.map((s: any) => s.name).filter(Boolean),
+        }),
+      });
+      const data = Array.isArray(res) ? res : res?.data || [];
+      setSuggestedSkills(data);
+    } catch (err) {
+      console.error("Failed to fetch suggestions:", err);
+    } finally {
+      setIsSuggestingSkills(false);
+    }
+  };
+
+  const handleRegenerateSkills = async () => {
+    const jobTitle = profileForm.title || "";
+    if (!jobTitle.trim()) {
+      alert("Vui lòng nhập Chức danh tại trang Thông tin cá nhân trước.");
+      return;
+    }
+    setSuggestCount((prev) => {
+      const next = prev + 1;
+      return next > 5 ? 1 : next;
+    });
+    await fetchSkillSuggestions();
+  };
+
+  useEffect(() => {
+    if (activeTab === "skills" && profileForm.title) {
+      const trimmedTitle = profileForm.title.trim();
+      if (trimmedTitle !== lastFetchedJobTitleRef.current) {
+        lastFetchedJobTitleRef.current = trimmedTitle;
+        fetchSkillSuggestions().catch(() => {});
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, profileForm.title]);
 
   useEffect(() => {
     if (showHistory) {
@@ -483,12 +549,12 @@ export default function CvEditorPage() {
     });
   };
 
-  const saveSkills = (items = skills) => {
+  const saveSkills = (items = skills, showLvl = showLevel) => {
     const existing = cv?.sections?.find((s) => s.type === "SKILLS");
     upsertSection({
       id: existing?.id,
       type: "SKILLS",
-      content: { items },
+      content: { items, showLevel: showLvl },
       order: 5,
     });
   };
@@ -571,6 +637,14 @@ export default function CvEditorPage() {
       sectionType: aiTarget.type === "summary" ? "SUMMARY" : "EXPERIENCE",
       content: aiTarget.type === "summary" ? { text: originalText } : { description: originalText },
       style: aiStyle,
+      resumeContext: aiTarget.type === "summary" ? {
+        jobTitle: profileForm.title || "",
+        fullName: profileForm.fullName || "",
+        experiences: experiences,
+        skills: skills,
+        educations: educations,
+        projects: projects,
+      } : undefined,
     };
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000/api";
@@ -694,6 +768,7 @@ export default function CvEditorPage() {
       startDate: "2020-09",
       endDate: "2024-06",
       gpa: "3.2/4.0",
+      current: false,
     };
     const updated = [...educations, newItem];
     setEducations(updated);
@@ -858,11 +933,11 @@ export default function CvEditorPage() {
           <div className="flex overflow-x-auto border-b border-slate-800 p-2 bg-slate-950/60 sticky top-0 z-10 scrollbar-none gap-1">
             {[
               { id: "profile", label: "Thông tin cá nhân" },
-              { id: "summary", label: "Giới thiệu" },
               { id: "experience", label: "Kinh nghiệm" },
               { id: "education", label: "Học vấn" },
               { id: "skills", label: "Kỹ năng" },
               { id: "projects", label: "Dự án" },
+              { id: "summary", label: "Giới thiệu" },
               { id: "ats", label: "Phân tích ATS 🎯" },
               { id: "settings", label: "Thiết kế & Layout" },
             ].map((tab) => (
@@ -944,6 +1019,37 @@ export default function CvEditorPage() {
                           saveProfile(newForm);
                         }}
                         placeholder="+84 987 654 321"
+                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400">Địa chỉ</label>
+                      <input
+                        type="text"
+                        value={profileForm.address || ""}
+                        onChange={(e) => {
+                          const newForm = { ...profileForm, address: e.target.value };
+                          setProfileForm(newForm);
+                          saveProfile(newForm);
+                        }}
+                        placeholder="Số 12, Ngõ 34, Đường Láng"
+                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400">Thành phố / Tỉnh</label>
+                      <input
+                        type="text"
+                        value={profileForm.city || ""}
+                        onChange={(e) => {
+                          const newForm = { ...profileForm, city: e.target.value };
+                          setProfileForm(newForm);
+                          saveProfile(newForm);
+                        }}
+                        placeholder="Hà Nội"
                         className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
                       />
                     </div>
@@ -1310,7 +1416,7 @@ export default function CvEditorPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-400">Bắt đầu</label>
+                        <label className="block text-xs font-medium text-slate-400">Bắt đầu (YYYY-MM)</label>
                         <input
                           type="text"
                           value={edu.startDate}
@@ -1321,16 +1427,32 @@ export default function CvEditorPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-400">Tốt nghiệp</label>
+                        <label className="block text-xs font-medium text-slate-400">Tốt nghiệp (YYYY-MM)</label>
                         <input
                           type="text"
                           value={edu.endDate || ""}
+                          disabled={edu.current}
                           onChange={(e) => updateEducationItem(edu.id, "endDate", e.target.value)}
                           onBlur={() => saveEducations()}
                           placeholder="2024-06"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none disabled:opacity-40"
                         />
                       </div>
+                    </div>
+
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-xs font-medium text-slate-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!edu.current}
+                          onChange={(e) => {
+                            updateEducationItem(edu.id, "current", e.target.checked);
+                            saveEducations(educations.map(ed => ed.id === edu.id ? { ...ed, current: e.target.checked } : ed));
+                          }}
+                          className="rounded bg-slate-900 border-slate-800 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Hiện đang học tại đây</span>
+                      </label>
                     </div>
 
                     <div>
@@ -1350,59 +1472,316 @@ export default function CvEditorPage() {
             )}
 
             {/* SKILLS TAB */}
-            {activeTab === "skills" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Kỹ năng chuyên môn</h3>
-                  <button
-                    onClick={addSkillItem}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
-                  >
-                    + Thêm kỹ năng
-                  </button>
-                </div>
+            {activeTab === "skills" && (() => {
+              const getLevelLabel = (level: string) => {
+                switch (level) {
+                  case "Beginner": return "Beginner";
+                  case "Intermediate": return "Intermediate";
+                  case "Advanced": return "Advanced";
+                  case "Professional": return "Professional";
+                  case "Expert": return "Expert";
+                  default:
+                    return "Advanced";
+                }
+              };
 
-                <div className="grid grid-cols-2 gap-4">
-                  {skills.map((sk) => (
-                    <div key={sk.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-4 group">
-                      <div className="flex-1 min-w-0">
-                        <input
-                          type="text"
-                          value={sk.name}
-                          onChange={(e) => updateSkillItem(sk.id, "name", e.target.value)}
-                          onBlur={() => saveSkills()}
-                          placeholder="Ví dụ: Typescript"
-                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
-                        />
-                        <select
-                          value={sk.level || "Advanced"}
-                          onChange={(e) => {
-                            updateSkillItem(sk.id, "level", e.target.value);
-                            saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: e.target.value } : s));
-                          }}
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-850 px-2 py-1 text-xs text-slate-400 focus:outline-none focus:border-indigo-500"
-                        >
-                          <option value="Beginner">Cơ bản (Beginner)</option>
-                          <option value="Intermediate">Khá (Intermediate)</option>
-                          <option value="Advanced">Thành thạo (Advanced)</option>
-                          <option value="Expert">Chuyên gia (Expert)</option>
-                        </select>
+              const getKnobLeft = (level: string) => {
+                switch (level) {
+                  case "Beginner": return "4px";
+                  case "Intermediate": return "calc(20% + 2px)";
+                  case "Advanced": return "calc(40% + 2px)";
+                  case "Professional": return "calc(60% + 2px)";
+                  case "Expert": return "calc(80% + 2px)";
+                  default: return "calc(40% + 2px)";
+                }
+              };
+
+              return (
+                <div className="space-y-6">
+                  {/* Show Experience Level Toggle */}
+                  <div className="flex items-center gap-3 py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextVal = !showLevel;
+                        setShowLevel(nextVal);
+                        saveSkills(skills, nextVal);
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        showLevel ? "bg-sky-500" : "bg-slate-800"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          showLevel ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium text-slate-300">Show experience level</span>
+                  </div>
+
+                  <div className="h-[1px] bg-slate-800/80 my-2" />
+
+                  {/* AI SUGGESTED SKILLS */}
+                  <div className="rounded-2xl border border-sky-950/40 bg-slate-900/20 p-5 space-y-4 shadow-lg shadow-sky-950/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sky-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                            <path fillRule="evenodd" d="M9 4.5a.75.75 0 0 1 .721.544l.813 2.846a3.75 3.75 0 0 0 2.576 2.576l2.846.813a.75.75 0 0 1 0 1.442l-2.846.813a3.75 3.75 0 0 0-2.576 2.576l-.813 2.846a.75.75 0 0 1-1.442 0l-.813-2.846a3.75 3.75 0 0 0-2.576-2.576l-2.846-.813a.75.75 0 0 1 0-1.442l2.846-.813A3.75 3.75 0 0 0 7.43 7.89l.813-2.846A.75.75 0 0 1 9 4.5ZM18.75 1.5a.75.75 0 0 1 .75.75v.003c0 .356-.25.684-.6.741l-.315.053a1.125 1.125 0 0 0-.915.915l-.053.315a.75.75 0 0 1-1.474-.247l.053-.315a1.125 1.125 0 0 0-.915-.915l-.315-.053a.75.75 0 0 1 .166-1.474l.315.053a1.125 1.125 0 0 0 .915.915l.053.315a.75.75 0 0 1 1.474.247l-.053-.315a1.125 1.125 0 0 0 .915-.915l.315-.053a.75.75 0 0 1 .75-.75Zm-2.25 16.5a.75.75 0 0 1 .75.75v.003c0 .356-.25.684-.6.741l-.315.053a1.125 1.125 0 0 0-.915.915l-.053.315a.75.75 0 0 1-1.474-.247l.053-.315a1.125 1.125 0 0 0-.915-.915l-.315-.053a.75.75 0 0 1 .166-1.474l.315.053a1.125 1.125 0 0 0 .915.915l.053.315a.75.75 0 0 1 1.474.247l-.053-.315a1.125 1.125 0 0 0 .915-.915l.315-.053a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                        <h4 className="text-sm font-semibold text-slate-200">
+                          {profileForm.title ? (
+                            <>Suggested skills for <span className="text-sky-400 font-bold">{profileForm.title}</span></>
+                          ) : (
+                            "Suggested skills from AI"
+                          )}
+                        </h4>
                       </div>
-
                       <button
-                        onClick={() => removeSkillItem(sk.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-900/60 transition-all"
-                        title="Xóa kỹ năng"
+                        type="button"
+                        onClick={handleRegenerateSkills}
+                        disabled={isSuggestingSkills}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-gradient-to-r from-violet-600 to-sky-500 hover:from-violet-700 hover:to-sky-600 text-white shadow-lg shadow-sky-500/10 transition-all border-none disabled:opacity-40"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        {isSuggestingSkills ? (
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.75a.75.75 0 0 0-.75.75v4.482a.75.75 0 0 0 1.5 0v-2.299l.322.322a7 7 0 0 0 11.758-3.15.75.75 0 0 0-1.268-.615ZM16.25 3.75a.75.75 0 0 0-1.5 0v2.299l-.322-.322A7 7 0 0 0 2.67 10.877a.75.75 0 1 0 1.268.616 5.5 5.5 0 0 1 9.201-2.466l.312.311h-2.433a.75.75 0 0 0 0 1.5h4.482a.75.75 0 0 0 .75-.75V3.75Z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        <span>Regenerate ({suggestCount}/5)</span>
                       </button>
                     </div>
-                  ))}
+
+                    {suggestedSkills.length > 0 ? (
+                      <div className="flex flex-wrap gap-2.5">
+                        {suggestedSkills.map((skName) => {
+                          const isAdded = skills.some(s => s.name.toLowerCase() === skName.toLowerCase());
+                          return (
+                            <button
+                              key={skName}
+                              type="button"
+                              onClick={() => {
+                                if (isAdded) {
+                                  const matched = skills.find(s => s.name.toLowerCase() === skName.toLowerCase());
+                                  if (matched) {
+                                    const updated = skills.filter(s => s.id !== matched.id);
+                                    setSkills(updated);
+                                    saveSkills(updated);
+                                  }
+                                } else {
+                                  const newItem = {
+                                    id: `skill_${Date.now()}_${Math.random()}`,
+                                    name: skName,
+                                    level: "Advanced",
+                                  };
+                                  const updated = [...skills, newItem];
+                                  setSkills(updated);
+                                  saveSkills(updated);
+                                }
+                              }}
+                              className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                                isAdded
+                                  ? "bg-sky-500/25 border-sky-400 text-sky-300 font-extrabold shadow shadow-sky-500/15 scale-[1.02] ring-1 ring-sky-400/20"
+                                  : "bg-slate-900 border-slate-800/80 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                              }`}
+                            >
+                              {skName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        {profileForm.title 
+                          ? 'Chưa có gợi ý kỹ năng. Click nút "Regenerate" để lấy gợi ý phù hợp nhất với vị trí công việc của bạn.'
+                          : 'Vui lòng nhập Chức danh tại phần Thông tin cá nhân để kích hoạt tính năng gợi ý kỹ năng phù hợp từ AI.'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Kỹ năng chuyên môn</h3>
+                    <button
+                      onClick={addSkillItem}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
+                    >
+                      + Thêm kỹ năng
+                    </button>
+                  </div>
+
+                  {/* Skill List Container (Vertical Stack) */}
+                  <div className="space-y-4">
+                    {skills.map((sk, index) => (
+                      <div
+                        key={sk.id}
+                        draggable={dragIndex === index}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          draggedIndexRef.current = index;
+                          e.dataTransfer.setData("text/plain", index.toString());
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggedIndexRef.current === null || draggedIndexRef.current === index) return;
+                          
+                          const reordered = [...skills];
+                          const draggedItem = reordered[draggedIndexRef.current];
+                          reordered.splice(draggedIndexRef.current, 1);
+                          reordered.splice(index, 0, draggedItem);
+                          
+                          draggedIndexRef.current = index;
+                          setSkills(reordered);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          saveSkills(skills);
+                        }}
+                        onDragEnd={() => {
+                          draggedIndexRef.current = null;
+                          setDragIndex(null);
+                        }}
+                        className={`flex items-center gap-3 w-full group transition-all ${
+                          dragIndex === index ? "opacity-40 scale-[0.98]" : ""
+                        }`}
+                      >
+                        {/* Grip Handle */}
+                        <div
+                          onMouseDown={() => setDragIndex(index)}
+                          onMouseUp={() => setDragIndex(null)}
+                          className="text-slate-600 cursor-grab hover:text-slate-400 active:cursor-grabbing p-1 flex items-center justify-center shrink-0 transition-colors"
+                          title="Kéo để sắp xếp thứ tự"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="9" cy="5" r="2" />
+                            <circle cx="9" cy="12" r="2" />
+                            <circle cx="9" cy="19" r="2" />
+                            <circle cx="15" cy="5" r="2" />
+                            <circle cx="15" cy="12" r="2" />
+                            <circle cx="15" cy="19" r="2" />
+                          </svg>
+                        </div>
+
+                        {/* Skill Card Container */}
+                        <div className="flex-1 flex items-center gap-5 bg-slate-900/40 border border-slate-800 rounded-2xl p-4 transition-all hover:border-slate-700/80">
+                          {/* Skill Input Area */}
+                          <div className="flex-1">
+                            <label className="block text-[11px] font-medium text-slate-500 mb-1.5">Skill</label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={sk.name}
+                                onChange={(e) => updateSkillItem(sk.id, "name", e.target.value)}
+                                onBlur={() => saveSkills()}
+                                placeholder="Ví dụ: Typescript"
+                                className="w-full rounded-lg bg-slate-950 border border-slate-850 pl-3 pr-9 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
+                              />
+                              {sk.name.trim() && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-450">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.748-5.25Z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Level Slider Area (only show if showLevel is enabled) */}
+                          {showLevel && (
+                            <div className="shrink-0 flex flex-col justify-between">
+                              <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
+                                Level — <span className="text-sky-400 font-bold">{getLevelLabel(sk.level)}</span>
+                              </label>
+                              
+                              {/* Custom Segmented Slider */}
+                              <div className="relative w-44 h-9 bg-slate-950 rounded-lg border border-slate-850 p-1 flex items-center select-none">
+                                {/* Separators */}
+                                <div className="absolute left-[20%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
+                                <div className="absolute left-[40%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
+                                <div className="absolute left-[60%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
+                                <div className="absolute left-[80%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
+
+                                {/* Slider Knob */}
+                                <div
+                                  className="absolute top-1 bottom-1 w-[calc(20%-6px)] bg-gradient-to-br from-sky-400 to-sky-500 rounded-md shadow-md transition-all duration-200 ease-out"
+                                  style={{ left: getKnobLeft(sk.level) }}
+                                />
+
+                                {/* Clickable segments */}
+                                <div className="absolute inset-0 flex">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateSkillItem(sk.id, "level", "Beginner");
+                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Beginner" } : s));
+                                    }}
+                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
+                                    title="Cơ bản (Beginner)"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateSkillItem(sk.id, "level", "Intermediate");
+                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Intermediate" } : s));
+                                    }}
+                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
+                                    title="Khá (Intermediate)"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateSkillItem(sk.id, "level", "Advanced");
+                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Advanced" } : s));
+                                    }}
+                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
+                                    title="Thành thạo (Advanced)"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateSkillItem(sk.id, "level", "Professional");
+                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Professional" } : s));
+                                    }}
+                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
+                                    title="Rất giỏi (Professional)"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateSkillItem(sk.id, "level", "Expert");
+                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Expert" } : s));
+                                    }}
+                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
+                                    title="Chuyên gia (Expert)"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Delete Skill Button */}
+                          <div className="shrink-0 pt-5">
+                            <button
+                              type="button"
+                              onClick={() => removeSkillItem(sk.id)}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-950 hover:bg-rose-950/80 text-slate-400 hover:text-rose-450 border border-slate-850 hover:border-rose-900/60 transition-all"
+                              title="Xóa kỹ năng"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* PROJECTS TAB */}
             {activeTab === "projects" && (
