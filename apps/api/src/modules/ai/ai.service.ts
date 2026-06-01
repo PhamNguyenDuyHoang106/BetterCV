@@ -37,9 +37,15 @@ export class AiService {
         dto.locale,
       );
       const promptKey = `cv_summary_${dto.style}_${detectedLocale}`;
-      const systemPrompt = this.getSummarySystemPrompt(dto.style, detectedLocale);
-      const contextText = this.buildResumeContextText(dto.resumeContext, detectedLocale);
-      
+      const systemPrompt = this.getSummarySystemPrompt(
+        dto.style,
+        detectedLocale,
+      );
+      const contextText = this.buildResumeContextText(
+        dto.resumeContext,
+        detectedLocale,
+      );
+
       const userPrompt = `Generate a customized, professional resume summary now using the following context:\n\n${contextText}\n\nOriginal draft text (use for reference/style only, do not copy verbatim): ${((dto.content as any)?.text as string) || ''}`;
 
       const output = await this.runPrompt(
@@ -53,7 +59,8 @@ export class AiService {
         0.5,
       );
 
-      let cleanedOutput = typeof output === 'string' ? output : (output as any).text || '';
+      let cleanedOutput =
+        typeof output === 'string' ? output : (output as any).text || '';
       cleanedOutput = this.postValidateAndCleanSummary(cleanedOutput);
       return { text: cleanedOutput };
     }
@@ -139,9 +146,15 @@ export class AiService {
         dto.locale,
       );
       const promptKey = `cv_summary_${dto.style}_${detectedLocale}`;
-      const systemPrompt = this.getSummarySystemPrompt(dto.style, detectedLocale);
-      const contextText = this.buildResumeContextText(dto.resumeContext, detectedLocale);
-      
+      const systemPrompt = this.getSummarySystemPrompt(
+        dto.style,
+        detectedLocale,
+      );
+      const contextText = this.buildResumeContextText(
+        dto.resumeContext,
+        detectedLocale,
+      );
+
       const userPrompt = `Generate a customized, professional resume summary now using the following context:\n\n${contextText}\n\nOriginal draft text (use for reference/style only, do not copy verbatim): ${((dto.content as any)?.text as string) || ''}`;
 
       return this.streamPrompt(
@@ -386,16 +399,22 @@ export class AiService {
     await this.prisma.aiUsage.create({ data: { userId, tokens, requests: 1 } });
   }
 
-  async suggestSkills(dto: { jobTitle: string; locale: 'en' | 'vi'; currentSkills?: string[] }) {
+  async suggestSkills(dto: {
+    jobTitle: string;
+    locale: 'en' | 'vi';
+    currentSkills?: string[];
+  }) {
     const detectedLocale = this.detectLanguage(dto.jobTitle, dto.locale);
-    const langInstructions = detectedLocale === 'vi'
-      ? 'Return the skills in VIETNAMESE (Tiếng Việt).'
-      : 'Return the skills in ENGLISH.';
-      
-    const currentSkillsStr = Array.isArray(dto.currentSkills) && dto.currentSkills.length > 0
-      ? `The user already has the following skills: "${dto.currentSkills.join(', ')}".`
-      : '';
-      
+    const langInstructions =
+      detectedLocale === 'vi'
+        ? 'Return the skills in VIETNAMESE (Tiếng Việt).'
+        : 'Return the skills in ENGLISH.';
+
+    const currentSkillsStr =
+      Array.isArray(dto.currentSkills) && dto.currentSkills.length > 0
+        ? `The user already has the following skills: "${dto.currentSkills.join(', ')}".`
+        : '';
+
     const systemPrompt = `You are an expert resume assistant and skill taxonomist.
 Your task is to generate 4-6 highly relevant professional skills for the job title provided by the user.
 
@@ -408,17 +427,20 @@ RULES:
 
     const userPrompt = `Generate 4-6 skill suggestions for job title: "${dto.jobTitle}"`;
 
-    const output = await this.aiProvider.generate({
-      system: systemPrompt,
-      user: userPrompt,
-      input: { jobTitle: dto.jobTitle },
-    }, 0.2);
+    const output = await this.aiProvider.generate(
+      {
+        system: systemPrompt,
+        user: userPrompt,
+        input: { jobTitle: dto.jobTitle },
+      },
+      0.2,
+    );
 
     let parsed: string[] = [];
     try {
       this.logger.log(`Raw suggested skills output: ${JSON.stringify(output)}`);
       const content = output?.output;
-      
+
       if (Array.isArray(content)) {
         parsed = content;
       } else if (content && typeof content === 'object') {
@@ -427,55 +449,87 @@ RULES:
         } else if (typeof (content as any).raw === 'string') {
           let cleanStr = (content as any).raw.trim();
           if (cleanStr.startsWith('```')) {
-            cleanStr = cleanStr.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
+            cleanStr = cleanStr
+              .replace(/^```(json)?/i, '')
+              .replace(/```$/i, '')
+              .trim();
           }
           parsed = JSON.parse(cleanStr);
         } else {
-          parsed = (content as any).skills || Object.values(content).filter(v => typeof v === 'string') as string[];
+          parsed =
+            (content as any).skills ||
+            (Object.values(content).filter(
+              (v) => typeof v === 'string',
+            ) as string[]);
         }
       } else if (typeof content === 'string') {
         let cleanStr = content.trim();
         if (cleanStr.startsWith('```')) {
-          cleanStr = cleanStr.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
+          cleanStr = cleanStr
+            .replace(/^```(json)?/i, '')
+            .replace(/```$/i, '')
+            .trim();
         }
         parsed = JSON.parse(cleanStr);
       }
-      
+
       if (!Array.isArray(parsed)) parsed = [];
     } catch (e) {
       this.logger.error('Failed to parse suggested skills JSON:', e);
       // fallback
-      parsed = detectedLocale === 'vi' 
-        ? ['Lập trình', 'Giải quyết vấn đề', 'Làm việc nhóm', 'Giao tiếp']
-        : ['Programming', 'Problem Solving', 'Teamwork', 'Communication'];
+      parsed =
+        detectedLocale === 'vi'
+          ? ['Lập trình', 'Giải quyết vấn đề', 'Làm việc nhóm', 'Giao tiếp']
+          : ['Programming', 'Problem Solving', 'Teamwork', 'Communication'];
     }
 
     return parsed;
   }
 
-  private detectLanguage(jobTitle: string, defaultLocale: 'en' | 'vi'): 'en' | 'vi' {
+  private detectLanguage(
+    jobTitle: string,
+    defaultLocale: 'en' | 'vi',
+  ): 'en' | 'vi' {
     if (!jobTitle) return defaultLocale;
     const lowercaseTitle = jobTitle.toLowerCase();
-    
+
     // 1. Strict Vietnamese diacritics check (includes "ĩ" in "kĩ sư", "đ" in "giám đốc", etc.)
-    const hasViDiacritics = /[áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i.test(lowercaseTitle);
+    const hasViDiacritics =
+      /[áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i.test(
+        lowercaseTitle,
+      );
     if (hasViDiacritics) return 'vi';
 
     // 2. Keyword check fallback (handling i/y spelling variations)
     const viKeywords = [
-      'kỹ sư', 'kĩ sư', 'lập trình viên', 'nhân viên', 'chuyên viên', 
-      'quản lý', 'giám đốc', 'thiết kế', 'kế toán', 'trưởng phòng', 
-      'thực tập sinh', 'phát triển'
+      'kỹ sư',
+      'kĩ sư',
+      'lập trình viên',
+      'nhân viên',
+      'chuyên viên',
+      'quản lý',
+      'giám đốc',
+      'thiết kế',
+      'kế toán',
+      'trưởng phòng',
+      'thực tập sinh',
+      'phát triển',
     ];
-    const isVietnameseKeyword = viKeywords.some(keyword => lowercaseTitle.includes(keyword));
-    
+    const isVietnameseKeyword = viKeywords.some((keyword) =>
+      lowercaseTitle.includes(keyword),
+    );
+
     return isVietnameseKeyword ? 'vi' : 'en';
   }
 
-  private getSummarySystemPrompt(style: 'professional' | 'concise' | 'ats', locale: 'en' | 'vi'): string {
-    const langRule = locale === 'vi' 
-      ? 'CRITICAL: The output summary MUST be written 100% in VIETNAMESE (Tiếng Việt). Translate all English inputs, job titles, fields of study, and concepts to Vietnamese naturally (e.g. translate "Software Engineer" to "Kỹ sư phần mềm", "BSc in Computer Science" to "Cử nhân Khoa học máy tính", "from FPT University" to "từ Đại học FPT"). The final output must be pure Vietnamese with absolutely no English words, except for universally accepted technical proper nouns like "React", "NestJS", "PostgreSQL", or standard proper company names like "FPT Software".'
-      : 'CRITICAL: The output summary MUST be written 100% in ENGLISH. Translate all Vietnamese inputs, names of universities, locations, companies, and academic major fields to English naturally (e.g. translate "Trường đại học FPT" to "FPT University", "Công nghệ thông tin" to "Information Technology", "Hà Nội" to "Hanoi"). The final output must be pure, polished English with absolutely no Vietnamese words or accents, except for standard proper company names if required.';
+  private getSummarySystemPrompt(
+    style: 'professional' | 'concise' | 'ats',
+    locale: 'en' | 'vi',
+  ): string {
+    const langRule =
+      locale === 'vi'
+        ? 'CRITICAL: The output summary MUST be written 100% in VIETNAMESE (Tiếng Việt). Translate all English inputs, job titles, fields of study, and concepts to Vietnamese naturally (e.g. translate "Software Engineer" to "Kỹ sư phần mềm", "BSc in Computer Science" to "Cử nhân Khoa học máy tính", "from FPT University" to "từ Đại học FPT"). The final output must be pure Vietnamese with absolutely no English words, except for universally accepted technical proper nouns like "React", "NestJS", "PostgreSQL", or standard proper company names like "FPT Software".'
+        : 'CRITICAL: The output summary MUST be written 100% in ENGLISH. Translate all Vietnamese inputs, names of universities, locations, companies, and academic major fields to English naturally (e.g. translate "Trường đại học FPT" to "FPT University", "Công nghệ thông tin" to "Information Technology", "Hà Nội" to "Hanoi"). The final output must be pure, polished English with absolutely no Vietnamese words or accents, except for standard proper company names if required.';
 
     const basePrompt = `You are an expert professional CV consultant and elite resume writer.
 Your task is to generate a custom, high-impact resume summary based ONLY on the provided Resume Context.
@@ -520,20 +574,23 @@ Specific Requirements:
 - Highlight core expertise, key achievements, and professional strengths naturally.`;
   }
 
-  private buildResumeContextText(context: any, locale: 'en' | 'vi'): string {
+  private buildResumeContextText(context: any, _locale: 'en' | 'vi'): string {
     if (!context) return '';
-    
+
     const lines: string[] = [];
-    
+
     if (context.jobTitle) {
       lines.push(`JOB TITLE: ${context.jobTitle}`);
     }
-    
+
     if (Array.isArray(context.skills) && context.skills.length > 0) {
-      const skillNames = context.skills.map((s: any) => typeof s === 'string' ? s : s.name).filter(Boolean).join(', ');
+      const skillNames = context.skills
+        .map((s: any) => (typeof s === 'string' ? s : s.name))
+        .filter(Boolean)
+        .join(', ');
       lines.push(`SKILLS/TECHNOLOGIES: ${skillNames}`);
     }
-    
+
     if (Array.isArray(context.experiences) && context.experiences.length > 0) {
       lines.push('EXPERIENCE:');
       context.experiences.forEach((exp: any, index: number) => {
@@ -546,7 +603,7 @@ Specific Requirements:
         }
       });
     }
-    
+
     if (Array.isArray(context.educations) && context.educations.length > 0) {
       lines.push('EDUCATION:');
       context.educations.forEach((edu: any) => {
@@ -556,7 +613,7 @@ Specific Requirements:
         lines.push(`  - ${degree} in ${field} from ${inst}`);
       });
     }
-    
+
     if (Array.isArray(context.projects) && context.projects.length > 0) {
       lines.push('PROJECTS:');
       context.projects.forEach((proj: any) => {
@@ -569,28 +626,28 @@ Specific Requirements:
         }
       });
     }
-    
+
     return lines.join('\n');
   }
 
   private postValidateAndCleanSummary(text: string): string {
     if (!text) return '';
     let cleaned = text.trim();
-    
+
     if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
       cleaned = cleaned.substring(1, cleaned.length - 1);
     }
-    
+
     cleaned = cleaned.replace(/\[Your\s+[^\]]+\]/gi, '');
     cleaned = cleaned.replace(/\[Industry\/Field\]/gi, '');
     cleaned = cleaned.replace(/\[specific\s+skills[^\]]*\]/gi, '');
     cleaned = cleaned.replace(/\[technology\]/gi, '');
     cleaned = cleaned.replace(/\[skills\]/gi, '');
     cleaned = cleaned.replace(/\[Job\s+Title\]/gi, '');
-    
+
     cleaned = cleaned.replace(/\s+/g, ' ');
     cleaned = cleaned.replace(/,\s*,/g, ',');
-    
+
     return cleaned.trim();
   }
 }

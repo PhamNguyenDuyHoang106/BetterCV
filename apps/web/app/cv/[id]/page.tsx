@@ -1618,11 +1618,17 @@ export default function CvEditorPage() {
                     {skills.map((sk, index) => (
                       <div
                         key={sk.id}
-                        draggable={dragIndex === index}
+                        draggable={true}
                         onDragStart={(e) => {
+                          const isHandle = (e.target as HTMLElement).closest("[data-drag-handle]");
+                          if (!isHandle) {
+                            e.preventDefault();
+                            return;
+                          }
                           e.dataTransfer.effectAllowed = "move";
                           draggedIndexRef.current = index;
                           e.dataTransfer.setData("text/plain", index.toString());
+                          setDragIndex(index);
                         }}
                         onDragOver={(e) => {
                           e.preventDefault();
@@ -1643,6 +1649,7 @@ export default function CvEditorPage() {
                         onDragEnd={() => {
                           draggedIndexRef.current = null;
                           setDragIndex(null);
+                          saveSkills(skills);
                         }}
                         className={`flex items-center gap-3 w-full group transition-all ${
                           dragIndex === index ? "opacity-40 scale-[0.98]" : ""
@@ -1650,8 +1657,7 @@ export default function CvEditorPage() {
                       >
                         {/* Grip Handle */}
                         <div
-                          onMouseDown={() => setDragIndex(index)}
-                          onMouseUp={() => setDragIndex(null)}
+                          data-drag-handle="true"
                           className="text-slate-600 cursor-grab hover:text-slate-400 active:cursor-grabbing p-1 flex items-center justify-center shrink-0 transition-colors"
                           title="Kéo để sắp xếp thứ tự"
                         >

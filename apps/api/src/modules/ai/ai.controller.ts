@@ -51,7 +51,8 @@ export class AiController {
   @Post('skills/suggest')
   async suggestSkills(
     @CurrentUser() user: JwtPayload,
-    @Body() dto: { jobTitle: string; locale: 'en' | 'vi'; currentSkills?: string[] },
+    @Body()
+    dto: { jobTitle: string; locale: 'en' | 'vi'; currentSkills?: string[] },
   ) {
     return this.aiService.suggestSkills(dto);
   }
