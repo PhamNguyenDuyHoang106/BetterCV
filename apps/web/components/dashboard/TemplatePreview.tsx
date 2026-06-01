@@ -8,7 +8,7 @@ import { PREVIEW_LAYOUTS } from "./resume-preview-layouts";
 type Props = {
   variant: TemplatePreviewVariant;
   size?: "card" | "large";
-  /** Fill parent box (gallery card) — scales to max readable size */
+  /** Fill parent box — scales from top-left to fit */
   fill?: boolean;
   className?: string;
 };
@@ -16,6 +16,9 @@ type Props = {
 /** A4 proportions (210 × 297 mm) */
 export const DOC_W = 360;
 export const DOC_H = Math.round(DOC_W * (297 / 210));
+
+/** Shared inset for card + modal so scale math matches */
+export const PREVIEW_STAGE_INSET_PX = 6;
 
 const FIXED_SCALE = { card: 1, large: 0.92 } as const;
 
@@ -45,7 +48,7 @@ function useFitScale(enabled: boolean, maxScale = 1.15) {
 }
 
 /**
- * High-fidelity résumé thumbnail — fills gallery cards, crisp A4 mockup.
+ * Résumé thumbnail — same component at every size, scaled from top-left only.
  */
 export function TemplatePreview({
   variant,
@@ -56,19 +59,25 @@ export function TemplatePreview({
   const maxScale = size === "large" ? 1.2 : 1.12;
   const { containerRef, scale: fitScale } = useFitScale(fill, maxScale);
   const scale = fill ? fitScale : FIXED_SCALE[size];
-  const outerW = Math.round(DOC_W * scale);
-  const outerH = Math.round(DOC_H * scale);
   const Layout = PREVIEW_LAYOUTS[variant] ?? PREVIEW_LAYOUTS["compact-ats"];
   const fontClass = getPreviewFontClass(variant);
 
-  const paper = (
+  const scaledW = DOC_W * scale;
+  const scaledH = DOC_H * scale;
+
+  const documentNode = (
     <div
-      className="resume-paper-mockup absolute top-0 left-1/2"
+      className="resume-paper-mockup absolute"
       style={{
         width: DOC_W,
         height: DOC_H,
-        transform: `translateX(-50%) scale(${scale})`,
-        transformOrigin: "top center",
+        transform:
+          fill
+            ? `translate(-50%,-50%) scale(${scale})`
+            : `scale(${scale})`,
+        transformOrigin: fill ? "center center" : "top left",
+        left: fill ? "50%" : 0,
+        top: fill ? "50%" : 0,
       }}
     >
       <article
@@ -83,21 +92,21 @@ export function TemplatePreview({
     return (
       <div
         ref={containerRef}
-        className={`relative w-full h-full min-h-0 ${className}`}
+        className={`relative w-full h-full min-h-0 overflow-hidden ${className}`}
         aria-hidden
       >
-        {paper}
+        {documentNode}
       </div>
     );
   }
 
   return (
     <div
-      className={`relative shrink-0 pointer-events-none select-none z-[1] ${className}`}
-      style={{ width: outerW, height: outerH }}
+      className={`relative shrink-0 pointer-events-none select-none z-[1] overflow-hidden ${className}`}
+      style={{ width: scaledW, height: scaledH }}
       aria-hidden
     >
-      {paper}
+      {documentNode}
     </div>
   );
 }

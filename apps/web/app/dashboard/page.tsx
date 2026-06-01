@@ -63,8 +63,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Layout states
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -135,7 +133,7 @@ export default function DashboardPage() {
     return (
       <main className="min-h-screen auth-page-bg flex items-center justify-center p-6">
         <div className="auth-card max-w-md w-full p-10 text-center">
-          <div className="mx-auto w-14 h-14 bg-gradient-to-br from-primary to-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-5">
+          <div className="mx-auto w-14 h-14 bg-gradient-to-br from-primary via-primary-dark to-primary-darker rounded-2xl flex items-center justify-center text-on-primary font-bold text-xl shadow-lg mb-5">
             BC
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Welcome to BetterCV</h1>
@@ -435,7 +433,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="dashboard-shell text-on-surface font-body-md min-h-screen flex selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">
+    <div className="dashboard-shell text-on-surface font-body-md min-h-screen flex flex-col selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">
       {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 bg-white/20 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -449,51 +447,16 @@ export default function DashboardPage() {
       </div>
 
       <DashboardSidebar
-        isOpen={isSidebarOpen}
         activeTab={activeTab}
         userName={user?.fullName}
         userRole={user?.role}
         onTabChange={setActiveTab}
-        onClose={() => setIsSidebarOpen(false)}
-        onOpen={() => setIsSidebarOpen(true)}
         onUpgrade={() => setActiveTab("upgrade")}
         onProfile={() => setActiveTab("profile")}
       />
 
-      {/* Floating Expand Button for Mobile ONLY when sidebar is closed */}
-      {!isSidebarOpen && (
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="md:hidden fixed bottom-6 right-6 z-40 p-3.5 bg-primary text-white shadow-lg shadow-primary/35 rounded-full hover:scale-105 active:scale-95 transition-all flex items-center justify-center animate-[gallery-fade-in_0.2s_ease-out]"
-          title="Mở Sidebar"
-        >
-          <span className="material-symbols-outlined text-2xl">menu</span>
-        </button>
-      )}
-
-      <main className={`flex-1 min-w-0 w-full min-h-screen px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300 ${
-        isSidebarOpen ? "md:ml-80" : "md:ml-20"
-      }`}>
-        
-        <header className="flex flex-wrap justify-between items-center gap-4 w-full mb-6">
-          <div className="flex items-center gap-3 min-w-0">
-            {!isSidebarOpen && (
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(true)}
-                className="md:hidden p-2.5 hover:bg-white rounded-xl text-slate-500 border border-slate-200/80 bg-white/80 shadow-sm shrink-0"
-                title="Expand Sidebar"
-              >
-                <span className="material-symbols-outlined">menu</span>
-              </button>
-            )}
-            <div className="md:hidden flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
-                BC
-              </div>
-              <span className="font-bold text-primary">BetterCV</span>
-            </div>
-          </div>
+      <main className="flex-1 min-w-0 w-full min-h-screen pt-topnav-height px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
+        <header className="flex flex-wrap justify-end items-center gap-4 w-full mb-6">
           <button
             type="button"
             onClick={() => setActiveTab("templates")}

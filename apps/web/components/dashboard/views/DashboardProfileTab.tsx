@@ -40,7 +40,7 @@ export function DashboardProfileTab({
 
       <DashPanel title="Thông tin tài khoản" icon="person" iconAccent="violet">
         <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary via-primary-dark to-primary-darker flex items-center justify-center text-on-primary font-bold text-xl shadow-lg">
             {initials}
           </div>
           <div>

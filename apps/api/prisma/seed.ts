@@ -110,80 +110,59 @@ async function main() {
     create: { name: "Design" }
   });
 
-  const templates = [
-    {
-      category: businessCategory,
-      schema: templateSchema({
-        id: "standard-ats",
-        name: "Standard ATS",
-        category: "BUSINESS",
-      }),
-    },
-    {
-      category: techCategory,
-      schema: templateSchema({
-        id: "tech-classic",
-        name: "Tech Classic",
-        category: "TECH",
-      }),
-    },
-    {
-      category: techCategory,
-      schema: templateSchema({
-        id: "techstack",
-        name: "TechStack",
-        category: "TECH",
-      }),
-    },
-    {
-      category: businessCategory,
-      schema: templateSchema({
-        id: "business-classic",
-        name: "Business Classic",
-        category: "BUSINESS",
-      }),
-    },
-    {
-      category: businessCategory,
-      schema: templateSchema({
-        id: "dublin",
-        name: "Dublin",
-        category: "BUSINESS",
-      }),
-    },
-    {
-      category: designCategory,
-      schema: templateSchema({
-        id: "design-classic",
-        name: "Design Classic",
-        category: "DESIGN",
-      }),
-    },
-    {
-      category: designCategory,
-      schema: templateSchema({
-        id: "nova",
-        name: "Nova",
-        category: "DESIGN",
-      }),
-    },
-    {
-      category: designCategory,
-      schema: templateSchema({
-        id: "monarch",
-        name: "Monarch",
-        category: "DESIGN",
-      }),
-    },
-    {
-      category: designCategory,
-      schema: templateSchema({
-        id: "minimalist",
-        name: "Minimalist",
-        category: "DESIGN",
-      }),
-    },
+  const templateRows: Array<{
+    id: string;
+    name: string;
+    category: "TECH" | "BUSINESS" | "DESIGN";
+  }> = [
+    { id: "standard-ats", name: "Standard ATS", category: "BUSINESS" },
+    { id: "tech-classic", name: "Tech Classic", category: "TECH" },
+    { id: "techstack", name: "TechStack", category: "TECH" },
+    { id: "business-classic", name: "Business Classic", category: "BUSINESS" },
+    { id: "dublin", name: "Dublin", category: "BUSINESS" },
+    { id: "design-classic", name: "Design Classic", category: "DESIGN" },
+    { id: "nova", name: "Nova", category: "DESIGN" },
+    { id: "monarch", name: "Monarch", category: "DESIGN" },
+    { id: "minimalist", name: "Minimalist", category: "DESIGN" },
+    { id: "london", name: "London", category: "BUSINESS" },
+    { id: "zurich", name: "Zurich", category: "BUSINESS" },
+    { id: "oslo", name: "Oslo", category: "TECH" },
+    { id: "berlin", name: "Berlin", category: "TECH" },
+    { id: "stockholm", name: "Stockholm", category: "BUSINESS" },
+    { id: "paris", name: "Paris", category: "DESIGN" },
+    { id: "milan", name: "Milan", category: "DESIGN" },
+    { id: "tokyo", name: "Tokyo", category: "DESIGN" },
+    { id: "singapore", name: "Singapore", category: "BUSINESS" },
+    { id: "sydney", name: "Sydney", category: "TECH" },
+    { id: "toronto", name: "Toronto", category: "BUSINESS" },
+    { id: "seattle", name: "Seattle", category: "TECH" },
+    { id: "austin", name: "Austin", category: "BUSINESS" },
+    { id: "boston", name: "Boston", category: "DESIGN" },
+    { id: "chicago", name: "Chicago", category: "BUSINESS" },
+    { id: "amsterdam", name: "Amsterdam", category: "DESIGN" },
+    { id: "copenhagen", name: "Copenhagen", category: "DESIGN" },
+    { id: "vienna", name: "Vienna", category: "DESIGN" },
+    { id: "geneva", name: "Geneva", category: "BUSINESS" },
+    { id: "prague", name: "Prague", category: "TECH" },
+    { id: "helsinki", name: "Helsinki", category: "BUSINESS" },
+    { id: "barcelona-creative", name: "Barcelona", category: "DESIGN" },
+    { id: "hong-kong-finance", name: "Hong Kong", category: "BUSINESS" },
   ];
+
+  const categoryByType = {
+    TECH: techCategory,
+    BUSINESS: businessCategory,
+    DESIGN: designCategory,
+  } as const;
+
+  const templates = templateRows.map((row) => ({
+    category: categoryByType[row.category],
+    schema: templateSchema({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+    }),
+  }));
 
   for (const item of templates) {
     await prisma.template.upsert({

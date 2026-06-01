@@ -26,8 +26,12 @@ export const apiFetch = async <T>(
     });
 
     if (!response.ok) {
-      const body = await response.json().catch(() => ({ message: "Request failed" }));
-      throw new Error(body.message || `Request failed with status ${response.status}`);
+      const body = await response.json().catch(() => ({}));
+      const message =
+        (body as { error?: { message?: string } }).error?.message ||
+        (body as { message?: string }).message ||
+        `Request failed with status ${response.status}`;
+      throw new Error(message);
     }
 
     return response.json();

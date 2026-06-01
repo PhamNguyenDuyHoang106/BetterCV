@@ -52,7 +52,7 @@ export function CreateCvModal({
       <div className="relative w-full max-w-md rounded-2xl dash-create-modal p-6 sm:p-7">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white shadow-md">
+            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-primary-dark to-primary-darker flex items-center justify-center text-on-primary shadow-md">
               <span className="material-symbols-outlined">post_add</span>
             </span>
             <h3 className="text-lg font-bold text-slate-900">Tạo CV mới</h3>

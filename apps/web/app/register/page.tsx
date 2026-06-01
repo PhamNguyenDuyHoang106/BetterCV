@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { createSupabaseClient } from "../../lib/supabase";
 import { useAuthStore } from "../../lib/store/auth";
-import { apiFetch } from "../../lib/api";
+import { syncSessionToApp } from "../../lib/auth-session";
 import {
   AuthDivider,
   AuthShell,
@@ -23,7 +23,6 @@ type RegisterForm = {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const setAuth = useAuthStore((s) => s.setAuth);
   const {
     register,
     handleSubmit,
@@ -49,7 +48,17 @@ export default function RegisterPage() {
       });
 
       if (authError) {
-        setError(authError.message);
+        const msg = authError.message.toLowerCase();
+        if (msg.includes("already registered") || msg.includes("already been registered")) {
+          setError("Email này đã được đăng ký. Vui lòng đăng nhập.");
+        } else {
+          setError(authError.message);
+        }
+        return;
+      }
+
+      if (data.user && !data.session && data.user.identities?.length === 0) {
+        setError("Email này đã được đăng ký. Vui lòng đăng nhập.");
         return;
       }
 
@@ -58,16 +67,13 @@ export default function RegisterPage() {
         return;
       }
 
-      const token = data.session.access_token;
-      useAuthStore.setState({ accessToken: token });
+      useAuthStore.setState({ accessToken: data.session.access_token });
+      const profile = await syncSessionToApp(values.fullName);
+      if (!profile) {
+        setError("Không thể đồng bộ tài khoản. Kiểm tra API backend đang chạy.");
+        return;
+      }
 
-      const res = await apiFetch<any>("/auth/sync", {
-        method: "POST",
-        body: JSON.stringify({ fullName: values.fullName }),
-      });
-      const profile = res?.data || res;
-
-      setAuth(token, profile);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");

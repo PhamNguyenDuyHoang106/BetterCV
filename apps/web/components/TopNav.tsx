@@ -14,7 +14,13 @@ export const TopNav = () => {
     hydrate();
   }, [hydrate]);
 
-  if (pathname?.startsWith("/dashboard") || pathname?.startsWith("/cv")) {
+  if (
+    pathname === "/" ||
+    pathname?.startsWith("/dashboard") ||
+    pathname?.startsWith("/cv") ||
+    pathname === "/login" ||
+    pathname === "/register"
+  ) {
     return null;
   }
 
