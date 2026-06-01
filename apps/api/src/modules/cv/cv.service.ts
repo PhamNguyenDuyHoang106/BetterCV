@@ -17,12 +17,26 @@ export class CvService {
 
   async create(supabaseId: string, dto: CvCreateDto) {
     const userId = await this.resolveUserId(supabaseId);
+    let templateVersionId: string | null = null;
+    let templateVersionNum = 1;
+    if (dto.templateId) {
+      const ver = await this.prisma.templateVersion.findFirst({
+        where: { templateId: dto.templateId },
+        orderBy: { version: 'desc' },
+      });
+      if (ver) {
+        templateVersionId = ver.id;
+        templateVersionNum = ver.version;
+      }
+    }
     return this.prisma.cv.create({
       data: {
         userId,
         title: dto.title,
         locale: dto.locale,
         templateId: dto.templateId,
+        templateVersionId,
+        templateVersionNum,
       },
     });
   }
@@ -90,12 +104,35 @@ export class CvService {
       });
     }
 
+    let templateVersionId = existing.templateVersionId;
+    let templateVersionNum = existing.templateVersionNum;
+    if (dto.templateId !== undefined && dto.templateId !== existing.templateId) {
+      if (dto.templateId) {
+        const ver = await this.prisma.templateVersion.findFirst({
+          where: { templateId: dto.templateId },
+          orderBy: { version: 'desc' },
+        });
+        if (ver) {
+          templateVersionId = ver.id;
+          templateVersionNum = ver.version;
+        } else {
+          templateVersionId = null;
+          templateVersionNum = 1;
+        }
+      } else {
+        templateVersionId = null;
+        templateVersionNum = 1;
+      }
+    }
+
     const cv = await this.prisma.cv.update({
       where: { id },
       data: {
         title: dto.title,
         locale: dto.locale,
         templateId: dto.templateId,
+        templateVersionId,
+        templateVersionNum,
         version: { increment: 1 },
         lastEditedSessionId: clientSession?.sessionId || null,
         lastEditedDevice: clientSession?.device || null,

@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "node --require ts-node/register --test tests/render.test.js"
+    "test": "node --require ts-node/register --test tests/render.test.js",
+    "generate:thumbnails": "node scripts/generate-thumbnails.js"
   },
   "dependencies": {
     "zod": "^3.24.1"

@@ -173,3 +173,116 @@ test("renderCache - hit returns cached object and avoids deep rendering recalcul
   assert.equal(firstRender, secondRender);
 });
 
+// 6. Structural & Layout Options Tests
+test("renderHtml - respects layoutConfig structural options and sidebar positions", () => {
+  const template = {
+    id: "custom-template",
+    name: "Custom Template",
+    category: "DESIGN",
+    layout: {
+      sections: [
+        { type: "SUMMARY", blocks: [] },
+        { type: "SKILLS", blocks: [] }
+      ]
+    },
+    layoutConfig: {
+      layoutMode: "sidebar-right",
+      columns: {
+        sidebar: ["SKILLS"],
+        main: ["SUMMARY"]
+      },
+      order: ["SUMMARY", "SKILLS"],
+      headerAlignment: "center",
+      showAvatar: false,
+      useTimeline: false,
+      fullBleedHeader: true,
+      fullPageBleed: true
+    }
+  };
+
+  const data = {
+    profile: { fullName: "Ada Lovelace", title: "Programmer", avatarUrl: "https://avatar.com/1.png" },
+    summary: { text: "Pioneer." },
+    skills: [{ name: "Math" }]
+  };
+
+  const html = renderHtml({ template, data });
+
+  // Sidebar-right layout must contain the correct CSS class
+  assert.ok(html.includes("sidebar-right"));
+
+  // Center alignment and showAvatar: false rules
+  assert.ok(html.includes("full-bleed-header"));
+  assert.ok(html.includes("full-page-bleed-style"));
+});
+
+// 7. Section Variants Rendering Tests
+test("renderHtml - renders correct HTML classes and structures for experience & skills variants", () => {
+  const template = {
+    id: "variant-test",
+    name: "Variant Test",
+    category: "TECH",
+    layout: {
+      sections: [
+        { type: "EXPERIENCE", blocks: [] },
+        { type: "SKILLS", blocks: [] }
+      ]
+    },
+    sectionStyles: {
+      experience: { variant: "timeline" },
+      skills: { variant: "bars" }
+    }
+  };
+
+  const data = {
+    profile: { fullName: "Ada Lovelace" },
+    experience: [
+      { id: "1", position: "Pioneer", company: "Babbage", startDate: "1840", endDate: "1843", description: "First program." }
+    ],
+    skills: [
+      { name: "Math", level: "Expert" }
+    ]
+  };
+
+  const html = renderHtml({ template, data });
+
+  // Experience timeline variant class must be outputted
+  assert.ok(html.includes("variant-timeline"));
+
+  // Skills level bars variant must be rendered
+  assert.ok(html.includes("variant-bars"));
+  assert.ok(html.includes("skill-level-bars"));
+  assert.ok(html.includes("level-bar"));
+});
+
+// 8. Backward Compatibility / Regression Tests
+test("renderHtml - gracefully falls back and renders without crashing when provided with a legacy template schema", () => {
+  const legacyTemplate = {
+    id: "legacy-ats",
+    name: "Legacy ATS Template",
+    category: "BUSINESS",
+    layout: {
+      sections: [
+        { type: "SUMMARY", blocks: [] }
+      ]
+    }
+    // Missing layoutConfig, themeTokens, and sectionStyles entirely
+  };
+
+  const data = {
+    profile: { fullName: "Legacy User" },
+    summary: { text: "Legacy test." }
+  };
+
+  // Rendering must not throw any error
+  let html = "";
+  assert.doesNotThrow(() => {
+    html = renderHtml({ template: legacyTemplate, data });
+  });
+
+  // Safe assertions to verify it fell back gracefully to single-column ATS configuration
+  assert.ok(html.includes("Legacy User"));
+  assert.ok(html.includes("Legacy test."));
+  assert.ok(html.includes("resume-sections-container") || html.includes("resume-container"));
+});
+

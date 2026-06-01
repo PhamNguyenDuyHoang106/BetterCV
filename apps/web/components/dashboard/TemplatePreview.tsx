@@ -50,7 +50,19 @@ function useFitScale(enabled: boolean, maxScale = 1.15) {
 /**
  * Résumé thumbnail — same component at every size, scaled from top-left only.
  */
+/**
+ * @deprecated
+ * Renders a static React mockup with hardcoded SAMPLE data — not connected
+ * to the real template-engine pipeline.
+ *
+ * Use `TemplateHtmlPreview` (via `renderHtml()` + `GALLERY_DEMO_DATA`) for
+ * consistent rendering across Gallery, Editor, and PDF Export.
+ *
+ * Kept as offline fallback. Will be removed in Sprint 2 when all usages
+ * are migrated.
+ */
 export function TemplatePreview({
+
   variant,
   size = "card",
   fill = false,

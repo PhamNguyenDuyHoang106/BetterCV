@@ -23,8 +23,10 @@ import { syncSessionToApp } from "../../lib/auth-session";
 type Template = {
   id: string;
   name: string;
+  schema?: any;
   category?: { name: string };
 };
+
 
 type CvSection = {
   id: string;
@@ -344,8 +346,9 @@ export default function DashboardPage() {
       const payload = {
         title: `${sourceCv.title} (Copy)`,
         locale: sourceCv.locale as "en" | "vi",
-        templateId: sourceCv.sections?.[0]?.id ? undefined : undefined // or map templateId if present
+        templateId: sourceCv.templateId || undefined,
       };
+
       const newCvRes = await apiFetch<any>("/cvs", {
         method: "POST",
         body: JSON.stringify(payload)
