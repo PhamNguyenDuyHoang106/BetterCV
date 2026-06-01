@@ -20,6 +20,7 @@
     "app",
     "components",
     "lib",
+    "types",
     ".next/types/**/*.ts"
   ],
   "exclude": [

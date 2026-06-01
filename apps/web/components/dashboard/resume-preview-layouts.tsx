@@ -1073,6 +1073,123 @@ export function LayoutHelsinki() {
   );
 }
 
+export function LayoutRightSidebar() {
+  return (
+    <div className="h-full flex overflow-hidden bg-white">
+      <main className="flex-1 px-[7px] py-[5px] min-w-0 overflow-hidden">
+        <div className="mb-[8px]">
+          <h1 className="text-[18px] font-bold leading-none">{SAMPLE.name}</h1>
+          <p className="text-[9.5px] text-slate-600 mt-[2px]">{SAMPLE.title}</p>
+        </div>
+        <ResumeSection title="Profile" variant="accent" dense className="!mt-0">
+          <SummaryParagraph lines={2} />
+        </ResumeSection>
+        <ResumeSection title="Experience" variant="accent" dense>
+          <ExperienceList compact showBullets bulletsPerJob={2} />
+        </ResumeSection>
+        <ResumeSection title="Education" variant="accent" dense>
+          <EducationBlock compact />
+        </ResumeSection>
+      </main>
+      <aside className="w-[33%] min-w-[150px] bg-slate-950 text-white px-[7px] py-[6px] flex flex-col gap-[8px]">
+        <div>
+          <p className="text-[9px] uppercase tracking-[0.16em] text-slate-400 mb-[4px]">Contact</p>
+          <ContactLines inverted compact includeLinks={false} />
+        </div>
+        <ResumeSection title="Skills" variant="inverted" dense className="!mt-0">
+          <HardSkillsLine inverted />
+        </ResumeSection>
+        <ResumeSection title="Tools" variant="inverted" dense>
+          <ToolsList />
+        </ResumeSection>
+        <ResumeSection title="Languages" variant="inverted" dense>
+          <LanguagesLine />
+        </ResumeSection>
+      </aside>
+    </div>
+  );
+}
+
+export function LayoutSplitBanner() {
+  return (
+    <div className="h-full flex flex-col overflow-hidden bg-white">
+      <header className="bg-slate-900 text-white px-[8px] py-[9px] mb-[8px]">
+        <div className="flex items-start justify-between gap-[12px]">
+          <div>
+            <p className="text-[8px] uppercase tracking-[0.24em] text-slate-400 mb-[6px]">Profile</p>
+            <h1 className="text-[22px] font-bold leading-tight">{SAMPLE.name}</h1>
+            <p className="text-[9px] text-slate-300 mt-[3px]">{SAMPLE.title}</p>
+          </div>
+          <div className="text-[8px] space-y-[2px] text-slate-300">
+            <p>{SAMPLE.location}</p>
+            <p>{SAMPLE.contact}</p>
+            <p>{SAMPLE.phone}</p>
+          </div>
+        </div>
+      </header>
+      <div className="flex-1 px-[7px] pb-[5px] min-h-0 overflow-hidden">
+        <div className="grid grid-cols-[2fr_1fr] gap-[8px] h-full">
+          <div className="bg-slate-50 rounded-[10px] p-[10px]">
+            <ResumeSection title="Career Summary" variant="accent" dense className="!mt-0">
+              <SummaryParagraph lines={2} />
+            </ResumeSection>
+            <ResumeSection title="Projects" variant="accent" dense>
+              <ProjectsList withLinks limit={2} />
+            </ResumeSection>
+          </div>
+          <div className="flex flex-col gap-[8px]">
+            <div className="bg-slate-50 rounded-[10px] p-[10px]">
+              <ResumeSection title="Skills" variant="caps" dense className="!mt-0">
+                <HardSkillsLine />
+              </ResumeSection>
+            </div>
+            <div className="bg-slate-50 rounded-[10px] p-[10px]">
+              <ResumeSection title="Education" variant="caps" dense className="!mt-0">
+                <EducationBlock compact />
+              </ResumeSection>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LayoutBoxedGrid() {
+  return (
+    <div className="h-full p-[7px] bg-slate-50 overflow-hidden">
+      <div className="grid grid-cols-2 gap-[8px] h-full">
+        <div className="space-y-[8px]">
+          <div className="bg-white rounded-[10px] border border-slate-200 p-[10px]">
+            <p className="text-[9px] uppercase tracking-[0.16em] text-slate-500 mb-[4px]">Profile</p>
+            <SummaryParagraph lines={1} />
+          </div>
+          <div className="bg-white rounded-[10px] border border-slate-200 p-[10px] flex-1">
+            <ResumeSection title="Experience" variant="minimal" dense className="!mt-0">
+              <ExperienceList compact showBullets maxJobs={2} bulletsPerJob={2} />
+            </ResumeSection>
+          </div>
+        </div>
+        <div className="space-y-[8px]">
+          <div className="bg-white rounded-[10px] border border-slate-200 p-[10px]">
+            <ResumeSection title="Skills" variant="minimal" dense className="!mt-0">
+              <HardSkillsLine />
+            </ResumeSection>
+          </div>
+          <div className="bg-white rounded-[10px] border border-slate-200 p-[10px] flex-1">
+            <ResumeSection title="Education" variant="minimal" dense className="!mt-0">
+              <EducationBlock compact />
+            </ResumeSection>
+            <ResumeSection title="Tools" variant="minimal" dense>
+              <ToolsList limit={5} />
+            </ResumeSection>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** 31 — Barcelona: Creative with lime-green sidebar */
 export function LayoutBarcelonaCreative() {
   return (
@@ -1131,6 +1248,207 @@ export function LayoutHongKongFinance() {
   );
 }
 
+// --- Added layouts: Orbit, Comet, Astralis, Nebula, Eclipse ---
+export function LayoutOrbit() {
+  return (
+    <div className="flex h-full bg-white overflow-hidden text-[8.5px]">
+      <aside className="w-[22%] border-r border-slate-200 px-[5px] py-[6px] flex flex-col gap-[10px]">
+        <div>
+          <p className="text-[7px] uppercase tracking-widest text-slate-400 mb-[4px]">Contact</p>
+          <ContactLines compact includeLinks={false} />
+        </div>
+        <div>
+          <p className="text-[7px] uppercase tracking-widest text-slate-400 mb-[3px]">Skills</p>
+          {SAMPLE.skills.hard.slice(0,4).map(s => (
+            <p key={s} className="text-[7.5px] text-slate-700 leading-[1.6]">{s}</p>
+          ))}
+        </div>
+        <div>
+          <p className="text-[7px] uppercase tracking-widest text-slate-400 mb-[3px]">Education</p>
+          <EducationBlock compact />
+        </div>
+      </aside>
+      <main className="flex-1 px-[8px] py-[6px]">
+        <div className="border-b border-slate-900 pb-[5px] mb-[6px]">
+          <p className="text-[7px] uppercase tracking-[0.18em] text-slate-400">{SAMPLE.title}</p>
+          <h1 className="text-[22px] font-bold text-slate-900 leading-tight tracking-tight">
+            {SAMPLE.name.toUpperCase()}
+          </h1>
+        </div>
+        <ResumeSection title="Summary" variant="minimal" dense className="!mt-0">
+          <SummaryParagraph lines={2} />
+        </ResumeSection>
+        <ResumeSection title="Experience" variant="minimal" dense>
+          <ExperienceList compact showBullets bulletsPerJob={2} />
+        </ResumeSection>
+        <ResumeSection title="Projects" variant="minimal" dense>
+          <ProjectsList limit={2} />
+        </ResumeSection>
+      </main>
+    </div>
+  );
+}
+
+export function LayoutComet() {
+  const accentColor = "bg-yellow-400";
+  return (
+    <div className="h-full flex flex-col overflow-hidden bg-white">
+      <header className={`${accentColor} px-[8px] py-[6px] flex items-center gap-[8px]`}>
+        <ProfileAvatar size="md" />
+        <div>
+          <p className="text-[8px] uppercase tracking-[0.2em] text-slate-700">{SAMPLE.title}</p>
+          <h1 className="text-[18px] font-black text-slate-900 leading-tight uppercase">
+            {SAMPLE.name}
+          </h1>
+        </div>
+      </header>
+      <div className="flex gap-[10px] px-[8px] py-[3px] text-[7.5px] text-slate-600 border-b border-slate-200">
+        <span>{SAMPLE.contact}</span>
+        <span>·</span>
+        <span>{SAMPLE.phone}</span>
+        <span>·</span>
+        <span>{SAMPLE.location}</span>
+      </div>
+      <div className="flex-1 px-[8px] py-[4px] overflow-hidden">
+        {[
+          { title: "SUMMARY", content: <SummaryParagraph lines={2} /> },
+          { title: "EXPERIENCE", content: <ExperienceList compact showBullets maxJobs={2} bulletsPerJob={2} /> },
+          { title: "EDUCATION", content: <EducationBlock compact /> },
+          { title: "SKILLS", content: <HardSkillsLine /> },
+        ].map(({ title, content }) => (
+          <div key={title} className="mb-[6px]">
+            <div className="bg-slate-800 text-white px-[5px] py-[1.5px] inline-block mb-[3px]">
+              <p className="text-[7px] font-bold tracking-[0.15em]">{title}</p>
+            </div>
+            {content}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function LayoutAstralis() {
+  const frameColor = "border-emerald-600";
+  const pillColor = "bg-emerald-600 text-white";
+  return (
+    <div className={`h-full m-[4px] border-[3px] ${frameColor} rounded-sm overflow-hidden bg-white`}>
+      <header className="flex items-center gap-[8px] px-[8px] pt-[8px] pb-[5px] border-b border-slate-100">
+        <ProfileAvatar size="lg" />
+        <div>
+          <h1 className="text-[15px] font-bold text-slate-900 leading-none">{SAMPLE.name}</h1>
+          <p className="text-[8.5px] text-emerald-700 font-semibold mt-[2px]">{SAMPLE.title}</p>
+          <p className="text-[7.5px] text-slate-500 mt-[2px]">{SAMPLE.contact} · {SAMPLE.location}</p>
+        </div>
+      </header>
+      <div className="flex gap-[6px] px-[7px] py-[5px] h-[calc(100%-60px)] overflow-hidden">
+        <div className="flex-[3] min-w-0 overflow-hidden">
+          <ResumeSection title="Summary" variant="accent" dense className="!mt-0">
+            <SummaryParagraph lines={2} />
+          </ResumeSection>
+          <ResumeSection title="Experience" variant="accent" dense>
+            <ExperienceList compact showBullets bulletsPerJob={2} />
+          </ResumeSection>
+        </div>
+        <div className="flex-[2] min-w-0 overflow-hidden">
+          <p className="text-[7px] uppercase tracking-widest text-slate-400 mb-[4px]">Skills</p>
+          <div className="flex flex-wrap gap-[3px] mb-[6px]">
+            {SAMPLE.skills.hard.slice(0,6).map(s => (
+              <span key={s} className={`${pillColor} text-[6.5px] px-[4px] py-[1px] rounded-full font-medium`}>
+                {s}
+              </span>
+            ))}
+          </div>
+          <ResumeSection title="Education" variant="accent" dense>
+            <EducationBlock compact />
+          </ResumeSection>
+          <ResumeSection title="Certifications" variant="accent" dense>
+            <CertificationsList limit={2} />
+          </ResumeSection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LayoutNebula() {
+  return (
+    <div className="h-full flex flex-col overflow-hidden bg-white">
+      <header className="flex justify-between items-end px-[8px] pt-[8px] pb-[5px] border-b-2 border-slate-700">
+        <div>
+          <h1 className="text-[20px] font-bold text-slate-900 leading-none">{SAMPLE.name}</h1>
+          <p className="text-[9px] text-slate-500 mt-[2px]">{SAMPLE.title}</p>
+        </div>
+        <div className="text-right text-[7.5px] text-slate-500 space-y-[1px]">
+          <p>{SAMPLE.contact}</p>
+          <p>{SAMPLE.phone}</p>
+          <p>{SAMPLE.location}</p>
+        </div>
+      </header>
+      <div className="flex flex-1 min-h-0 overflow-hidden px-[6px] py-[5px] gap-[10px]">
+        <div className="w-[55%] overflow-hidden">
+          <ResumeSection title="Summary" variant="minimal" dense className="!mt-0">
+            <SummaryParagraph lines={2} />
+          </ResumeSection>
+          <ResumeSection title="Experience" variant="minimal" dense>
+            <ExperienceList compact showBullets bulletsPerJob={2} />
+          </ResumeSection>
+        </div>
+        <div className="w-[45%] overflow-hidden border-l border-slate-100 pl-[8px]">
+          <ResumeSection title="Education" variant="minimal" dense className="!mt-0">
+            <EducationBlock compact />
+          </ResumeSection>
+          <ResumeSection title="Skills" variant="minimal" dense>
+            <HardSkillsLine />
+          </ResumeSection>
+          <ResumeSection title="Projects" variant="minimal" dense>
+            <ProjectsList limit={2} />
+          </ResumeSection>
+          <ResumeSection title="Languages" variant="minimal" dense>
+            <LanguagesLine />
+          </ResumeSection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LayoutEclipse() {
+  return (
+    <div className="h-full flex flex-col overflow-hidden bg-white px-[8px] py-[6px]">
+      <header className="mb-[8px]">
+        <h1 className="text-[20px] font-light text-slate-900 leading-none tracking-[-0.01em]">
+          {SAMPLE.name}
+        </h1>
+        <div className="flex items-center gap-[6px] mt-[2px]">
+          <div className="h-[1.5px] w-[20px] bg-slate-400" />
+          <p className="text-[8.5px] text-slate-500">{SAMPLE.title}</p>
+        </div>
+        <p className="text-[7.5px] text-slate-400 mt-[3px]">{SAMPLE.contact} · {SAMPLE.location}</p>
+      </header>
+      <div className="flex-1 overflow-hidden">
+        <p className="text-[7px] uppercase tracking-[0.2em] text-slate-400 mb-[5px]">Experience</p>
+        <div className="relative pl-[12px] border-l-2 border-slate-200 space-y-[6px] mb-[8px]">
+          <div className="absolute left-[-5px] top-[2px] w-[8px] h-[8px] rounded-full bg-slate-900" />
+          <ExperienceList compact showBullets bulletsPerJob={2} maxJobs={2} />
+        </div>
+        <div className="grid grid-cols-2 gap-[8px] mt-[6px]">
+          <div>
+            <p className="text-[7px] uppercase tracking-[0.2em] text-slate-400 mb-[3px]">Education</p>
+            <EducationBlock compact />
+          </div>
+          <div>
+            <p className="text-[7px] uppercase tracking-[0.2em] text-slate-400 mb-[3px]">Skills</p>
+            <HardSkillsLine />
+            <p className="text-[7px] uppercase tracking-[0.2em] text-slate-400 mt-[4px] mb-[3px]">Languages</p>
+            <LanguagesLine />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const PREVIEW_LAYOUTS: Record<TemplatePreviewVariant, () => JSX.Element> = {
   "minimal-sidebar": LayoutMinimalSidebar,
   "classic-academic": LayoutClassicAcademic,
@@ -1162,6 +1480,14 @@ export const PREVIEW_LAYOUTS: Record<TemplatePreviewVariant, () => JSX.Element> 
   geneva: LayoutGeneva,
   prague: LayoutPrague,
   helsinki: LayoutHelsinki,
+  orbit: LayoutOrbit,
+  comet: LayoutComet,
+  astralis: LayoutAstralis,
+  nebula: LayoutNebula,
+  eclipse: LayoutEclipse,
+  "right-sidebar": LayoutRightSidebar,
+  "split-banner": LayoutSplitBanner,
+  "boxed-grid": LayoutBoxedGrid,
   "barcelona-creative": LayoutBarcelonaCreative,
   "hong-kong-finance": LayoutHongKongFinance,
 };

@@ -30,7 +30,18 @@ export type TemplatePreviewVariant =
   | "prague"
   | "helsinki"
   | "barcelona-creative"
-  | "hong-kong-finance";
+  | "hong-kong-finance"
+  | "right-sidebar"
+  | "split-banner"
+  | "boxed-grid"
+  | "orbit"
+  | "comet"
+  | "astralis"
+  | "nebula"
+  | "eclipse"
+  | "right-sidebar"
+  | "split-banner"
+  | "boxed-grid";
 
 export type StyleBadge = "MODERN" | "EXECUTIVE" | "CREATIVE" | "PROFESSIONAL";
 
@@ -122,7 +133,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Premium",
     atsScore: 88,
     filterCategory: "Creative",
-    preview: "creative-designer",
+    preview: "eclipse",
     layoutLabel: "Creative Designer",
     description: "Teal accent column with portfolio focus — design & media roles.",
     industry: "Design & Media",
@@ -135,7 +146,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Premium",
     atsScore: 85,
     filterCategory: "Creative",
-    preview: "modern-profile",
+    preview: "orbit",
     layoutLabel: "Modern Profile",
     description: "Profile photo header with soft panels and two-column experience layout.",
     industry: "Design & Media",
@@ -148,7 +159,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Premium",
     atsScore: 88,
     filterCategory: "Creative",
-    preview: "elegant-mono",
+    preview: "comet",
     layoutLabel: "Elegant Monochrome",
     description: "Editorial serif typography, luxury whitespace — fashion & premium brands.",
     industry: "Creative roles",
@@ -161,7 +172,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Free",
     atsScore: 92,
     filterCategory: "Minimal",
-    preview: "classic-academic",
+    preview: "astralis",
     layoutLabel: "Classic Academic",
     description: "Centered serif header with horizontal rules — law, academia, formal roles.",
     industry: "Law & Academia",
@@ -200,7 +211,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Free",
     atsScore: 93,
     filterCategory: "Tech",
-    preview: "oslo",
+    preview: "right-sidebar",
     layoutLabel: "Nordic Minimal",
     description: "Clean Scandinavian sidebar layout for product and engineering roles.",
     industry: "Technology",
@@ -213,7 +224,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Free",
     atsScore: 94,
     filterCategory: "Tech",
-    preview: "berlin",
+    preview: "split-banner",
     layoutLabel: "Startup Grid",
     description: "Modern tech CV with projects, GitHub, and stack highlights.",
     industry: "Startups",
@@ -226,7 +237,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Popular",
     atsScore: 98,
     filterCategory: "ATS Friendly",
-    preview: "stockholm",
+    preview: "boxed-grid",
     layoutLabel: "ATS Dense",
     description: "Maximum information density while staying parser-friendly.",
     industry: "All industries",
@@ -239,7 +250,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Premium",
     atsScore: 86,
     filterCategory: "Creative",
-    preview: "paris",
+    preview: "split-banner",
     layoutLabel: "Paris Editorial",
     description: "High-fashion editorial typography with refined spacing.",
     industry: "Luxury & Creative",
@@ -447,7 +458,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Premium",
     atsScore: 86,
     filterCategory: "Creative",
-    preview: "barcelona-creative",
+    preview: "right-sidebar",
     layoutLabel: "Barcelona Studio",
     description: "Vibrant portfolio sidebar for creatives and freelancers.",
     industry: "Design",
@@ -460,7 +471,7 @@ const CATALOG: Record<string, TemplateDisplayMeta> = {
     tag: "Popular",
     atsScore: 97,
     filterCategory: "Business",
-    preview: "hong-kong-finance",
+    preview: "boxed-grid",
     layoutLabel: "HK Finance",
     description: "Compact finance format for regional banking roles.",
     industry: "Finance",

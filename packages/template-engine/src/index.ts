@@ -255,7 +255,7 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
     case "business-classic":
       return {
         ...defaults,
-        primaryColor: "#1e3a8a", // Deep Navy
+        primaryColor: "#1e3a8a",
         accentColor: "#1d4ed8",
         dividerColor: "#3b82f6",
         fontHeader: "'Playfair Display', serif",
@@ -263,8 +263,8 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
     case "tech-classic":
       return {
         ...defaults,
-        primaryColor: "#0f172a", // Charcoal
-        accentColor: "#0d9488", // Teal Accent
+        primaryColor: "#0f172a",
+        accentColor: "#0d9488",
         dividerColor: "#0d9488",
         fontHeader: "'Plus Jakarta Sans', sans-serif",
         fontBody: "'Plus Jakarta Sans', sans-serif",
@@ -273,7 +273,7 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
       return {
         ...defaults,
         primaryColor: "#111827",
-        accentColor: "#6366f1", // Indigo
+        accentColor: "#6366f1",
         dividerColor: "#818cf8",
         fontHeader: "'Manrope', sans-serif",
       };
@@ -282,14 +282,16 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
         ...defaults,
         primaryColor: "#312e81",
         accentColor: "#4338ca",
+        dividerColor: "#8b5cf6",
         headerBackground: "#312e81",
         headerTextColor: "#ffffff",
+        fontHeader: "'Cormorant Garamond', serif",
       };
     case "design-classic":
       return {
         ...defaults,
-        primaryColor: "#0f766e", // Deep Teal Accent
-        accentColor: "#0d9488",
+        primaryColor: "#0f766e",
+        accentColor: "#14b8a6",
         dividerColor: "#2dd4bf",
         fontHeader: "'Plus Jakarta Sans', sans-serif",
       };
@@ -297,7 +299,7 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
       return {
         ...defaults,
         primaryColor: "#030712",
-        accentColor: "#ec4899", // High Contrast Pink
+        accentColor: "#ec4899",
         dividerColor: "#f472b6",
         fontHeader: "'Manrope', sans-serif",
         fontBody: "'Manrope', sans-serif",
@@ -306,8 +308,8 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
     case "monarch":
       return {
         ...defaults,
-        primaryColor: "#701a75", // Burgundy
-        accentColor: "#d97706", // Gold
+        primaryColor: "#701a75",
+        accentColor: "#d97706",
         dividerColor: "#f59e0b",
         fontHeader: "'Cormorant Garamond', serif",
         fontBody: "'Cormorant Garamond', serif",
@@ -315,10 +317,195 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
     case "minimalist":
       return {
         ...defaults,
-        primaryColor: "#1e293b",
+        primaryColor: "#111827",
         accentColor: "#475569",
         dividerColor: "#e2e8f0",
         fontHeader: "'Cormorant Garamond', serif",
+      };
+    case "london":
+      return {
+        ...defaults,
+        primaryColor: "#0f172a",
+        accentColor: "#4338ca",
+        dividerColor: "#818cf8",
+        fontHeader: "'Playfair Display', serif",
+      };
+    case "zurich":
+      return {
+        ...defaults,
+        primaryColor: "#111827",
+        accentColor: "#2563eb",
+        dividerColor: "#93c5fd",
+        fontHeader: "'Merriweather', serif",
+      };
+    case "oslo":
+      return {
+        ...defaults,
+        primaryColor: "#064e3b",
+        accentColor: "#22c55e",
+        dividerColor: "#4ade80",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+        fontBody: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "berlin":
+      return {
+        ...defaults,
+        primaryColor: "#0f172a",
+        accentColor: "#fb923c",
+        dividerColor: "#fbbf24",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "stockholm":
+      return {
+        ...defaults,
+        primaryColor: "#111827",
+        accentColor: "#64748b",
+        dividerColor: "#cbd5e1",
+        fontHeader: "'Merriweather', serif",
+      };
+    case "paris":
+      return {
+        ...defaults,
+        primaryColor: "#581c87",
+        accentColor: "#f472b6",
+        dividerColor: "#f9a8d4",
+        fontHeader: "'Cormorant Garamond', serif",
+      };
+    case "milan":
+      return {
+        ...defaults,
+        primaryColor: "#7c3aed",
+        accentColor: "#fbcfe8",
+        dividerColor: "#ddd6fe",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "tokyo":
+      return {
+        ...defaults,
+        primaryColor: "#be185d",
+        accentColor: "#f472b6",
+        dividerColor: "#fed7aa",
+        fontHeader: "'Inter', sans-serif",
+      };
+    case "singapore":
+      return {
+        ...defaults,
+        primaryColor: "#0c4a6e",
+        accentColor: "#38bdf8",
+        dividerColor: "#bae6fd",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "sydney":
+      return {
+        ...defaults,
+        primaryColor: "#0f766e",
+        accentColor: "#06b6d4",
+        dividerColor: "#67e8f9",
+        fontHeader: "'Inter', sans-serif",
+      };
+    case "toronto":
+      return {
+        ...defaults,
+        primaryColor: "#92400e",
+        accentColor: "#f59e0b",
+        dividerColor: "#fed7aa",
+        fontHeader: "'Playfair Display', serif",
+      };
+    case "seattle":
+      return {
+        ...defaults,
+        primaryColor: "#0c4a6e",
+        accentColor: "#38bdf8",
+        dividerColor: "#bae6fd",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "austin":
+      return {
+        ...defaults,
+        primaryColor: "#78350f",
+        accentColor: "#facc15",
+        dividerColor: "#fde68a",
+        fontHeader: "'Inter', sans-serif",
+      };
+    case "boston":
+      return {
+        ...defaults,
+        primaryColor: "#7c2d12",
+        accentColor: "#f97316",
+        dividerColor: "#fdba74",
+        fontHeader: "'Merriweather', serif",
+      };
+    case "chicago":
+      return {
+        ...defaults,
+        primaryColor: "#991b1b",
+        accentColor: "#fb7185",
+        dividerColor: "#fecaca",
+        fontHeader: "'Playfair Display', serif",
+      };
+    case "amsterdam":
+      return {
+        ...defaults,
+        primaryColor: "#ea580c",
+        accentColor: "#fb923c",
+        dividerColor: "#fdba74",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "copenhagen":
+      return {
+        ...defaults,
+        primaryColor: "#047857",
+        accentColor: "#6ee7b7",
+        dividerColor: "#bbf7d0",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "vienna":
+      return {
+        ...defaults,
+        primaryColor: "#7c2d12",
+        accentColor: "#f472b6",
+        dividerColor: "#fbcfe8",
+        fontHeader: "'Cormorant Garamond', serif",
+      };
+    case "geneva":
+      return {
+        ...defaults,
+        primaryColor: "#0f172a",
+        accentColor: "#2563eb",
+        dividerColor: "#93c5fd",
+        fontHeader: "'Merriweather', serif",
+      };
+    case "prague":
+      return {
+        ...defaults,
+        primaryColor: "#312e81",
+        accentColor: "#818cf8",
+        dividerColor: "#c7d2fe",
+        fontHeader: "'Inter', sans-serif",
+      };
+    case "helsinki":
+      return {
+        ...defaults,
+        primaryColor: "#0f766e",
+        accentColor: "#14b8a6",
+        dividerColor: "#99f6e4",
+        fontHeader: "'Merriweather', serif",
+      };
+    case "barcelona-creative":
+      return {
+        ...defaults,
+        primaryColor: "#65a30d",
+        accentColor: "#bef264",
+        dividerColor: "#dcfce7",
+        fontHeader: "'Plus Jakarta Sans', sans-serif",
+      };
+    case "hong-kong-finance":
+      return {
+        ...defaults,
+        primaryColor: "#78350f",
+        accentColor: "#f59e0b",
+        dividerColor: "#fde68a",
+        fontHeader: "'Playfair Display', serif",
       };
     default:
       return defaults;
@@ -330,21 +517,67 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
     case "techstack":
     case "nova":
     case "design-classic":
+    case "london":
+    case "singapore":
+    case "barcelona-creative":
+    case "amsterdam":
       return {
         layoutMode: "sidebar-left",
         columns: {
           sidebar: ["SKILLS", "EDUCATION"],
           main: ["SUMMARY", "EXPERIENCE", "PROJECTS"],
         },
+        order: ["SUMMARY", "EXPERIENCE", "PROJECTS", "EDUCATION", "SKILLS"],
+      };
+    case "dublin":
+    case "business-classic":
+    case "oslo":
+    case "berlin":
+    case "copenhagen":
+    case "hong-kong-finance":
+      return {
+        layoutMode: "sidebar-right",
+        columns: {
+          sidebar: ["SKILLS", "PROJECTS"],
+          main: ["SUMMARY", "EXPERIENCE", "EDUCATION"],
+        },
         order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
       };
     case "minimalist":
+    case "paris":
+    case "boston":
+    case "vienna":
+    case "prague":
       return {
         layoutMode: "minimal",
         columns: {
           main: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
         },
-        order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+        order: ["SUMMARY", "EXPERIENCE", "PROJECTS", "EDUCATION", "SKILLS"],
+      };
+    case "stockholm":
+    case "austin":
+    case "helsinki":
+    case "toronto":
+    case "chicago":
+    case "geneva":
+      return {
+        layoutMode: "single-column",
+        columns: {
+          main: ["SUMMARY", "EXPERIENCE", "SKILLS", "EDUCATION", "PROJECTS"],
+        },
+        order: ["SUMMARY", "SKILLS", "EXPERIENCE", "EDUCATION", "PROJECTS"],
+      };
+    case "tech-classic":
+    case "sydney":
+    case "tokyo":
+    case "prague":
+      return {
+        layoutMode: "single-column",
+        columns: {
+          main: ["SUMMARY", "EXPERIENCE", "PROJECTS", "SKILLS", "EDUCATION"],
+        },
+        order: ["SUMMARY", "EXPERIENCE", "PROJECTS", "SKILLS", "EDUCATION"],
       };
     default:
       return {
@@ -669,6 +902,32 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         </div>
       </div>
     `;
+  } else if (layout.layoutMode === "sidebar-right") {
+    const sidebarItems = layout.columns.sidebar || [];
+    const mainItems = layout.columns.main || [];
+
+    const sidebarHtml = layout.order
+      .filter(type => sidebarItems.includes(type))
+      .map(type => renderSectionNode(type))
+      .join("");
+
+    const mainHtml = layout.order
+      .filter(type => mainItems.includes(type))
+      .map(type => renderSectionNode(type))
+      .join("");
+
+    bodyHtml = `
+      ${isSidebarHeader ? "" : profileHeader}
+      <div class="resume-container sidebar-right">
+        <div class="main-content">
+          ${mainHtml}
+        </div>
+        <div class="sidebar">
+          ${isSidebarHeader ? profileHeaderSidebar : ""}
+          ${sidebarHtml}
+        </div>
+      </div>
+    `;
   } else {
     // Stacked and minimalist sequential rendering
     const sectionsHtml = layout.order
@@ -946,6 +1205,9 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         display: flex;
         gap: 24px;
       }
+      .resume-container.sidebar-right {
+        flex-direction: row-reverse;
+      }
       .sidebar {
         width: var(--sidebar-width);
         border-right: 1.5px solid var(--divider-color);
@@ -953,6 +1215,12 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         display: flex;
         flex-direction: column;
         gap: 16px;
+      }
+      .resume-container.sidebar-right .sidebar {
+        border-right: none;
+        border-left: 1.5px solid var(--divider-color);
+        padding-left: 16px;
+        padding-right: 0;
       }
       .main-content {
         flex: 1;
@@ -1144,6 +1412,106 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         flex: 1;
         padding: 40px 32px;
         box-sizing: border-box;
+      }
+
+      .template-oslo .resume-container {
+        padding: 0 !important;
+        min-height: 1056px;
+      }
+      .template-oslo .sidebar {
+        background-color: #ecfdf5;
+        width: 32%;
+        padding: 36px 24px;
+        border-right: none;
+      }
+      .template-oslo .sidebar .section-title {
+        color: #047857;
+        border-bottom: 1px solid #a7f3d0;
+        margin-top: 16px;
+      }
+      .template-oslo .main-content {
+        flex: 1;
+        padding: 36px 32px;
+        box-sizing: border-box;
+      }
+
+      .template-stockholm .section {
+        border-top: 1px solid var(--divider-color);
+        padding-top: 12px;
+      }
+      .template-stockholm .section:first-child {
+        border-top: none;
+      }
+      .template-stockholm .section-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--primary-color);
+      }
+
+      .template-berlin .profile-header {
+        border-bottom: 2px solid var(--accent-color);
+        padding-bottom: 10px;
+      }
+      .template-berlin .resume-container {
+        gap: 18px;
+      }
+      .template-berlin .sidebar {
+        background-color: #faf5eb;
+        width: 32%;
+        padding: 28px 22px;
+      }
+      .template-berlin .sidebar .section-title {
+        color: var(--accent-color);
+      }
+      .template-berlin .main-content {
+        padding: 28px 28px;
+      }
+
+      .template-paris .profile-header {
+        padding-bottom: 16px;
+      }
+      .template-paris .section-title {
+        font-family: var(--font-header);
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        margin-bottom: 6px;
+      }
+      .template-paris .section {
+        padding-bottom: 10px;
+      }
+
+      .template-barcelona-creative .resume-container {
+        padding: 0 !important;
+        min-height: 1056px;
+      }
+      .template-barcelona-creative .sidebar {
+        background: linear-gradient(180deg, #84cc16 0%, #4d7c0f 100%);
+        width: 34%;
+        padding: 40px 24px;
+        color: #ffffff;
+      }
+      .template-barcelona-creative .sidebar .profile-name,
+      .template-barcelona-creative .sidebar .section-title {
+        color: #f8fafc;
+      }
+      .template-barcelona-creative .main-content {
+        flex: 1;
+        padding: 40px 32px;
+      }
+
+      .template-hong-kong-finance .resume-container {
+        gap: 20px;
+      }
+      .template-hong-kong-finance .section {
+        border-bottom: 1px solid var(--divider-color);
+        padding-bottom: 10px;
+      }
+      .template-hong-kong-finance .section:last-child {
+        border-bottom: none;
+      }
+      .template-hong-kong-finance .section-title {
+        color: var(--accent-color);
       }
 
       /* Modern Profile Nova styling */

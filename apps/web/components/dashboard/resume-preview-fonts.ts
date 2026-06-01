@@ -1,7 +1,7 @@
 import type { TemplatePreviewVariant } from "../../lib/dashboard-templates";
 
 /** Per-layout professional font — distinct typographic identity */
-export const PREVIEW_FONT_CLASS: Record<TemplatePreviewVariant, string> = {
+export const PREVIEW_FONT_CLASS: Partial<Record<TemplatePreviewVariant, string>> = {
   "minimal-sidebar": "resume-preview-font-jakarta",
   "classic-academic": "resume-preview-font-cormorant",
   executive: "resume-preview-font-manrope",
