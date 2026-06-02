@@ -21,5 +21,9 @@
   },
   "engines": {
     "node": ">=18.18"
+  },
+  "dependencies": {
+    "@acv/template-engine": "^0.1.0",
+    "jwks-rsa": "^3.2.2"
   }
 }
