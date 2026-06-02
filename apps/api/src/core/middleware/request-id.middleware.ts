@@ -1,20 +1,23 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { randomUUID } from 'crypto';
 
+/**
+ * Lightweight middleware that echoes the pino-http-generated request ID
+ * back in the response headers. Must run AFTER pino-http middleware
+ * (which sets req.id via genReqId).
+ *
+ * This replaces the old RequestIdMiddleware. The ID generation itself
+ * is now handled by pino-http's genReqId configuration.
+ */
 @Injectable()
-export class RequestIdMiddleware implements NestMiddleware {
+export class RequestIdHeaderMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
-    // Read x-request-id from headers or generate a new unique UUID
-    const requestId = (req.headers['x-request-id'] as string) || randomUUID();
-
-    // Attach to request object so we can read it down the line
-    req.headers['x-request-id'] = requestId;
-    (req as any).requestId = requestId;
-
-    // Send it back in the response headers for frontend tracking/auditing
-    res.setHeader('x-request-id', requestId);
-
+    // pino-http sets req.id via genReqId callback
+    // Echo it in the response header for client-side correlation
+    const requestId = (req as any).id;
+    if (requestId) {
+      res.setHeader('x-request-id', requestId);
+    }
     next();
   }
 }

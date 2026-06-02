@@ -35,10 +35,20 @@ type CvSection = {
   order: number;
 };
 
+type AtsScan = {
+  overallScore: number;
+};
+
 type Cv = {
   id: string;
   title: string;
   locale: string;
+  templateId?: string;
+  atsScore?: number | null;
+  completenessScore?: number | null;
+  thumbnailUrl?: string | null;
+  thumbnailGeneratedAt?: string | null;
+  atsScans?: AtsScan[];
   updatedAt?: string;
   createdAt?: string;
   sections?: CvSection[];
@@ -507,10 +517,10 @@ export default function DashboardPage() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onGoTemplates={() => setActiveTab("templates")}
-            getAtsScore={getAtsScore}
             formatDate={formatDate}
             onDuplicate={onDuplicate}
             onDelete={onDelete}
+            templates={templates}
           />
         )}
 

@@ -27,7 +27,8 @@ export class TransformInterceptor<T> implements NestInterceptor<T, any> {
       return next.handle();
     }
 
-    const requestId = (request as any).requestId || null;
+    const requestId =
+      (request as any).id ?? request.headers['x-request-id'] ?? null;
 
     return next.handle().pipe(
       map((data) => ({

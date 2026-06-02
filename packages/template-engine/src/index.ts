@@ -766,7 +766,9 @@ const renderSkills = (data: any, variant = "badges"): string => {
   const items = Array.isArray(data) ? data : (data?.items || []);
   if (items.length === 0) return "";
 
-  if (variant === "bars") {
+  const showLevel = Array.isArray(data) ? ((data as any).showLevel !== false) : (data?.showLevel !== false);
+
+  if (showLevel) {
     const getActiveCount = (level: string): number => {
       switch (level) {
         case "Beginner": return 1;
@@ -794,17 +796,6 @@ const renderSkills = (data: any, variant = "badges"): string => {
           </div>
         `;
       }).join("")
-    }</div>`;
-  }
-
-  if (variant === "columns") {
-    return `<div class="skills-container variant-columns" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">${
-      items.map((item: any) => `
-        <div class="skill-item-column" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--divider-color); padding-bottom: 4px;">
-          <span class="skill-name" style="font-weight: 600;">${escapeHtml(item.name || '')}</span>
-          <span class="skill-level" style="font-size: 10px; color: var(--accent-color); font-weight: 500;">${escapeHtml(item.level || 'Advanced')}</span>
-        </div>
-      `).join("")
     }</div>`;
   }
 

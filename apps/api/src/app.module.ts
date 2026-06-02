@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DatabaseModule } from './database';
@@ -15,14 +15,17 @@ import { ShareModule } from './modules/share/share.module';
 import { AtsModule } from './modules/ats/ats.module';
 import { OcrModule } from './modules/ocr/ocr.module';
 import { AppController } from './app.controller';
-import { RequestIdMiddleware } from './core/middleware/request-id.middleware';
 import { CoreModule } from './core/core.module';
+import { LoggerModule } from './core/logger/logger.module';
+
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
+import { RedisModule } from './database/redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggerModule,
     ScheduleModule.forRoot(),
     BullModule.forRootAsync({
       imports: [ConfigModule],
@@ -35,6 +38,7 @@ import { ScheduleModule } from '@nestjs/schedule';
       inject: [ConfigService],
     }),
     DatabaseModule,
+    RedisModule,
     AuthModule,
     UserModule,
     CvModule,
@@ -56,8 +60,4 @@ import { ScheduleModule } from '@nestjs/schedule';
     },
   ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}

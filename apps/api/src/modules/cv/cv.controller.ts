@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -12,6 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { CvService } from './cv.service';
+import { ThumbnailService } from './thumbnail.service';
 import { CvCreateDto, CvUpdateDto } from './dto/cv.dto';
 import { CvSectionUpsertDto } from './dto/section.dto';
 import { CurrentUser, JwtPayload } from '../../core/decorators';
@@ -19,7 +21,10 @@ import { CurrentUser, JwtPayload } from '../../core/decorators';
 @UseGuards(AuthGuard('jwt'))
 @Controller('cvs')
 export class CvController {
-  constructor(private cvService: CvService) {}
+  constructor(
+    private cvService: CvService,
+    private thumbnailService: ThumbnailService,
+  ) {}
 
   @Post()
   async create(@CurrentUser() user: JwtPayload, @Body() dto: CvCreateDto) {
@@ -73,6 +78,11 @@ export class CvController {
     return this.cvService.listVersions(user.sub, id);
   }
 
+  @Get(':id/ats-history')
+  async atsHistory(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.cvService.listAtsHistory(user.sub, id);
+  }
+
   @Post(':id/versions/:versionId/restore')
   async restoreVersion(
     @CurrentUser() user: JwtPayload,
@@ -80,6 +90,20 @@ export class CvController {
     @Param('versionId') versionId: string,
   ) {
     return this.cvService.restoreVersion(user.sub, id, versionId);
+  }
+
+  @Get('internal/thumbnail-health')
+  async getThumbnailHealth(@CurrentUser() user: JwtPayload) {
+    const isAdmin = user?.role === 'ADMIN';
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    if (!isAdmin && !isDev) {
+      throw new ForbiddenException(
+        'Operational metrics are restricted to administrators.',
+      );
+    }
+
+    return this.thumbnailService.getHealthMetrics();
   }
 
   @Post(':id/share')

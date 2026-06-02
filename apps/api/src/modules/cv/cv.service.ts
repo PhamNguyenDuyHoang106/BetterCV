@@ -10,10 +10,14 @@ import { CvCreateDto, CvUpdateDto } from './dto/cv.dto';
 import { CvSectionUpsertDto } from './dto/section.dto';
 import { Prisma } from '@prisma/client';
 import { migrateCvData } from './migrations';
+import { ThumbnailService } from './thumbnail.service';
 
 @Injectable()
 export class CvService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private thumbnailService: ThumbnailService,
+  ) {}
 
   async create(supabaseId: string, dto: CvCreateDto) {
     const userId = await this.resolveUserId(supabaseId);
@@ -37,27 +41,49 @@ export class CvService {
         templateId: dto.templateId,
         templateVersionId,
         templateVersionNum,
+        atsScore: 0,
+        completenessScore: 0,
       },
     });
   }
 
   async list(supabaseId: string) {
     const userId = await this.resolveUserId(supabaseId);
-    return this.prisma.cv.findMany({
+    const cvs = await this.prisma.cv.findMany({
       where: { userId, isDeleted: false },
-      include: { sections: { orderBy: { order: 'asc' } } },
+      include: {
+        sections: { orderBy: { order: 'asc' } },
+        atsScans: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
       orderBy: { updatedAt: 'desc' },
     });
+    for (const cv of cvs) {
+      if (cv.atsScore === null || cv.completenessScore === null) {
+        const scores = this.computeScoresFromSections(cv.sections);
+        cv.atsScore = scores.atsScore;
+        cv.completenessScore = scores.completenessScore;
+      }
+    }
+    return cvs;
   }
 
   async get(supabaseId: string, id: string) {
     const userId = await this.resolveUserId(supabaseId);
     const cv = await this.prisma.cv.findUnique({
       where: { id },
-      include: { sections: { orderBy: { order: 'asc' } } },
+      include: {
+        sections: { orderBy: { order: 'asc' } },
+        atsScans: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
     });
     if (!cv || cv.userId !== userId || cv.isDeleted) {
       throw new NotFoundException('CV not found');
+    }
+
+    if (cv.atsScore === null || cv.completenessScore === null) {
+      const scores = this.computeScoresFromSections(cv.sections);
+      cv.atsScore = scores.atsScore;
+      cv.completenessScore = scores.completenessScore;
     }
 
     // Run the on-read migration pipeline
@@ -69,7 +95,10 @@ export class CvService {
       // Reload CV with updated sections
       const updatedCv = await this.prisma.cv.findUnique({
         where: { id },
-        include: { sections: { orderBy: { order: 'asc' } } },
+        include: {
+          sections: { orderBy: { order: 'asc' } },
+          atsScans: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
       });
       if (updatedCv) return updatedCv;
     }
@@ -143,6 +172,10 @@ export class CvService {
       },
     });
     await this.snapshotVersion(id, true);
+
+    // Trigger real-time CV thumbnail generation
+    await this.thumbnailService.enqueueThumbnailGeneration(id, cv.version);
+
     return cv;
   }
 
@@ -204,18 +237,33 @@ export class CvService {
       });
     }
 
-    // Increment document version and update edit attributions
-    await this.prisma.cv.update({
+    // Increment document version, update edit attributions, and compute new scores
+    const allSections = await this.prisma.cvSection.findMany({
+      where: { cvId },
+    });
+    const { atsScore, completenessScore } =
+      this.computeScoresFromSections(allSections);
+
+    const updatedCv = await this.prisma.cv.update({
       where: { id: cvId },
       data: {
         version: { increment: 1 },
         lastEditedSessionId: clientSession?.sessionId || null,
         lastEditedDevice: clientSession?.device || null,
         lastEditedAt: new Date(),
+        atsScore,
+        completenessScore,
       },
     });
 
     await this.snapshotVersion(cvId, false);
+
+    // Trigger real-time CV thumbnail generation
+    await this.thumbnailService.enqueueThumbnailGeneration(
+      cvId,
+      updatedCv.version,
+    );
+
     return section;
   }
 
@@ -227,6 +275,23 @@ export class CvService {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
+  }
+
+  /**
+   * Retrieves the 20 most recent ATS scans for a CV.
+   * To ensure the frontend Sparkline chart plots chronologically from left to right (oldest to newest),
+   * we fetch the latest 20 scans in descending order, then reverse the array to ascending chronological order.
+   * This prevents database over-indexing on old scans and shields the client from reverse-sorting bugs.
+   */
+  async listAtsHistory(supabaseId: string, cvId: string) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+    const scans = await this.prisma.atsScan.findMany({
+      where: { cvId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    return scans.reverse(); // Descending latest 20 -> reverse to return chronologically ascending (oldest to newest)
   }
 
   async restoreVersion(supabaseId: string, cvId: string, versionId: string) {
@@ -246,9 +311,10 @@ export class CvService {
     });
 
     // Recreate sections from snapshot
+    const sectionsToCreate: any[] = [];
     if (snapshot.sections && Array.isArray(snapshot.sections)) {
       for (const sec of snapshot.sections) {
-        await this.prisma.cvSection.create({
+        const created = await this.prisma.cvSection.create({
           data: {
             cvId,
             type: sec.type,
@@ -256,8 +322,12 @@ export class CvService {
             order: sec.order,
           },
         });
+        sectionsToCreate.push(created);
       }
     }
+
+    const { atsScore, completenessScore } =
+      this.computeScoresFromSections(sectionsToCreate);
 
     // Update CV details, incrementing version to push to other tabs
     const updated = await this.prisma.cv.update({
@@ -270,11 +340,20 @@ export class CvService {
         lastEditedSessionId: 'rollback',
         lastEditedDevice: 'Hệ thống (Phục hồi phiên bản)',
         lastEditedAt: new Date(),
+        atsScore,
+        completenessScore,
       },
       include: { sections: { orderBy: { order: 'asc' } } },
     });
 
     await this.snapshotVersion(cvId, true);
+
+    // Trigger real-time CV thumbnail generation
+    await this.thumbnailService.enqueueThumbnailGeneration(
+      cvId,
+      updated.version,
+    );
+
     return updated;
   }
 
@@ -393,6 +472,103 @@ export class CvService {
     } catch (cleanupErr) {
       console.error('Failed to run version retention cleanup:', cleanupErr);
     }
+  }
+
+  private computeScoresFromSections(sections: any[]) {
+    let completeness = 0;
+
+    // 1. PROFILE: 20 pts
+    const profileSec = sections.find((s: any) => s.type === 'PROFILE');
+    if (profileSec) {
+      const content = profileSec.content || {};
+      if (content.fullName && content.fullName.trim()) {
+        completeness += 20;
+      } else {
+        completeness += 10;
+      }
+    }
+
+    // 2. SUMMARY: 10 pts
+    const summarySec = sections.find((s: any) => s.type === 'SUMMARY');
+    if (summarySec) {
+      const content = summarySec.content || {};
+      const text = content.text || content.objective || '';
+      if (text.trim().length > 0) {
+        completeness += 10;
+      } else {
+        completeness += 5;
+      }
+    }
+
+    // 3. EXPERIENCE: 25 pts
+    const expSec = sections.find((s: any) => s.type === 'EXPERIENCE');
+    if (expSec) {
+      const content = expSec.content || {};
+      const items = content.items || (Array.isArray(content) ? content : []);
+      if (items.length > 0) {
+        completeness += 25;
+      } else {
+        completeness += 10;
+      }
+    }
+
+    // 4. EDUCATION: 20 pts
+    const eduSec = sections.find((s: any) => s.type === 'EDUCATION');
+    if (eduSec) {
+      const content = eduSec.content || {};
+      const items = content.items || (Array.isArray(content) ? content : []);
+      if (items.length > 0) {
+        completeness += 20;
+      } else {
+        completeness += 8;
+      }
+    }
+
+    // 5. SKILLS: 15 pts
+    const skillsSec = sections.find((s: any) => s.type === 'SKILLS');
+    if (skillsSec) {
+      const content = skillsSec.content || {};
+      const items = content.items || (Array.isArray(content) ? content : []);
+      if (items.length > 0) {
+        completeness += 15;
+      } else {
+        completeness += 5;
+      }
+    }
+
+    // 6. PROJECTS: 10 pts
+    const projSec = sections.find((s: any) => s.type === 'PROJECTS');
+    if (projSec) {
+      const content = projSec.content || {};
+      const items = content.items || (Array.isArray(content) ? content : []);
+      if (items.length > 0) {
+        completeness += 10;
+      } else {
+        completeness += 4;
+      }
+    }
+
+    return {
+      completenessScore: completeness,
+      atsScore: completeness,
+    };
+  }
+
+  private async updateCvScores(cvId: string) {
+    const cv = await this.prisma.cv.findUnique({
+      where: { id: cvId },
+      include: { sections: true },
+    });
+    if (!cv) return;
+
+    const { completenessScore, atsScore } = this.computeScoresFromSections(
+      cv.sections,
+    );
+
+    await this.prisma.cv.update({
+      where: { id: cvId },
+      data: { completenessScore, atsScore },
+    });
   }
 
   private assembleResumeData(cv: {

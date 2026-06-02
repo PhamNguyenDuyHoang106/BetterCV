@@ -14,8 +14,15 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   async onModuleInit() {
-    await this.$connect();
-    this.logger.log('Connected to database');
+    try {
+      await this.$connect();
+      this.logger.log('Connected to database');
+    } catch (err) {
+      this.logger.error(
+        `Failed to connect to database during bootstrap: ${(err as Error).message}`,
+      );
+      // Allow NestJS boot to continue so that health check endpoints can serve the actual down status
+    }
   }
 
   async onModuleDestroy() {
