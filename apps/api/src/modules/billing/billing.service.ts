@@ -23,13 +23,26 @@ export class BillingService {
     if (!this.stripe) throw new ForbiddenException('Stripe not configured');
     const userId = await this.resolveUserId(supabaseId);
     const customerId = await this.getOrCreateCustomer(userId);
+
+    const mode = dto.mode ?? (dto.tier === 'PREMIUM' ? 'payment' : 'subscription');
+    const priceId = dto.priceId ?? this.resolvePriceId(dto.tier, mode);
+    if (!priceId) {
+      throw new ForbiddenException(
+        'Stripe price not configured. Set STRIPE_PRICE_PRO / STRIPE_PRICE_PREMIUM in env.',
+      );
+    }
+
     const session = await this.stripe.checkout.sessions.create({
-      mode: 'subscription',
+      mode,
       customer: customerId,
-      line_items: [{ price: dto.priceId, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: dto.successUrl,
       cancel_url: dto.cancelUrl,
       client_reference_id: userId,
+      metadata: {
+        tier: dto.tier ?? 'PRO',
+        mode,
+      },
     });
     return { url: session.url };
   }
@@ -59,6 +72,11 @@ export class BillingService {
     );
 
     switch (event.type) {
+      case 'checkout.session.completed':
+        await this.handleCheckoutSessionCompleted(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await this.syncSubscription(event.data.object as Stripe.Subscription);
@@ -76,6 +94,23 @@ export class BillingService {
   }
 
   // ── Private ───────────────────────────────────────────────────
+
+  private resolvePriceId(
+    tier: CheckoutDto['tier'] | undefined,
+    mode: 'subscription' | 'payment',
+  ) {
+    // Back-compat with existing env names
+    const pro =
+      this.config.get<string>('STRIPE_PRICE_PRO_MONTHLY') ??
+      this.config.get<string>('STRIPE_PRICE_PRO');
+    const premium =
+      this.config.get<string>('STRIPE_PRICE_ANNUAL_ONCE') ??
+      this.config.get<string>('STRIPE_PRICE_PREMIUM');
+
+    if (tier === 'PREMIUM') return premium;
+    // default PRO
+    return pro;
+  }
 
   private async resolveUserId(supabaseId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
@@ -169,5 +204,36 @@ export class BillingService {
     if (tier === 'PREMIUM') return 'PREMIUM';
     if (tier === 'PRO') return 'PRO';
     return 'FREE';
+  }
+
+  private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+    // Only handle one-time payments here. Subscriptions are handled by subscription.* events.
+    if (session.mode !== 'payment') return;
+    const userId = session.client_reference_id;
+    if (!userId) return;
+
+    const tierRaw = session.metadata?.tier;
+    const tier = tierRaw === 'PREMIUM' ? 'PREMIUM' : 'PRO';
+
+    // Mark user role immediately; you can refine this to time-bound access later.
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: this.roleFromPlan(tier) },
+    });
+
+    // Best-effort invoice record for analytics
+    const amount = typeof session.amount_total === 'number' ? session.amount_total : null;
+    const currency = typeof session.currency === 'string' ? session.currency : 'usd';
+    const status = session.payment_status ?? 'paid';
+    if (amount !== null) {
+      await this.prisma.invoice.create({
+        data: {
+          userId,
+          amount,
+          currency,
+          status,
+        },
+      });
+    }
   }
 }
