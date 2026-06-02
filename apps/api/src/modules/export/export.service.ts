@@ -32,7 +32,10 @@ export class ExportService {
   }
 
   async exportPdf(supabaseId: string, cvId: string) {
-    const { cv, templateSchema } = await this.getCvAndTemplate(supabaseId, cvId);
+    const { cv, templateSchema } = await this.getCvAndTemplate(
+      supabaseId,
+      cvId,
+    );
     if (!templateSchema) {
       throw new ForbiddenException('Template not found');
     }

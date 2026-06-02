@@ -106,7 +106,10 @@ export class CvService {
 
     let templateVersionId = existing.templateVersionId;
     let templateVersionNum = existing.templateVersionNum;
-    if (dto.templateId !== undefined && dto.templateId !== existing.templateId) {
+    if (
+      dto.templateId !== undefined &&
+      dto.templateId !== existing.templateId
+    ) {
       if (dto.templateId) {
         const ver = await this.prisma.templateVersion.findFirst({
           where: { templateId: dto.templateId },
