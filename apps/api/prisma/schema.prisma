@@ -23,6 +23,15 @@ enum PlanTier {
   PREMIUM
 }
 
+enum OcrJobStatus {
+  UPLOADED
+  QUEUED
+  PROCESSING
+  REVIEWING
+  COMPLETED
+  FAILED
+}
+
 enum CvSectionType {
   PROFILE
   SUMMARY
@@ -30,6 +39,14 @@ enum CvSectionType {
   EDUCATION
   SKILLS
   PROJECTS
+}
+
+enum AiRequestStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
 }
 
 // ─── Core Identity & Access ─────────────────────────────────────────────────
@@ -51,6 +68,8 @@ model User {
   aiUsages      AiUsage[]
   usageQuota    UsageQuota?
   stripeCustomer StripeCustomer?
+  ocrJobs       OcrJob[]
+  invoices      Invoice[]
 
   @@index([email])
   @@index([supabaseId])
@@ -99,6 +118,7 @@ model StripeCustomer {
 model Invoice {
   id        String   @id @default(cuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount    Int
   currency  String   @default("usd")
   status    String
@@ -229,13 +249,17 @@ model PromptVersion {
 }
 
 model AiRequest {
-  id        String   @id @default(cuid())
-  userId    String?
-  promptKey String
-  input     Json
-  createdAt DateTime @default(now())
+  id              String          @id @default(cuid())
+  userId          String?
+  promptKey       String
+  input           Json
+  estimatedTokens Int?
+  status          AiRequestStatus @default(PENDING)
+  idempotencyKey  String?         @unique
+  createdAt       DateTime        @default(now())
 
   @@index([userId])
+  @@index([status, createdAt])
 }
 
 model AiResponse {
@@ -277,4 +301,18 @@ model SafetyRule {
   pattern   String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model OcrJob {
+  id            String       @id @default(uuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filename      String
+  status        OcrJobStatus @default(UPLOADED)
+  extractedCvId String?
+  error         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([userId])
 }

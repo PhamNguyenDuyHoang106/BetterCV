@@ -1,194 +1,361 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { AiProvider } from '../ai/providers/ai-provider.interface';
-import { QueueService } from '../../core/services/queue.service';
 import { PrismaService } from '../../database/prisma.service';
 import { CvService } from '../cv/cv.service';
 import sharp from 'sharp';
 import { PDFParse } from 'pdf-parse';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue, UnrecoverableError } from 'bullmq';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 
 export type OcrJobStatus =
-  | 'uploaded'
-  | 'queued'
-  | 'processing'
-  | 'reviewing'
-  | 'completed'
-  | 'failed';
-
-export interface OcrJob {
-  id: string;
-  userId: string;
-  filename: string;
-  status: OcrJobStatus;
-  extractedCvId?: string;
-  error?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+  | 'UPLOADED'
+  | 'QUEUED'
+  | 'PROCESSING'
+  | 'REVIEWING'
+  | 'COMPLETED'
+  | 'FAILED';
 
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
-
-  // In-memory state machine for OCR jobs (can be backed by DB/Redis)
-  private jobs: Map<string, OcrJob> = new Map();
+  private supabase: SupabaseClient | null = null;
+  private bucket: string;
 
   constructor(
     private prisma: PrismaService,
-    private queueService: QueueService,
     private cvService: CvService,
+    private config: ConfigService,
     @Inject('AiProvider') private aiProvider: AiProvider,
+    @InjectQueue('ocr-queue') private ocrQueue: Queue,
   ) {
-    // Start background queue listener for processing queued OCR jobs
-    this.startWorker();
+    const supabaseUrl = this.config.get<string>('SUPABASE_URL');
+    const supabaseKey = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+    this.bucket = this.config.get<string>(
+      'SUPABASE_STORAGE_BUCKET',
+      'cv-exports',
+    );
+
+    if (supabaseUrl && supabaseKey) {
+      this.supabase = createClient(supabaseUrl, supabaseKey);
+    }
   }
 
-  async createJob(supabaseId: string, file: any): Promise<OcrJob> {
+  async createJob(supabaseId: string, file: any): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { supabaseId },
       select: { id: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const jobId = Math.random().toString(36).substring(7);
-    const job: OcrJob = {
-      id: jobId,
-      userId: user.id,
-      filename: file.originalname,
-      status: 'uploaded',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // 1. Phân loại lỗi hàng đợi: Từ chối ngay lập tức định dạng không hỗ trợ để tránh đẩy vào DB/Queue
+    const fileExtension =
+      file.originalname?.split('.').pop()?.toLowerCase() || '';
+    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(fileExtension)) {
+      throw new UnrecoverableError(
+        'Unsupported file format. Only PDF, JPG, JPEG, and PNG are allowed.',
+      );
+    }
 
-    this.jobs.set(jobId, job);
-    this.logger.log(`OCR Job ${jobId} initialized for user ${user.id}`);
+    const jobId = crypto.randomUUID();
 
-    // Transition status to queued and push to BullMQ-style QueueService
-    this.updateJobStatus(jobId, 'queued');
-    await this.queueService.addJob('ocr', 'medium', {
-      jobId,
-      fileBuffer: file.buffer,
-      filename: file.originalname,
-      mimetype: file.mimetype,
+    // 2. Lưu OCR Job vào database dưới dạng UPLOADED
+    await this.prisma.ocrJob.create({
+      data: {
+        id: jobId,
+        userId: user.id,
+        filename: file.originalname,
+        status: 'UPLOADED',
+      },
     });
 
-    return job;
+    this.logger.log(
+      `OCR Job ${jobId} initialized in Database for user ${user.id}`,
+    );
+
+    // 3. Upload file trực tiếp lên Supabase Storage thay vì lưu cục bộ để hỗ trợ scale ngang
+    const storageKey = `ocr-temp/${jobId}.${fileExtension}`;
+    if (!this.supabase) {
+      throw new Error('Supabase Storage is not configured on this server');
+    }
+
+    // Cập nhật status sang QUEUED trước khi đưa vào hàng đợi
+    await this.updateJobStatus(jobId, 'QUEUED');
+
+    try {
+      const { error: uploadError } = await this.supabase.storage
+        .from(this.bucket)
+        .upload(storageKey, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw new Error(
+          `Failed to upload OCR file to storage: ${uploadError.message}`,
+        );
+      }
+      this.logger.log(
+        `Temporary OCR file successfully uploaded to storage: ${storageKey}`,
+      );
+
+      // 4. Đẩy storageKey vào BullMQ ocr-queue
+      await this.ocrQueue.add(
+        'ocr-task',
+        {
+          jobId,
+          storageKey,
+          filename: file.originalname,
+          mimetype: file.mimetype,
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          },
+          removeOnComplete: {
+            count: 100, // Chỉ giữ tối đa 100 jobs hoàn tất gần nhất trong Redis để tối ưu dung lượng
+          },
+          removeOnFail: {
+            count: 500, // Chỉ giữ tối đa 500 jobs thất bại gần nhất
+          },
+        },
+      );
+      this.logger.log(`OCR Job ${jobId} pushed to BullMQ ocr-queue`);
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to execute queue submission for job ${jobId}: ${err.message}`,
+      );
+
+      // Zombie Job prevention: Chuyển DB sang FAILED và dọn dẹp file tạm trên Cloud nếu đã upload
+      await this.updateJobStatus(jobId, 'FAILED', {
+        error: `Queue submission failed: ${err.message}`.slice(0, 2000),
+      });
+
+      try {
+        await this.deleteStorageFile(storageKey);
+      } catch (cleanupErr) {
+        // Bỏ qua lỗi dọn dẹp phụ trợ
+      }
+      throw err;
+    }
+
+    return this.getJobStatus(jobId);
   }
 
-  getJobStatus(jobId: string): OcrJob {
-    const job = this.jobs.get(jobId);
+  async getJobStatus(jobId: string): Promise<any> {
+    const job = await this.prisma.ocrJob.findUnique({
+      where: { id: jobId },
+    });
     if (!job) throw new NotFoundException('OCR job not found');
     return job;
   }
 
-  private updateJobStatus(
-    jobId: string,
-    status: OcrJobStatus,
-    extra: Partial<OcrJob> = {},
-  ) {
-    const job = this.jobs.get(jobId);
-    if (job) {
-      job.status = status;
-      job.updatedAt = new Date();
-      Object.assign(job, extra);
-      this.jobs.set(jobId, job);
-      this.logger.log(`OCR Job ${jobId} transitioned to [${status}]`);
+  async deleteStorageFile(storageKey: string): Promise<void> {
+    if (!this.supabase) return;
+    const { error } = await this.supabase.storage
+      .from(this.bucket)
+      .remove([storageKey]);
+    if (error) {
+      this.logger.warn(
+        `Failed to delete storage file ${storageKey}: ${error.message}`,
+      );
+    } else {
+      this.logger.log(`Storage file ${storageKey} cleaned up successfully`);
     }
   }
 
-  // Background worker loop picking up items from Priority Queue
-  private async startWorker() {
-    setInterval(async () => {
-      const activeJob = await this.queueService.getNextJob();
-      if (!activeJob || activeJob.type !== 'ocr') return;
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async cleanupOrphanStorageFiles() {
+    this.logger.log(
+      'Starting scheduled sweep of orphaned OCR cloud storage files...',
+    );
+    if (!this.supabase) return;
 
-      const { jobId, fileBuffer, filename, mimetype } = activeJob.payload;
-      this.updateJobStatus(jobId, 'processing');
+    try {
+      const { data: files, error } = await this.supabase.storage
+        .from(this.bucket)
+        .list('ocr-temp');
 
-      try {
-        let extractedData: any;
-        const buffer = Buffer.from(fileBuffer);
+      if (error) {
+        throw new Error(`Failed to list storage files: ${error.message}`);
+      }
 
-        // 1. PDF Hybrid Classifier & Parser
-        if (mimetype === 'application/pdf') {
-          this.logger.log(
-            `Job ${jobId}: PDF file received. Extracting text using pdf-parse...`,
-          );
-          let pdfText = '';
-          try {
-            const parser = new PDFParse({ data: buffer });
-            const pdfData = await parser.getText();
-            pdfText = pdfData.text || '';
-          } catch (pdfErr) {
-            this.logger.error(
-              `Job ${jobId}: pdf-parse failed: ${(pdfErr as Error).message}`,
-            );
-          }
+      if (!files || files.length === 0) {
+        this.logger.log('No OCR temporary storage files found.');
+        return;
+      }
 
-          const cleanText = pdfText.replace(/\s+/g, ' ').trim();
+      const now = Date.now();
+      const threshold = 24 * 60 * 60 * 1000; // 24 hours
+      let count = 0;
 
-          if (cleanText.length > 150) {
-            this.logger.log(
-              `Job ${jobId}: Native PDF detected (extracted ${cleanText.length} characters). Performing deterministic parsing...`,
-            );
-            extractedData = await this.parseTextDeterministically(cleanText);
-          } else {
-            this.logger.log(
-              `Job ${jobId}: Scanned PDF detected (minimal extracted text). Extracting embedded image...`,
-            );
-            const extractedImage = await this.extractImageFromPdf(buffer);
-            extractedData = await this.processVisionOCR(extractedImage);
-          }
-        } else {
-          // It's an image scan, process with Sharp and send to Vision API
-          extractedData = await this.processVisionOCR(buffer);
-        }
+      for (const file of files) {
+        const fileCreatedAt = file.created_at
+          ? new Date(file.created_at).getTime()
+          : 0;
+        if (fileCreatedAt && now - fileCreatedAt > threshold) {
+          // Trích xuất jobId từ tên file (uuid.extension)
+          const jobId = file.name.split('.')[0];
 
-        // 2. Save extracted CV to database
-        const job = this.jobs.get(jobId);
-        if (job) {
-          const cv = await this.prisma.cv.create({
-            data: {
-              userId: job.userId,
-              title: `Imported - ${filename.replace(/\.[^/.]+$/, '')}`,
-              locale: 'vi',
-            },
+          // Tra cứu trạng thái job trong cơ sở dữ liệu
+          const job = await this.prisma.ocrJob.findUnique({
+            where: { id: jobId },
+            select: { status: true },
           });
 
-          // Insert sections
-          const sectionTypes = [
-            'PROFILE',
-            'SUMMARY',
-            'EXPERIENCE',
-            'EDUCATION',
-            'SKILLS',
-            'PROJECTS',
-          ];
-          for (const type of sectionTypes) {
-            const lowerType = type.toLowerCase();
-            const content = extractedData[lowerType] || {};
-            await this.prisma.cvSection.create({
-              data: {
-                cvId: cv.id,
-                type: type as any,
-                content: content,
-                order: sectionTypes.indexOf(type) + 1,
-              },
-            });
+          // Chỉ xóa nếu job mồ côi (không tìm thấy) HOẶC đã COMPLETED / FAILED
+          if (!job || ['COMPLETED', 'FAILED'].includes(job.status)) {
+            const storageKey = `ocr-temp/${file.name}`;
+            this.logger.warn(
+              `Deleting stale orphaned storage file: ${storageKey} (DB Job Status: ${job ? job.status : 'NOT_FOUND'})`,
+            );
+            await this.deleteStorageFile(storageKey);
+            count++;
+          } else {
+            this.logger.log(
+              `Stale file found for job ${jobId} but skipping cloud deletion because DB status is [${job.status}]`,
+            );
           }
-
-          this.updateJobStatus(jobId, 'completed', { extractedCvId: cv.id });
-          await this.queueService.completeJob(activeJob.id);
         }
-      } catch (err: any) {
-        this.logger.error(`Job ${jobId} failed: ${err.message}`);
-        this.updateJobStatus(jobId, 'failed', { error: err.message });
-        await this.queueService.failJob(activeJob.id, err.message);
       }
-    }, 3000);
+      this.logger.log(
+        `Orphan storage sweeper finished. Cleaned up ${count} file(s).`,
+      );
+    } catch (err: any) {
+      this.logger.error(`Orphan storage sweeper failed: ${err.message}`);
+    }
+  }
+
+  private async updateJobStatus(
+    jobId: string,
+    status: OcrJobStatus,
+    extra: Record<string, any> = {},
+  ) {
+    if (extra.error && typeof extra.error === 'string') {
+      extra.error = extra.error.slice(0, 2000);
+    }
+    await this.prisma.ocrJob.update({
+      where: { id: jobId },
+      data: {
+        status,
+        ...extra,
+      },
+    });
+    this.logger.log(`OCR Job ${jobId} transitioned to [${status}]`);
   }
 
   /**
-   * Extract DCTDecode embedded JPEGs from scanned PDF files cleanly
+   * Phương thức được gọi bởi BullMQ Processor để thực hiện tải file và xử lý OCR
+   */
+  async processJob(
+    jobId: string,
+    storageKey: string,
+    filename: string,
+    mimetype: string,
+  ): Promise<void> {
+    await this.updateJobStatus(jobId, 'PROCESSING');
+
+    try {
+      if (!this.supabase) {
+        throw new Error('Supabase Storage is not configured on this server');
+      }
+
+      // Tải file tạm từ Cloud Storage về bộ nhớ đệm (in-memory stateless)
+      const { data, error: downloadError } = await this.supabase.storage
+        .from(this.bucket)
+        .download(storageKey);
+
+      if (downloadError || !data) {
+        throw new Error(
+          `Failed to download file from storage: ${downloadError?.message || 'No data returned'}`,
+        );
+      }
+
+      const buffer = Buffer.from(await data.arrayBuffer());
+      let extractedData: any;
+
+      // 1. PDF Hybrid Classifier & Parser
+      if (mimetype === 'application/pdf') {
+        this.logger.log(
+          `Job ${jobId}: PDF file received. Extracting text using pdf-parse...`,
+        );
+        let pdfText = '';
+        try {
+          const parser = new PDFParse({ data: buffer });
+          const pdfData = await parser.getText();
+          pdfText = pdfData.text || '';
+        } catch (pdfErr) {
+          this.logger.error(
+            `Job ${jobId}: pdf-parse failed: ${(pdfErr as Error).message}`,
+          );
+        }
+
+        const cleanText = pdfText.replace(/\s+/g, ' ').trim();
+
+        if (cleanText.length > 150) {
+          this.logger.log(
+            `Job ${jobId}: Native PDF detected (extracted ${cleanText.length} characters). Performing deterministic parsing...`,
+          );
+          extractedData = await this.parseTextDeterministically(cleanText);
+        } else {
+          this.logger.log(
+            `Job ${jobId}: Scanned PDF detected (minimal extracted text). Extracting embedded image...`,
+          );
+          const extractedImage = await this.extractImageFromPdf(buffer);
+          extractedData = await this.processVisionOCR(extractedImage);
+        }
+      } else {
+        // It's an image scan, process with Sharp and send to Vision API
+        extractedData = await this.processVisionOCR(buffer);
+      }
+
+      // 2. Save extracted CV to database
+      const job = await this.getJobStatus(jobId);
+      const cv = await this.prisma.cv.create({
+        data: {
+          userId: job.userId,
+          title: `Imported - ${filename.replace(/\.[^/.]+$/, '')}`,
+          locale: 'vi',
+        },
+      });
+
+      // Insert sections
+      const sectionTypes = [
+        'PROFILE',
+        'SUMMARY',
+        'EXPERIENCE',
+        'EDUCATION',
+        'SKILLS',
+        'PROJECTS',
+      ];
+      for (const type of sectionTypes) {
+        const lowerType = type.toLowerCase();
+        const content = extractedData[lowerType] || {};
+        await this.prisma.cvSection.create({
+          data: {
+            cvId: cv.id,
+            type: type as any,
+            content: content,
+            order: sectionTypes.indexOf(type) + 1,
+          },
+        });
+      }
+
+      await this.updateJobStatus(jobId, 'COMPLETED', { extractedCvId: cv.id });
+    } catch (err: any) {
+      this.logger.error(`Job ${jobId} failed: ${err.message}`);
+      await this.updateJobStatus(jobId, 'FAILED', { error: err.message });
+      throw err;
+    }
+  }
+
+  /**
+   * Extract embedded JPEGs from scanned PDF files cleanly
    */
   private async extractImageFromPdf(buffer: Buffer): Promise<Buffer> {
     try {
@@ -274,7 +441,6 @@ CRITICAL ETHICAL RULES:
   }
 
   private async parseTextDeterministically(text: string): Promise<any> {
-    // Fallback deterministic extractor using OpenAI text parsing (zero-temperature, robust classification)
     const systemPrompt = `You are a structured CV text extraction assistant.
 Extract all details from the raw CV text into this JSON format:
 {

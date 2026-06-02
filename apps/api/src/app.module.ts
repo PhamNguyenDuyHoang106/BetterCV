@@ -1,6 +1,6 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DatabaseModule } from './database';
 import { RolesGuard } from './core/guards';
 import { AuthModule } from './modules/auth/auth.module';
@@ -17,10 +17,23 @@ import { OcrModule } from './modules/ocr/ocr.module';
 import { AppController } from './app.controller';
 import { RequestIdMiddleware } from './core/middleware/request-id.middleware';
 import { CoreModule } from './core/core.module';
+import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST', 'localhost'),
+          port: configService.get<number>('REDIS_PORT', 6379),
+        },
+      }),
+      inject: [ConfigService],
+    }),
     DatabaseModule,
     AuthModule,
     UserModule,

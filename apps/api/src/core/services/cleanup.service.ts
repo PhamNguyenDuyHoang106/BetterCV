@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class CleanupService implements OnApplicationBootstrap {
@@ -8,11 +9,11 @@ export class CleanupService implements OnApplicationBootstrap {
   constructor(private prisma: PrismaService) {}
 
   onApplicationBootstrap() {
-    // Run cleanup immediately on bootstrap, then schedule it every 24 hours
+    // Run cleanup immediately on bootstrap
     this.runCleanup();
-    setInterval(() => this.runCleanup(), 24 * 60 * 60 * 1000);
   }
 
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async runCleanup() {
     this.logger.log(
       'Starting automated cleanup of stale guest accounts and data...',
@@ -40,7 +41,7 @@ export class CleanupService implements OnApplicationBootstrap {
       );
 
       // Prisma cascades will automatically purge CVs, Sections, and snapshots!
-      const guestIds = staleGuests.map((g) => g.id);
+      const guestIds = staleGuests.map((g: any) => g.id);
 
       const { count } = await this.prisma.user.deleteMany({
         where: {

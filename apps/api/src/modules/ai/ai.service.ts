@@ -5,6 +5,7 @@ import { AiGenerateDto, AiRewriteDto, AiScoreDto } from './dto/ai.dto';
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { AiProvider, PromptPayload } from './providers/ai-provider.interface';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class AiService {
@@ -190,8 +191,6 @@ export class AiService {
 
   // ── Core AI Pipeline ──────────────────────────────────────────
 
-  // ── Core AI Pipeline ──────────────────────────────────────────
-
   private async runPrompt(
     supabaseId: string,
     promptKey: string,
@@ -199,33 +198,67 @@ export class AiService {
     temperature = 0.4,
   ) {
     const userId = await this.resolveUserId(supabaseId);
-    await this.assertQuota(userId);
     await this.applySafetyRules(payload.input);
 
     const promptVersion = await this.getActivePrompt(promptKey, payload.system);
+
+    // 1. Ước lượng tokens và thực hiện Atomic Quota Update (Tạm tính)
+    const estimated = this.estimateTokens({
+      system: promptVersion.content,
+      user: payload.user,
+      input: payload.input,
+    });
+    await this.assertAndReserveQuota(userId, estimated);
+
     const request = await this.prisma.aiRequest.create({
-      data: { userId, promptKey, input: toInputJson(payload.input) },
-    });
-
-    const response = await this.aiProvider.generate(
-      {
-        system: promptVersion.content,
-        user: payload.user,
-        input: payload.input,
-      },
-      temperature,
-    );
-
-    await this.prisma.aiResponse.create({
       data: {
-        requestId: request.id,
-        output: toInputJson(response.output),
-        tokens: response.tokens,
+        userId,
+        promptKey,
+        input: toInputJson(payload.input),
+        estimatedTokens: estimated,
+        status: 'PENDING',
       },
     });
-    await this.incrementUsage(userId, response.tokens);
 
-    return response.output;
+    try {
+      // Chuyển sang trạng thái PROCESSING trước khi gọi OpenAI
+      await this.prisma.aiRequest.update({
+        where: { id: request.id },
+        data: { status: 'PROCESSING' },
+      });
+
+      const response = await this.aiProvider.generate(
+        {
+          system: promptVersion.content,
+          user: payload.user,
+          input: payload.input,
+        },
+        temperature,
+      );
+
+      await this.prisma.aiResponse.create({
+        data: {
+          requestId: request.id,
+          output: toInputJson(response.output),
+          tokens: response.tokens,
+        },
+      });
+
+      // 2. Reconciliation: Điều chỉnh lại quota theo số lượng thực tế
+      await this.reconcileQuotaUsage(
+        userId,
+        response.tokens,
+        estimated,
+        request.id,
+      );
+
+      return response.output;
+    } catch (err: any) {
+      // 3. Hoàn trả lượng quota tạm tính nếu thất bại
+      await this.refundQuotaUsage(userId, estimated, request.id);
+      this.logger.error(`AI prompt generation failed: ${err.message}`);
+      throw err;
+    }
   }
 
   private async streamPrompt(
@@ -241,35 +274,72 @@ export class AiService {
     res.flushHeaders();
 
     const userId = await this.resolveUserId(supabaseId);
-    await this.assertQuota(userId);
     await this.applySafetyRules(payload.input);
 
     const promptVersion = await this.getActivePrompt(promptKey, payload.system);
+
+    // 1. Ước lượng tokens và thực hiện Atomic Quota Update (Tạm tính)
+    const estimated = this.estimateTokens({
+      system: promptVersion.content,
+      user: payload.user,
+      input: payload.input,
+    });
+    await this.assertAndReserveQuota(userId, estimated);
+
     const request = await this.prisma.aiRequest.create({
-      data: { userId, promptKey, input: toInputJson(payload.input) },
-    });
-
-    const result = await this.aiProvider.stream(
-      {
-        system: promptVersion.content,
-        user: payload.user,
-        input: payload.input,
-      },
-      res,
-      temperature,
-    );
-
-    await this.prisma.aiResponse.create({
       data: {
-        requestId: request.id,
-        output: toInputJson({ raw: result.text }),
-        tokens: result.tokens,
+        userId,
+        promptKey,
+        input: toInputJson(payload.input),
+        estimatedTokens: estimated,
+        status: 'PENDING',
       },
     });
-    await this.incrementUsage(userId, result.tokens);
 
-    res.write(`event: done\ndata: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
+    try {
+      // Chuyển sang trạng thái PROCESSING trước khi bắt đầu stream OpenAI
+      await this.prisma.aiRequest.update({
+        where: { id: request.id },
+        data: { status: 'PROCESSING' },
+      });
+
+      const result = await this.aiProvider.stream(
+        {
+          system: promptVersion.content,
+          user: payload.user,
+          input: payload.input,
+        },
+        res,
+        temperature,
+      );
+
+      await this.prisma.aiResponse.create({
+        data: {
+          requestId: request.id,
+          output: toInputJson({ raw: result.text }),
+          tokens: result.tokens,
+        },
+      });
+
+      // 2. Reconciliation: Điều chỉnh lại quota theo số lượng thực tế
+      await this.reconcileQuotaUsage(
+        userId,
+        result.tokens,
+        estimated,
+        request.id,
+      );
+
+      res.write(`event: done\ndata: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      // 3. Hoàn trả lượng quota tạm tính nếu thất bại
+      await this.refundQuotaUsage(userId, estimated, request.id);
+      this.logger.error(`AI prompt streaming failed: ${err.message}`);
+      res.write(
+        `event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`,
+      );
+      res.end();
+    }
   }
 
   private async resolveUserId(supabaseId: string): Promise<string> {
@@ -283,71 +353,16 @@ export class AiService {
     return user.id;
   }
 
-  private async getActivePrompt(key: string, fallback: string) {
-    const prompt = await this.prisma.prompt.findUnique({ where: { key } });
-    if (!prompt) {
-      return this.prisma.promptVersion.create({
-        data: {
-          prompt: { create: { key } },
-          version: 1,
-          content: fallback,
-          isActive: true,
-        },
-      });
-    }
-    const active = await this.prisma.promptVersion.findFirst({
-      where: { promptId: prompt.id, isActive: true },
-    });
-    if (active) {
-      if (active.content !== fallback) {
-        // Deactivate old active version
-        await this.prisma.promptVersion.update({
-          where: { id: active.id },
-          data: { isActive: false },
-        });
-        // Create new active version with the updated code fallback
-        const nextVersion = active.version + 1;
-        return this.prisma.promptVersion.create({
-          data: {
-            promptId: prompt.id,
-            version: nextVersion,
-            content: fallback,
-            isActive: true,
-          },
-        });
-      }
-      return active;
-    }
-    return this.prisma.promptVersion.create({
-      data: {
-        promptId: prompt.id,
-        version: 1,
-        content: fallback,
-        isActive: true,
-      },
-    });
+  private estimateTokens(payload: PromptPayload): number {
+    const text =
+      JSON.stringify(payload.input || '') +
+      (payload.system || '') +
+      (payload.user || '');
+    // Ước lượng an toàn: characters * 0.8, tối thiểu 500 tokens
+    return Math.max(500, Math.ceil(text.length * 0.8));
   }
 
-  private async applySafetyRules(input: unknown) {
-    const rules = await this.prisma.safetyRule.findMany({
-      where: { isActive: true },
-    });
-    if (rules.length === 0) return;
-    const haystack = JSON.stringify(input ?? '').toLowerCase();
-    for (const rule of rules) {
-      try {
-        const regex = new RegExp(rule.pattern, 'i');
-        if (regex.test(haystack)) {
-          throw new ForbiddenException('Unsafe input detected');
-        }
-      } catch (e) {
-        if (e instanceof ForbiddenException) throw e;
-        continue;
-      }
-    }
-  }
-
-  private async assertQuota(userId: string) {
+  private async assertAndReserveQuota(userId: string, estimatedTokens: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -371,7 +386,8 @@ export class AiService {
     const periodEnd = new Date(periodStart);
     periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
-    const quota = await this.prisma.usageQuota.upsert({
+    // Đảm bảo bản ghi quota tồn tại cho tháng hiện tại
+    await this.prisma.usageQuota.upsert({
       where: { userId },
       update: {},
       create: {
@@ -383,20 +399,109 @@ export class AiService {
       },
     });
 
-    if (quota.usedTokens >= planQuota) {
-      throw new ForbiddenException('AI quota exceeded');
+    // Thực hiện Conditional Update nguyên tử có kiểm tra giới hạn trên database
+    const affectedRows = await this.prisma.$executeRaw`
+      UPDATE "UsageQuota"
+      SET "usedTokens" = "usedTokens" + ${estimatedTokens},
+          "usedRequests" = "usedRequests" + 1,
+          "updatedAt" = NOW()
+      WHERE "userId" = ${userId}
+        AND "usedTokens" + ${estimatedTokens} <= ${planQuota}
+    `;
+
+    if (affectedRows === 0) {
+      throw new ForbiddenException('AI quota exceeded or system busy');
     }
   }
 
-  private async incrementUsage(userId: string, tokens: number) {
-    await this.prisma.usageQuota.update({
-      where: { userId },
-      data: {
-        usedTokens: { increment: tokens },
-        usedRequests: { increment: 1 },
-      },
-    });
-    await this.prisma.aiUsage.create({ data: { userId, tokens, requests: 1 } });
+  private async reconcileQuotaUsage(
+    userId: string,
+    actualTokens: number,
+    estimatedTokens: number,
+    requestId?: string,
+  ) {
+    if (requestId) {
+      const request = await this.prisma.aiRequest.findUnique({
+        where: { id: requestId },
+        select: { status: true },
+      });
+      if (request && request.status === 'REFUNDED') {
+        this.logger.warn(
+          `AI Request ${requestId} was already REFUNDED by sweeper. Skipping reconciliation to prevent double adjustment.`,
+        );
+        return;
+      }
+    }
+
+    const diff = actualTokens - estimatedTokens;
+    const actions: any[] = [
+      this.prisma.usageQuota.update({
+        where: { userId },
+        data: {
+          usedTokens: { increment: diff },
+        },
+      }),
+      this.prisma.aiUsage.create({
+        data: { userId, tokens: actualTokens, requests: 1 },
+      }),
+    ];
+
+    if (requestId) {
+      actions.push(
+        this.prisma.aiRequest.update({
+          where: { id: requestId },
+          data: { status: 'COMPLETED' },
+        }),
+      );
+    }
+
+    await this.prisma.$transaction(actions);
+  }
+
+  private async refundQuotaUsage(
+    userId: string,
+    estimatedTokens: number,
+    requestId?: string,
+  ) {
+    try {
+      if (requestId) {
+        const request = await this.prisma.aiRequest.findUnique({
+          where: { id: requestId },
+          select: { status: true },
+        });
+        if (request && request.status === 'REFUNDED') {
+          this.logger.log(
+            `AI Request ${requestId} is already REFUNDED. Skipping double refund.`,
+          );
+          return;
+        }
+      }
+
+      const actions: any[] = [
+        this.prisma.usageQuota.update({
+          where: { userId },
+          data: {
+            usedTokens: { decrement: estimatedTokens },
+            usedRequests: { decrement: 1 },
+          },
+        }),
+      ];
+
+      if (requestId) {
+        actions.push(
+          this.prisma.aiRequest.update({
+            where: { id: requestId },
+            data: { status: 'REFUNDED' },
+          }),
+        );
+      }
+
+      await this.prisma.$transaction(actions);
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to refund quota for user ${userId}: ${err.message}`,
+      );
+    }
   }
 
   async suggestSkills(dto: {
@@ -649,6 +754,122 @@ Specific Requirements:
     cleaned = cleaned.replace(/,\s*,/g, ',');
 
     return cleaned.trim();
+  }
+
+  private async getActivePrompt(key: string, defaultContent: string) {
+    let prompt = await this.prisma.prompt.findUnique({
+      where: { key },
+      include: {
+        versions: {
+          where: { isActive: true },
+          orderBy: { version: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!prompt) {
+      prompt = await this.prisma.prompt.create({
+        data: {
+          key,
+          versions: {
+            create: {
+              version: 1,
+              content: defaultContent,
+              isActive: true,
+            },
+          },
+        },
+        include: {
+          versions: {
+            where: { isActive: true },
+          },
+        },
+      });
+    }
+
+    const activeVersion = prompt.versions[0];
+    if (!activeVersion) {
+      return this.prisma.promptVersion.create({
+        data: {
+          promptId: prompt.id,
+          version: 1,
+          content: defaultContent,
+          isActive: true,
+        },
+      });
+    }
+
+    return activeVersion;
+  }
+
+  private async applySafetyRules(input: unknown) {
+    if (!input) return;
+    const inputStr = JSON.stringify(input);
+
+    const rules = await this.prisma.safetyRule.findMany({
+      where: { isActive: true },
+    });
+
+    for (const rule of rules) {
+      try {
+        const regex = new RegExp(rule.pattern, 'i');
+        if (regex.test(inputStr)) {
+          throw new ForbiddenException(
+            `Input violated safety rule: ${rule.name}`,
+          );
+        }
+      } catch (regexErr) {
+        this.logger.warn(
+          `Invalid regex pattern in safety rule ${rule.name}: ${rule.pattern}`,
+        );
+      }
+    }
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async reconcileStuckAiRequests() {
+    this.logger.log(
+      'Starting automated consistency check for stuck AI requests...',
+    );
+
+    const thirtyMinutesAgo = new Date();
+    thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+
+    try {
+      const stuckRequests = await this.prisma.aiRequest.findMany({
+        where: {
+          createdAt: { lt: thirtyMinutesAgo },
+          estimatedTokens: { not: null },
+          status: { in: ['PENDING', 'PROCESSING'] },
+        },
+        select: {
+          id: true,
+          userId: true,
+          estimatedTokens: true,
+        },
+      });
+
+      if (stuckRequests.length === 0) {
+        this.logger.log('No stuck AI requests found.');
+        return;
+      }
+
+      this.logger.log(
+        `Found ${stuckRequests.length} stuck AI requests. Processing refunds...`,
+      );
+
+      for (const req of stuckRequests) {
+        if (req.userId && req.estimatedTokens) {
+          this.logger.warn(
+            `Refunding estimated ${req.estimatedTokens} tokens for stuck request ${req.id} (user: ${req.userId})`,
+          );
+          await this.refundQuotaUsage(req.userId, req.estimatedTokens, req.id);
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to run reconciliation cron: ${err.message}`);
+    }
   }
 }
 

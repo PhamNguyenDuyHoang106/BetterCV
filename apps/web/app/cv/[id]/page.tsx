@@ -10,278 +10,86 @@ import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
 
 // Import renderHtml from template-engine
-import { renderHtml, getTemplateStyles } from "@acv/template-engine";
+import { renderHtml } from "@acv/template-engine";
 
-type Template = {
-  id: string;
-  name: string;
-  schema: any;
-  category: {
-    id: string;
-    name: string;
-  };
-};
+// Import custom hooks
+import { useCvEditor } from "../../../hooks/cv/useCvEditor";
+import { useAutosave } from "../../../hooks/cv/useAutosave";
+import { useAiRewrite } from "../../../hooks/cv/useAiRewrite";
 
-type Version = {
-  id: string;
-  cvId: string;
-  snapshot: any;
-  createdAt: string;
-};
-
-type AtsReport = {
-  score: number;
-  rulesEvaluated: Array<{
-    ruleName: string;
-    score: number;
-    weight: number;
-    findings: string[];
-  }>;
-  findings: string[];
-  recommendations: string[];
-};
+// Import panels components
+import { ProfilePanel } from "../../../components/cv/editor/ProfilePanel";
+import { SummaryPanel } from "../../../components/cv/editor/SummaryPanel";
+import { ExperiencePanel } from "../../../components/cv/editor/ExperiencePanel";
+import { EducationPanel } from "../../../components/cv/editor/EducationPanel";
+import { SkillsPanel } from "../../../components/cv/editor/SkillsPanel";
+import { ProjectsPanel } from "../../../components/cv/editor/ProjectsPanel";
+import { AtsPanel } from "../../../components/cv/editor/AtsPanel";
+import { TemplatePicker } from "../../../components/cv/editor/TemplatePicker";
+import { AiAssistantModal } from "../../../components/cv/editor/AiAssistantModal";
+import { HistorySidebar } from "../../../components/cv/editor/HistorySidebar";
 
 export default function CvEditorPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const cvId = params?.id as string;
-  
-  const saveTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
-  const loadedCvIdRef = useRef<string | null>(null);
-  const lastFetchedJobTitleRef = useRef<string>("");
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialHtmlRef = useRef<string>("");
   const lastHtmlRef = useRef<string>("");
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState<boolean>(false);
-  const [isDragActive, setIsDragActive] = useState<boolean>(false);
-
-  useEffect(() => {
-    return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      Object.values(saveTimersRef.current).forEach(clearTimeout);
-    };
-  }, []);
 
   const { accessToken, hydrate } = useAuthStore();
-  const {
-    cv,
-    saveStatus,
-    loadCv,
-    updateCvMetadata,
-    upsertSection,
-    setDraftMetadata,
-    setDraftSection,
-    syncDirtyChanges,
-  } = useCvStore();
+  const { loadCv, saveStatus } = useCvStore();
 
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [activeTab, setActiveTab] = useState<string>("profile");
-  
-  // Versions and history sidebar
-  const [versions, setVersions] = useState<Version[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(false);
-  const [isLoadingVersions, setIsLoadingVersions] = useState<boolean>(false);
-
-  // Form states for sections
-  const [profileForm, setProfileForm] = useState({
-    fullName: "",
-    title: "",
-    email: "",
-    phone: "",
-    website: "",
-    github: "",
-    linkedin: "",
-    avatarUrl: "",
-    address: "",
-    city: "",
-    theme: {
-      primaryColor: "",
-      accentColor: "",
-    },
-  });
-
-  const [summaryText, setSummaryText] = useState("");
-
-  const [experiences, setExperiences] = useState<any[]>([]);
-  const [educations, setEducations] = useState<any[]>([]);
-  const [skills, setSkills] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-
-  const [showLevel, setShowLevel] = useState<boolean>(true);
-  const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
-  const [isSuggestingSkills, setIsSuggestingSkills] = useState<boolean>(false);
-  const [suggestCount, setSuggestCount] = useState<number>(0);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const draggedIndexRef = useRef<number | null>(null);
-
-  // Preview options
   const [previewScale, setPreviewScale] = useState<number>(100);
   const [exporting, setExporting] = useState<boolean>(false);
-  const [exportUrl, setExportUrl] = useState<string | null>(null);
 
-  // ATS Panel States
-  const [jobDescription, setJobDescription] = useState<string>("");
-  const [atsReport, setAtsReport] = useState<AtsReport | null>(null);
-  const [isAnalyzingAts, setIsAnalyzingAts] = useState<boolean>(false);
+  // 1. Hook quản lý Autosave
+  const { triggerAutosave } = useAutosave();
 
-  // AI Assistant States
-  const [showAiModal, setShowAiModal] = useState<boolean>(false);
-  const [aiTarget, setAiTarget] = useState<{ type: "summary" | "experience"; id?: string }>({ type: "summary" });
-  const [aiStyle, setAiStyle] = useState<"professional" | "concise" | "ats">("professional");
-  const [aiStreamingOutput, setAiStreamingOutput] = useState<string>("");
-  const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
+  // 2. Hook quản lý Form States & Actions chính của CV
+  const editor = useCvEditor(cvId, triggerAutosave);
 
-  // Compile local CV data for renderHtml
-  const assembleLocalResumeData = useCallback(() => {
-    return {
-      schemaVersion: 1,
-      profile: profileForm,
-      summary: { text: summaryText },
-      experience: experiences,
-      education: educations,
-      skills: { items: skills, showLevel: showLevel },
-      projects: projects,
-      theme: profileForm.theme,
-    };
-  }, [profileForm, summaryText, experiences, educations, skills, showLevel, projects]);
+  // 3. Hook quản lý Trợ lý AI Viết CV (SSE Stream + Fallback)
+  const ai = useAiRewrite({
+    cv: editor.cv,
+    accessToken,
+    profileForm: editor.profileForm,
+    experiences: editor.experiences,
+    skills: editor.skills,
+    educations: editor.educations,
+    projects: editor.projects,
+    summaryText: editor.summaryText,
+    setSummaryText: editor.setSummaryText,
+    saveSummary: editor.saveSummary,
+    setExperiences: editor.setExperiences,
+    saveExperiences: editor.saveExperiences,
+  });
 
   // Compile Live Preview HTML
   const getCompiledHtml = useCallback(() => {
-    if (!selectedTemplate) return "";
-    const resumeData = assembleLocalResumeData();
+    if (!editor.selectedTemplate || !editor.cv) return "";
+    const resumeData = editor.assembleLocalResumeData();
     try {
       return renderHtml({
-        template: selectedTemplate.schema,
+        template: editor.selectedTemplate.schema,
         data: resumeData,
       });
     } catch (err) {
       console.error("Template rendering error:", err);
       return `<p style="padding: 20px; color: red;">Lỗi biên dịch giao diện CV: ${(err as Error).message}</p>`;
     }
-  }, [selectedTemplate, assembleLocalResumeData]);
+  }, [editor]);
 
   // Load Auth Session
   useEffect(() => {
     hydrate();
-    // Always sync session on mount to ensure we refresh any expired tokens hydrated from localStorage
     syncSessionToApp().catch(() => {});
   }, [hydrate]);
 
-  // Load CV & Templates
-  useEffect(() => {
-    if (!accessToken || !cvId) return;
-    
-    loadCv(cvId);
-    
-    // Fetch Templates from NestJS
-    apiFetch<any>("/templates")
-      .then((res) => {
-        const data = Array.isArray(res) ? res : res?.data || [];
-        setTemplates(data);
-        if (data.length > 0 && cv && cv.templateId) {
-          const matched = data.find((t: any) => t.id === cv.templateId);
-          if (matched) setSelectedTemplate(matched);
-        }
-      })
-      .catch((err) => console.error("Error loading templates:", err));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, cvId]);
-
-  // Sync templates selection once CV is loaded
-  useEffect(() => {
-    if (cv && templates.length > 0) {
-      const matched = templates.find((t) => t.id === cv.templateId);
-      if (matched) {
-        setSelectedTemplate(matched);
-      } else {
-        // Fallback covers two cases:
-        // (a) cv.templateId is null → assign default
-        // (b) cv.templateId is set but template was deleted/deactivated → migrate gracefully
-        const defaultTpl = templates.find((t) => t.id === "standard-ats") || templates[0];
-        if (defaultTpl) {
-          setSelectedTemplate(defaultTpl);
-          updateCvMetadata({ templateId: defaultTpl.id });
-        }
-      }
-    }
-
-    // Populate local form states from CV sections only ONCE on initial CV load (to decouple typing lag)
-    if (cv && cv.sections && cv.id !== loadedCvIdRef.current) {
-      loadedCvIdRef.current = cv.id;
-      const profileSec = cv.sections.find((s) => s.type === "PROFILE");
-      if (profileSec && profileSec.content) {
-        setProfileForm({
-          fullName: profileSec.content.fullName || "",
-          title: profileSec.content.title || "",
-          email: profileSec.content.email || "",
-          phone: profileSec.content.phone || "",
-          website: profileSec.content.website || "",
-          github: profileSec.content.github || "",
-          linkedin: profileSec.content.linkedin || "",
-          avatarUrl: profileSec.content.avatarUrl || "",
-          address: profileSec.content.address || "",
-          city: profileSec.content.city || "",
-          theme: {
-            primaryColor: profileSec.content.theme?.primaryColor || "",
-            accentColor: profileSec.content.theme?.accentColor || "",
-          },
-        });
-      }
-
-      const summarySec = cv.sections.find((s) => s.type === "SUMMARY");
-      if (summarySec && summarySec.content) {
-        setSummaryText(summarySec.content.text || "");
-      }
-
-      const expSec = cv.sections.find((s) => s.type === "EXPERIENCE");
-      if (expSec && expSec.content && Array.isArray(expSec.content.items)) {
-        setExperiences(expSec.content.items);
-      } else if (expSec && expSec.content && Array.isArray(expSec.content)) {
-        setExperiences(expSec.content);
-      } else {
-        setExperiences([]);
-      }
-
-      const eduSec = cv.sections.find((s) => s.type === "EDUCATION");
-      if (eduSec && eduSec.content && Array.isArray(eduSec.content.items)) {
-        setEducations(eduSec.content.items);
-      } else if (eduSec && eduSec.content && Array.isArray(eduSec.content)) {
-        setEducations(eduSec.content);
-      } else {
-        setEducations([]);
-      }
-
-      const skillSec = cv.sections.find((s) => s.type === "SKILLS");
-      if (skillSec && skillSec.content && Array.isArray(skillSec.content.items)) {
-        setSkills(skillSec.content.items);
-        if (skillSec.content.showLevel !== undefined) {
-          setShowLevel(!!skillSec.content.showLevel);
-        } else {
-          setShowLevel(true);
-        }
-      } else if (skillSec && skillSec.content && Array.isArray(skillSec.content)) {
-        setSkills(skillSec.content);
-        setShowLevel(true);
-      } else {
-        setSkills([]);
-        setShowLevel(true);
-      }
-
-      const projSec = cv.sections.find((s) => s.type === "PROJECTS");
-      if (projSec && projSec.content && Array.isArray(projSec.content.items)) {
-        setProjects(projSec.content.items);
-      } else if (projSec && projSec.content && Array.isArray(projSec.content)) {
-        setProjects(projSec.content);
-      } else {
-        setProjects([]);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cv, templates]);
-
-  // Sync iframe via postMessage to completely eliminate typing lag & flickering
+  // Sync iframe qua postMessage để giảm giật lag và flicker
   useEffect(() => {
     const html = getCompiledHtml();
     if (!html) return;
@@ -307,193 +115,15 @@ export default function CvEditorPage() {
     }
   }, [getCompiledHtml]);
 
-  // Reset refs when loading a new CV to force initialization reload
+  // Reset refs khi đổi CV
   useEffect(() => {
     initialHtmlRef.current = "";
     lastHtmlRef.current = "";
   }, [cvId]);
 
-  // Load versions history
-  const fetchVersions = async () => {
-    setIsLoadingVersions(true);
-    try {
-      const res = await apiFetch<any>(`/cvs/${cvId}/versions`);
-      const data = Array.isArray(res) ? res : res?.data || [];
-      setVersions(data);
-    } catch (err) {
-      console.error("Failed to load versions:", err);
-    } finally {
-      setIsLoadingVersions(false);
-    }
-  };
-
-  const fetchSkillSuggestions = async () => {
-    const jobTitle = profileForm.title || "";
-    if (!jobTitle.trim()) return;
-    lastFetchedJobTitleRef.current = jobTitle.trim();
-    setIsSuggestingSkills(true);
-    try {
-      const res = await apiFetch<any>("/ai/skills/suggest", {
-        method: "POST",
-        body: JSON.stringify({
-          jobTitle,
-          locale: cv?.locale || "vi",
-          currentSkills: skills.map((s: any) => s.name).filter(Boolean),
-        }),
-      });
-      const data = Array.isArray(res) ? res : res?.data || [];
-      setSuggestedSkills(data);
-    } catch (err) {
-      console.error("Failed to fetch suggestions:", err);
-    } finally {
-      setIsSuggestingSkills(false);
-    }
-  };
-
-  const handleRegenerateSkills = async () => {
-    const jobTitle = profileForm.title || "";
-    if (!jobTitle.trim()) {
-      alert("Vui lòng nhập Chức danh tại trang Thông tin cá nhân trước.");
-      return;
-    }
-    setSuggestCount((prev) => {
-      const next = prev + 1;
-      return next > 5 ? 1 : next;
-    });
-    await fetchSkillSuggestions();
-  };
-
-  useEffect(() => {
-    if (activeTab === "skills" && profileForm.title) {
-      const trimmedTitle = profileForm.title.trim();
-      if (trimmedTitle !== lastFetchedJobTitleRef.current) {
-        lastFetchedJobTitleRef.current = trimmedTitle;
-        fetchSkillSuggestions().catch(() => {});
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, profileForm.title]);
-
-  useEffect(() => {
-    if (showHistory) {
-      fetchVersions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHistory]);
-
-  const handleRestoreVersion = async (versionId: string) => {
-    if (!confirm("Bạn có chắc chắn muốn phục hồi CV về phiên bản này không? Tất cả các thay đổi chưa lưu trên tab hiện tại có thể bị ghi đè.")) {
-      return;
-    }
-    try {
-      await apiFetch(`/cvs/${cvId}/versions/${versionId}/restore`, { method: "POST" });
-      loadedCvIdRef.current = null;
-      await loadCv(cvId);
-      setShowHistory(false);
-      alert("Đã phục hồi phiên bản thành công!");
-    } catch (err) {
-      alert("Không thể phục hồi phiên bản. Vui lòng thử lại.");
-    }
-  };
-
-  // Central Coalesced Autosave Coordinator
-  const triggerAutosave = useCallback(() => {
-    const key = "autosave";
-    if (saveTimersRef.current[key]) {
-      clearTimeout(saveTimersRef.current[key]);
-    }
-    saveTimersRef.current[key] = setTimeout(() => {
-      syncDirtyChanges();
-      delete saveTimersRef.current[key];
-    }, 1000);
-  }, [syncDirtyChanges]);
-
-  const saveMetadata = (updates: { title?: string; locale?: "en" | "vi"; templateId?: string }) => {
-    setDraftMetadata(updates);
-    triggerAutosave();
-  };
-
-  const saveProfile = (updatedProfile = profileForm) => {
-    setDraftSection("PROFILE", updatedProfile, 1);
-    triggerAutosave();
-  };
-
-  const handleAvatarUpload = async (file: File) => {
-    if (!file) return;
-    setIsUploadingAvatar(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await apiFetch<any>("/exports/avatar", {
-        method: "POST",
-        body: formData,
-      });
-      const url = res?.data?.url || res?.url;
-      if (url) {
-        const newForm = { ...profileForm, avatarUrl: url };
-        setProfileForm(newForm);
-        saveProfile(newForm);
-      } else {
-        alert("Upload thất bại. Không nhận được URL ảnh từ server.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Lỗi khi tải ảnh lên. Vui lòng thử lại.");
-    } finally {
-      setIsUploadingAvatar(false);
-    }
-  };
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setIsDragActive(true);
-    } else if (e.type === "dragleave") {
-      setIsDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleAvatarUpload(e.dataTransfer.files[0]);
-    }
-  };
-
-  const saveSummary = (text = summaryText) => {
-    setDraftSection("SUMMARY", { text }, 2);
-    triggerAutosave();
-  };
-
-  const saveExperiences = (items = experiences) => {
-    setDraftSection("EXPERIENCE", { items }, 3);
-    triggerAutosave();
-  };
-
-  const saveEducations = (items = educations) => {
-    setDraftSection("EDUCATION", { items }, 4);
-    triggerAutosave();
-  };
-
-  const saveSkills = (items = skills, showLvl = showLevel) => {
-    setDraftSection("SKILLS", { items, showLevel: showLvl }, 5);
-    triggerAutosave();
-  };
-
-  const saveProjects = (items = projects) => {
-    setDraftSection("PROJECTS", { items }, 6);
-    triggerAutosave();
-  };
-
-
-
-  // Actions
+  // Hành động in và xuất PDF
   const handleExportPDF = async () => {
     setExporting(true);
-    setExportUrl(null);
     try {
       const res = await apiFetch<any>("/exports/pdf", {
         method: "POST",
@@ -501,255 +131,15 @@ export default function CvEditorPage() {
       });
       const result = res?.data || res;
       if (result && result.url) {
-        setExportUrl(result.url);
         window.open(result.url, "_blank");
       } else {
         alert("Xuất PDF thất bại. Vui lòng thử lại.");
       }
     } catch (err) {
-      alert("Lỗi khi xuất PDF. Hãy chắc chắn rằng cổng API NestJS đang hoạt động.");
+      alert("Lỗi khi xuất PDF. Hãy chắc chắn rằng API Server đang chạy.");
     } finally {
       setExporting(false);
     }
-  };
-
-  // ATS Evaluation trigger
-  const runAtsAnalysis = async () => {
-    if (!jobDescription.trim()) {
-      alert("Vui lòng nhập mô tả công việc (JD) trước.");
-      return;
-    }
-    setIsAnalyzingAts(true);
-    try {
-      const res = await apiFetch<any>("/ats/score", {
-        method: "POST",
-        body: JSON.stringify({
-          cvId,
-          jobDescription,
-        }),
-      });
-      const report = res?.data?.data || res?.data || res;
-      setAtsReport(report);
-    } catch (err) {
-      console.error("ATS Error:", err);
-      alert("Lỗi khi chấm điểm ATS.");
-    } finally {
-      setIsAnalyzingAts(false);
-    }
-  };
-
-  // AI Assistant - Trigger Rewrite SSE stream with fallback
-  const triggerAiRewrite = async () => {
-    setIsAiGenerating(true);
-    setAiStreamingOutput("");
-    
-    let originalText = "";
-    if (aiTarget.type === "summary") {
-      originalText = summaryText;
-    } else {
-      const exp = experiences.find((e) => e.id === aiTarget.id);
-      originalText = exp ? exp.description : "";
-    }
-
-    const payload = {
-      locale: cv?.locale || "vi",
-      sectionType: aiTarget.type === "summary" ? "SUMMARY" : "EXPERIENCE",
-      content: aiTarget.type === "summary" ? { text: originalText } : { description: originalText },
-      style: aiStyle,
-      resumeContext: aiTarget.type === "summary" ? {
-        jobTitle: profileForm.title || "",
-        fullName: profileForm.fullName || "",
-        experiences: experiences,
-        skills: skills,
-        educations: educations,
-        projects: projects,
-      } : undefined,
-    };
-
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000/api";
-
-    try {
-      // 1. Try SSE Streaming first
-      const response = await fetch(`${baseUrl}/ai/rewrite/stream`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error("SSE Stream connection failed, falling back to standard POST");
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) throw new Error("No reader found");
-
-      let done = false;
-      let accumulated = "";
-
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: !done });
-          
-          // Parse Server Sent Events format
-          const lines = chunk.split("\n");
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.substring(6));
-                if (data.text) {
-                  accumulated += data.text;
-                  setAiStreamingOutput(accumulated);
-                }
-              } catch {
-                // Ignore parsing errors for raw text chunks
-                const rawContent = line.substring(6);
-                if (rawContent && !rawContent.includes("done")) {
-                  accumulated += rawContent;
-                  setAiStreamingOutput(accumulated);
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Falling back to standard POST rewrite due to:", err);
-      try {
-        const res = await apiFetch<any>("/ai/rewrite", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        const result = res?.data || res;
-        const outputText = typeof result === "string" ? result : result.text || result.description || result.raw || JSON.stringify(result);
-        setAiStreamingOutput(outputText);
-      } catch (postErr) {
-        alert("Trợ lý AI đang bận. Vui lòng thử lại sau.");
-      }
-    } finally {
-      setIsAiGenerating(false);
-    }
-  };
-
-  const acceptAiSuggestion = () => {
-    if (aiTarget.type === "summary") {
-      setSummaryText(aiStreamingOutput);
-      saveSummary(aiStreamingOutput);
-    } else {
-      const updated = experiences.map((exp) =>
-        exp.id === aiTarget.id ? { ...exp, description: aiStreamingOutput } : exp
-      );
-      setExperiences(updated);
-      saveExperiences(updated);
-    }
-    setShowAiModal(false);
-  };
-
-  // Helpers for nested list updates
-  const addExperienceItem = () => {
-    const newItem = {
-      id: `exp_${Date.now()}`,
-      company: "Tên công ty mới",
-      position: "Chức vụ mới",
-      location: "",
-      startDate: "2025-01",
-      endDate: "2025-12",
-      current: false,
-      description: "- Đóng góp xây dựng...",
-    };
-    const updated = [...experiences, newItem];
-    setExperiences(updated);
-    saveExperiences(updated);
-  };
-
-  const updateExperienceItem = (id: string, field: string, val: any) => {
-    const updated = experiences.map((exp) => (exp.id === id ? { ...exp, [field]: val } : exp));
-    setExperiences(updated);
-  };
-
-  const removeExperienceItem = (id: string) => {
-    const updated = experiences.filter((exp) => exp.id !== id);
-    setExperiences(updated);
-    saveExperiences(updated);
-  };
-
-  const addEducationItem = () => {
-    const newItem = {
-      id: `edu_${Date.now()}`,
-      institution: "Trường đại học mới",
-      degree: "Cử nhân",
-      fieldOfStudy: "Công nghệ thông tin",
-      startDate: "2020-09",
-      endDate: "2024-06",
-      gpa: "3.2/4.0",
-      current: false,
-    };
-    const updated = [...educations, newItem];
-    setEducations(updated);
-    saveEducations(updated);
-  };
-
-  const updateEducationItem = (id: string, field: string, val: any) => {
-    const updated = educations.map((edu) => (edu.id === id ? { ...edu, [field]: val } : edu));
-    setEducations(updated);
-  };
-
-  const removeEducationItem = (id: string) => {
-    const updated = educations.filter((edu) => edu.id !== id);
-    setEducations(updated);
-    saveEducations(updated);
-  };
-
-  const addSkillItem = () => {
-    const newItem = {
-      id: `skill_${Date.now()}`,
-      name: "Tên kỹ năng",
-      level: "Advanced",
-    };
-    const updated = [...skills, newItem];
-    setSkills(updated);
-    saveSkills(updated);
-  };
-
-  const updateSkillItem = (id: string, field: string, val: any) => {
-    const updated = skills.map((sk) => (sk.id === id ? { ...sk, [field]: val } : sk));
-    setSkills(updated);
-  };
-
-  const removeSkillItem = (id: string) => {
-    const updated = skills.filter((sk) => sk.id !== id);
-    setSkills(updated);
-    saveSkills(updated);
-  };
-
-  const addProjectItem = () => {
-    const newItem = {
-      id: `proj_${Date.now()}`,
-      name: "Tên dự án mới",
-      description: "- Xây dựng hệ thống...",
-      role: "Fullstack Developer",
-      url: "",
-      technologies: ["React", "NestJS", "PostgreSQL"],
-    };
-    const updated = [...projects, newItem];
-    setProjects(updated);
-    saveProjects(updated);
-  };
-
-  const updateProjectItem = (id: string, field: string, val: any) => {
-    const updated = projects.map((pr) => (pr.id === id ? { ...pr, [field]: val } : pr));
-    setProjects(updated);
-  };
-
-  const removeProjectItem = (id: string) => {
-    const updated = projects.filter((pr) => pr.id !== id);
-    setProjects(updated);
-    saveProjects(updated);
   };
 
   if (!accessToken) {
@@ -767,7 +157,7 @@ export default function CvEditorPage() {
     );
   }
 
-  if (!cv) {
+  if (!editor.cv) {
     return (
       <main className="flex h-screen items-center justify-center bg-slate-50/50">
         <div className="flex flex-col items-center gap-3">
@@ -796,14 +186,14 @@ export default function CvEditorPage() {
             <div className="flex items-center gap-3">
               <input
                 type="text"
-                value={cv.title}
-                onChange={(e) => saveMetadata({ title: e.target.value })}
+                value={editor.cv.title}
+                onChange={(e) => editor.saveMetadata({ title: e.target.value })}
                 className="bg-transparent hover:bg-slate-800/50 focus:bg-slate-800 border-none rounded px-2 py-0.5 font-semibold text-lg text-white max-w-[240px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 title="Click để đổi tên CV"
               />
-              <span className="text-xs text-slate-500">v{cv.version}</span>
+              <span className="text-xs text-slate-500">v{editor.cv.version}</span>
             </div>
-            <p className="text-xs text-slate-500 px-2 mt-0.5">Locale: {cv.locale} | ID: {cv.id}</p>
+            <p className="text-xs text-slate-500 px-2 mt-0.5">Locale: {editor.cv.locale} | ID: {editor.cv.id}</p>
           </div>
         </div>
 
@@ -876,1134 +266,87 @@ export default function CvEditorPage() {
 
           {/* Form Scroll Container */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* PROFILE TAB */}
             {activeTab === "profile" && (
-              <div className="space-y-6">
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Thông tin liên hệ cơ bản</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Họ và tên *</label>
-                      <input
-                        type="text"
-                        value={profileForm.fullName}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, fullName: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="Nguyễn Văn A"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Chức danh</label>
-                      <input
-                        type="text"
-                        value={profileForm.title}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, title: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="Software Engineer"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Email</label>
-                      <input
-                        type="email"
-                        value={profileForm.email}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, email: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="name@domain.com"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Số điện thoại</label>
-                      <input
-                        type="text"
-                        value={profileForm.phone}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, phone: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="+84 987 654 321"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Địa chỉ</label>
-                      <input
-                        type="text"
-                        value={profileForm.address || ""}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, address: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="Số 12, Ngõ 34, Đường Láng"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Thành phố / Tỉnh</label>
-                      <input
-                        type="text"
-                        value={profileForm.city || ""}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, city: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="Hà Nội"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Mạng xã hội & Portfolio</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">LinkedIn URL</label>
-                      <input
-                        type="text"
-                        value={profileForm.linkedin}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, linkedin: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="https://linkedin.com/in/username"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">GitHub URL</label>
-                      <input
-                        type="text"
-                        value={profileForm.github}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, github: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="https://github.com/username"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium text-slate-400">Website khác</label>
-                      <input
-                        type="text"
-                        value={profileForm.website}
-                        onChange={(e) => {
-                          const newForm = { ...profileForm, website: e.target.value };
-                          setProfileForm(newForm);
-                          saveProfile(newForm);
-                        }}
-                        placeholder="https://myportfolio.dev"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                    
-                    <div className="col-span-2 mt-2">
-                      <label className="block text-xs font-medium text-slate-400 mb-2">Ảnh đại diện (Avatar)</label>
-                      <div
-                        onDragEnter={handleDrag}
-                        onDragOver={handleDrag}
-                        onDragLeave={handleDrag}
-                        onDrop={handleDrop}
-                        className={`relative rounded-xl border-2 border-dashed p-6 transition-all flex flex-col items-center justify-center gap-3 cursor-pointer ${
-                          isDragActive
-                            ? "border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/5"
-                            : "border-slate-850 bg-slate-900/30 hover:border-slate-700/80 hover:bg-slate-900/60"
-                        }`}
-                        onClick={() => {
-                          const input = document.getElementById("avatar-upload-input");
-                          input?.click();
-                        }}
-                      >
-                        <input
-                          id="avatar-upload-input"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              handleAvatarUpload(e.target.files[0]);
-                            }
-                          }}
-                        />
-
-                        {isUploadingAvatar ? (
-                          <div className="flex flex-col items-center gap-2 py-2">
-                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
-                            <span className="text-xs font-medium text-indigo-400">Đang tải ảnh lên Supabase Cloud...</span>
-                          </div>
-                        ) : profileForm.avatarUrl ? (
-                          <div className="flex items-center gap-5 w-full">
-                            <img
-                              src={profileForm.avatarUrl}
-                              alt="Avatar Preview"
-                              className="h-16 w-16 rounded-full object-cover border-2 border-indigo-500 shadow-md shadow-indigo-500/15"
-                            />
-                            <div className="flex-1 min-w-0 text-left">
-                              <p className="text-sm font-semibold text-slate-200 truncate">Đã có ảnh đại diện</p>
-                              <p className="text-xs text-slate-500 mt-0.5 truncate">{profileForm.avatarUrl}</p>
-                              <div className="flex gap-3 mt-2">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const input = document.getElementById("avatar-upload-input");
-                                    input?.click();
-                                  }}
-                                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-xs font-semibold text-slate-300 border border-slate-700/60 transition-colors"
-                                >
-                                  Thay ảnh mới
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const newForm = { ...profileForm, avatarUrl: "" };
-                                    setProfileForm(newForm);
-                                    saveProfile(newForm);
-                                  }}
-                                  className="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-950/80 text-xs font-semibold text-rose-400 border border-rose-900/60 transition-colors"
-                                >
-                                  Xóa ảnh
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center gap-2 text-center py-2">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/50 transition-transform">
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                              </svg>
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-slate-300">Kéo thả ảnh hoặc click để chọn</p>
-                              <p className="text-[10px] text-slate-500 mt-0.5">Hỗ trợ PNG, JPG, GIF (Tải trực tiếp lên Supabase Storage)</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ProfilePanel
+                profileForm={editor.profileForm}
+                handleProfileChange={editor.handleProfileChange}
+                handleThemeChange={editor.handleThemeChange}
+                setProfileForm={editor.setProfileForm}
+                saveProfile={editor.saveProfile}
+              />
             )}
 
-            {/* SUMMARY TAB */}
             {activeTab === "summary" && (
-              <div className="space-y-4">
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Tự giới thiệu bản thân</h3>
-                      <p className="text-xs text-slate-500 mt-1">Viết một mô tả ngắn gọn về kinh nghiệm cốt lõi của bạn (hỗ trợ định dạng Markdown).</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => {
-                          setAiTarget({ type: "summary" });
-                          setAiStreamingOutput("");
-                          setShowAiModal(true);
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow shadow-indigo-500/10 border-none transition-all"
-                      >
-                        ✨ AI Tối ưu hóa
-                      </button>
-                      <span className="text-xs font-mono text-slate-500">{summaryText.length} ký tự</span>
-                    </div>
-                  </div>
-
-                  <textarea
-                    rows={8}
-                    value={summaryText}
-                    onChange={(e) => {
-                      setSummaryText(e.target.value);
-                      saveSummary(e.target.value);
-                    }}
-                    placeholder="Ví dụ: Tôi là một Kỹ sư phần mềm có hơn 5 năm kinh nghiệm làm việc với các hệ thống phân tán..."
-                    className="w-full rounded-lg bg-slate-900 border border-slate-800 px-4 py-3 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none font-sans leading-relaxed"
-                  />
-                </div>
-              </div>
+              <SummaryPanel
+                summaryText={editor.summaryText}
+                setSummaryText={editor.setSummaryText}
+                saveSummary={editor.saveSummary}
+                openAiRewrite={ai.openAiRewrite}
+              />
             )}
 
-            {/* EXPERIENCE TAB */}
             {activeTab === "experience" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Lịch sử làm việc</h3>
-                  <button
-                    onClick={addExperienceItem}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
-                  >
-                    + Thêm công ty
-                  </button>
-                </div>
-
-                {experiences.map((exp) => (
-                  <div key={exp.id} className="relative rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4 group">
-                    <div className="absolute top-4 right-4 flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setAiTarget({ type: "experience", id: exp.id });
-                          setAiStreamingOutput("");
-                          setShowAiModal(true);
-                        }}
-                        className="flex h-8 px-2.5 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700/80 text-indigo-400 hover:text-indigo-300 border border-slate-700/60 transition-all text-xs font-bold"
-                        title="Tối ưu mô tả bằng AI"
-                      >
-                        ✨ AI Rewrite
-                      </button>
-                      <button
-                        onClick={() => removeExperienceItem(exp.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-900/60 transition-all"
-                        title="Xóa công ty"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                      </svg>
-                    </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Tên công ty *</label>
-                        <input
-                          type="text"
-                          value={exp.company}
-                          onChange={(e) => updateExperienceItem(exp.id, "company", e.target.value)}
-                          onBlur={() => saveExperiences()}
-                          placeholder="Ví dụ: Google LLC"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Vị trí chức danh *</label>
-                        <input
-                          type="text"
-                          value={exp.position}
-                          onChange={(e) => updateExperienceItem(exp.id, "position", e.target.value)}
-                          onBlur={() => saveExperiences()}
-                          placeholder="Ví dụ: Senior Developer"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Bắt đầu (YYYY-MM) *</label>
-                        <input
-                          type="text"
-                          value={exp.startDate}
-                          onChange={(e) => updateExperienceItem(exp.id, "startDate", e.target.value)}
-                          onBlur={() => saveExperiences()}
-                          placeholder="2022-01"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Kết thúc (YYYY-MM)</label>
-                        <input
-                          type="text"
-                          value={exp.endDate || ""}
-                          disabled={exp.current}
-                          onChange={(e) => updateExperienceItem(exp.id, "endDate", e.target.value)}
-                          onBlur={() => saveExperiences()}
-                          placeholder="2024-05"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none disabled:opacity-40"
-                        />
-                      </div>
-                      <div className="flex items-center mt-6">
-                        <label className="flex items-center gap-2 text-xs font-medium text-slate-400 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={exp.current}
-                            onChange={(e) => {
-                              updateExperienceItem(exp.id, "current", e.target.checked);
-                              saveExperiences(experiences.map(ex => ex.id === exp.id ? { ...ex, current: e.target.checked } : ex));
-                            }}
-                            className="rounded bg-slate-900 border-slate-800 text-indigo-600 focus:ring-indigo-500"
-                          />
-                          <span>Hiện đang làm ở đây</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Mô tả công việc (Markdown)</label>
-                      <textarea
-                        rows={4}
-                        value={exp.description}
-                        onChange={(e) => updateExperienceItem(exp.id, "description", e.target.value)}
-                        onBlur={() => saveExperiences()}
-                        placeholder="- Lập trình backend bằng Node.js và NestJS..."
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ExperiencePanel
+                experiences={editor.experiences}
+                addExperienceItem={editor.addExperienceItem}
+                updateExperienceItem={editor.updateExperienceItem}
+                removeExperienceItem={editor.removeExperienceItem}
+                saveExperiences={editor.saveExperiences}
+                openAiRewrite={ai.openAiRewrite}
+              />
             )}
 
-            {/* EDUCATION TAB */}
             {activeTab === "education" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Học vấn & Trình độ</h3>
-                  <button
-                    onClick={addEducationItem}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
-                  >
-                    + Thêm học vấn
-                  </button>
-                </div>
-
-                {educations.map((edu) => (
-                  <div key={edu.id} className="relative rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4 group">
-                    <button
-                      onClick={() => removeEducationItem(edu.id)}
-                      className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-900/60 transition-all"
-                      title="Xóa học vấn"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                      </svg>
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Trường/Cơ sở đào tạo *</label>
-                        <input
-                          type="text"
-                          value={edu.institution}
-                          onChange={(e) => updateEducationItem(edu.id, "institution", e.target.value)}
-                          onBlur={() => saveEducations()}
-                          placeholder="Ví dụ: Đại học Bách Khoa"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Bằng cấp *</label>
-                        <input
-                          type="text"
-                          value={edu.degree}
-                          onChange={(e) => updateEducationItem(edu.id, "degree", e.target.value)}
-                          onBlur={() => saveEducations()}
-                          placeholder="Cử nhân / Thạc sĩ / Kỹ sư"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-4">
-                      <div className="col-span-2">
-                        <label className="block text-xs font-medium text-slate-400">Chuyên ngành</label>
-                        <input
-                          type="text"
-                          value={edu.fieldOfStudy || ""}
-                          onChange={(e) => updateEducationItem(edu.id, "fieldOfStudy", e.target.value)}
-                          onBlur={() => saveEducations()}
-                          placeholder="Ví dụ: Khoa học máy tính"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Bắt đầu (YYYY-MM)</label>
-                        <input
-                          type="text"
-                          value={edu.startDate}
-                          onChange={(e) => updateEducationItem(edu.id, "startDate", e.target.value)}
-                          onBlur={() => saveEducations()}
-                          placeholder="2020-09"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Tốt nghiệp (YYYY-MM)</label>
-                        <input
-                          type="text"
-                          value={edu.endDate || ""}
-                          disabled={edu.current}
-                          onChange={(e) => updateEducationItem(edu.id, "endDate", e.target.value)}
-                          onBlur={() => saveEducations()}
-                          placeholder="2024-06"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none disabled:opacity-40"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center">
-                      <label className="flex items-center gap-2 text-xs font-medium text-slate-400 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!edu.current}
-                          onChange={(e) => {
-                            updateEducationItem(edu.id, "current", e.target.checked);
-                            saveEducations(educations.map(ed => ed.id === edu.id ? { ...ed, current: e.target.checked } : ed));
-                          }}
-                          className="rounded bg-slate-900 border-slate-800 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span>Hiện đang học tại đây</span>
-                      </label>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">GPA</label>
-                      <input
-                        type="text"
-                        value={edu.gpa || ""}
-                        onChange={(e) => updateEducationItem(edu.id, "gpa", e.target.value)}
-                        onBlur={() => saveEducations()}
-                        placeholder="3.6/4.0 hoặc Giỏi"
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none max-w-[200px]"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <EducationPanel
+                educations={editor.educations}
+                addEducationItem={editor.addEducationItem}
+                updateEducationItem={editor.updateEducationItem}
+                removeEducationItem={editor.removeEducationItem}
+                saveEducations={editor.saveEducations}
+              />
             )}
 
-            {/* SKILLS TAB */}
-            {activeTab === "skills" && (() => {
-              const getLevelLabel = (level: string) => {
-                switch (level) {
-                  case "Beginner": return "Beginner";
-                  case "Intermediate": return "Intermediate";
-                  case "Advanced": return "Advanced";
-                  case "Professional": return "Professional";
-                  case "Expert": return "Expert";
-                  default:
-                    return "Advanced";
-                }
-              };
+            {activeTab === "skills" && (
+              <SkillsPanel
+                skills={editor.skills}
+                setSkills={editor.setSkills}
+                showLevel={editor.showLevel}
+                handleShowLevelChange={editor.handleShowLevelChange}
+                addSkillItem={editor.addSkillItem}
+                updateSkillItem={editor.updateSkillItem}
+                removeSkillItem={editor.removeSkillItem}
+                saveSkills={editor.saveSkills}
+                profileTitle={editor.profileForm.title}
+                cvLocale={editor.cv.locale}
+              />
+            )}
 
-              const getKnobLeft = (level: string) => {
-                switch (level) {
-                  case "Beginner": return "4px";
-                  case "Intermediate": return "calc(20% + 2px)";
-                  case "Advanced": return "calc(40% + 2px)";
-                  case "Professional": return "calc(60% + 2px)";
-                  case "Expert": return "calc(80% + 2px)";
-                  default: return "calc(40% + 2px)";
-                }
-              };
-
-              return (
-                <div className="space-y-6">
-                  {/* Show Experience Level Toggle */}
-                  <div className="flex items-center gap-3 py-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextVal = !showLevel;
-                        setShowLevel(nextVal);
-                        saveSkills(skills, nextVal);
-                      }}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        showLevel ? "bg-sky-500" : "bg-slate-800"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          showLevel ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                    <span className="text-sm font-medium text-slate-300">Show experience level</span>
-                  </div>
-
-                  <div className="h-[1px] bg-slate-800/80 my-2" />
-
-                  {/* AI SUGGESTED SKILLS */}
-                  <div className="rounded-2xl border border-sky-950/40 bg-slate-900/20 p-5 space-y-4 shadow-lg shadow-sky-950/5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sky-400">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                            <path fillRule="evenodd" d="M9 4.5a.75.75 0 0 1 .721.544l.813 2.846a3.75 3.75 0 0 0 2.576 2.576l2.846.813a.75.75 0 0 1 0 1.442l-2.846.813a3.75 3.75 0 0 0-2.576 2.576l-.813 2.846a.75.75 0 0 1-1.442 0l-.813-2.846a3.75 3.75 0 0 0-2.576-2.576l-2.846-.813a.75.75 0 0 1 0-1.442l2.846-.813A3.75 3.75 0 0 0 7.43 7.89l.813-2.846A.75.75 0 0 1 9 4.5ZM18.75 1.5a.75.75 0 0 1 .75.75v.003c0 .356-.25.684-.6.741l-.315.053a1.125 1.125 0 0 0-.915.915l-.053.315a.75.75 0 0 1-1.474-.247l.053-.315a1.125 1.125 0 0 0-.915-.915l-.315-.053a.75.75 0 0 1 .166-1.474l.315.053a1.125 1.125 0 0 0 .915.915l.053.315a.75.75 0 0 1 1.474.247l-.053-.315a1.125 1.125 0 0 0 .915-.915l.315-.053a.75.75 0 0 1 .75-.75Zm-2.25 16.5a.75.75 0 0 1 .75.75v.003c0 .356-.25.684-.6.741l-.315.053a1.125 1.125 0 0 0-.915.915l-.053.315a.75.75 0 0 1-1.474-.247l.053-.315a1.125 1.125 0 0 0-.915-.915l-.315-.053a.75.75 0 0 1 .166-1.474l.315.053a1.125 1.125 0 0 0 .915.915l.053.315a.75.75 0 0 1 1.474.247l-.053-.315a1.125 1.125 0 0 0 .915-.915l.315-.053a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
-                          </svg>
-                        </span>
-                        <h4 className="text-sm font-semibold text-slate-200">
-                          {profileForm.title ? (
-                            <>Suggested skills for <span className="text-sky-400 font-bold">{profileForm.title}</span></>
-                          ) : (
-                            "Suggested skills from AI"
-                          )}
-                        </h4>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleRegenerateSkills}
-                        disabled={isSuggestingSkills}
-                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-gradient-to-r from-violet-600 to-sky-500 hover:from-violet-700 hover:to-sky-600 text-white shadow-lg shadow-sky-500/10 transition-all border-none disabled:opacity-40"
-                      >
-                        {isSuggestingSkills ? (
-                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                            <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.75a.75.75 0 0 0-.75.75v4.482a.75.75 0 0 0 1.5 0v-2.299l.322.322a7 7 0 0 0 11.758-3.15.75.75 0 0 0-1.268-.615ZM16.25 3.75a.75.75 0 0 0-1.5 0v2.299l-.322-.322A7 7 0 0 0 2.67 10.877a.75.75 0 1 0 1.268.616 5.5 5.5 0 0 1 9.201-2.466l.312.311h-2.433a.75.75 0 0 0 0 1.5h4.482a.75.75 0 0 0 .75-.75V3.75Z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                        <span>Regenerate ({suggestCount}/5)</span>
-                      </button>
-                    </div>
-
-                    {suggestedSkills.length > 0 ? (
-                      <div className="flex flex-wrap gap-2.5">
-                        {suggestedSkills.map((skName) => {
-                          const isAdded = skills.some(s => s.name.toLowerCase() === skName.toLowerCase());
-                          return (
-                            <button
-                              key={skName}
-                              type="button"
-                              onClick={() => {
-                                if (isAdded) {
-                                  const matched = skills.find(s => s.name.toLowerCase() === skName.toLowerCase());
-                                  if (matched) {
-                                    const updated = skills.filter(s => s.id !== matched.id);
-                                    setSkills(updated);
-                                    saveSkills(updated);
-                                  }
-                                } else {
-                                  const newItem = {
-                                    id: `skill_${Date.now()}_${Math.random()}`,
-                                    name: skName,
-                                    level: "Advanced",
-                                  };
-                                  const updated = [...skills, newItem];
-                                  setSkills(updated);
-                                  saveSkills(updated);
-                                }
-                              }}
-                              className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                                isAdded
-                                  ? "bg-sky-500/25 border-sky-400 text-sky-300 font-extrabold shadow shadow-sky-500/15 scale-[1.02] ring-1 ring-sky-400/20"
-                                  : "bg-slate-900 border-slate-800/80 text-slate-400 hover:text-slate-200 hover:border-slate-700"
-                              }`}
-                            >
-                              {skName}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        {profileForm.title 
-                          ? 'Chưa có gợi ý kỹ năng. Click nút "Regenerate" để lấy gợi ý phù hợp nhất với vị trí công việc của bạn.'
-                          : 'Vui lòng nhập Chức danh tại phần Thông tin cá nhân để kích hoạt tính năng gợi ý kỹ năng phù hợp từ AI.'}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Kỹ năng chuyên môn</h3>
-                    <button
-                      onClick={addSkillItem}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
-                    >
-                      + Thêm kỹ năng
-                    </button>
-                  </div>
-
-                  {/* Skill List Container (Vertical Stack) */}
-                  <div className="space-y-4">
-                    {skills.map((sk, index) => (
-                      <div
-                        key={sk.id}
-                        draggable={true}
-                        onDragStart={(e) => {
-                          const isHandle = (e.target as HTMLElement).closest("[data-drag-handle]");
-                          if (!isHandle) {
-                            e.preventDefault();
-                            return;
-                          }
-                          e.dataTransfer.effectAllowed = "move";
-                          draggedIndexRef.current = index;
-                          e.dataTransfer.setData("text/plain", index.toString());
-                          setDragIndex(index);
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          if (draggedIndexRef.current === null || draggedIndexRef.current === index) return;
-                          
-                          const reordered = [...skills];
-                          const draggedItem = reordered[draggedIndexRef.current];
-                          reordered.splice(draggedIndexRef.current, 1);
-                          reordered.splice(index, 0, draggedItem);
-                          
-                          draggedIndexRef.current = index;
-                          setSkills(reordered);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          saveSkills(skills);
-                        }}
-                        onDragEnd={() => {
-                          draggedIndexRef.current = null;
-                          setDragIndex(null);
-                          saveSkills(skills);
-                        }}
-                        className={`flex items-center gap-3 w-full group transition-all ${
-                          dragIndex === index ? "opacity-40 scale-[0.98]" : ""
-                        }`}
-                      >
-                        {/* Grip Handle */}
-                        <div
-                          data-drag-handle="true"
-                          className="text-slate-600 cursor-grab hover:text-slate-400 active:cursor-grabbing p-1 flex items-center justify-center shrink-0 transition-colors"
-                          title="Kéo để sắp xếp thứ tự"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <circle cx="9" cy="5" r="2" />
-                            <circle cx="9" cy="12" r="2" />
-                            <circle cx="9" cy="19" r="2" />
-                            <circle cx="15" cy="5" r="2" />
-                            <circle cx="15" cy="12" r="2" />
-                            <circle cx="15" cy="19" r="2" />
-                          </svg>
-                        </div>
-
-                        {/* Skill Card Container */}
-                        <div className="flex-1 flex items-center gap-5 bg-slate-900/40 border border-slate-800 rounded-2xl p-4 transition-all hover:border-slate-700/80">
-                          {/* Skill Input Area */}
-                          <div className="flex-1">
-                            <label className="block text-[11px] font-medium text-slate-500 mb-1.5">Skill</label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={sk.name}
-                                onChange={(e) => updateSkillItem(sk.id, "name", e.target.value)}
-                                onBlur={() => saveSkills()}
-                                placeholder="Ví dụ: Typescript"
-                                className="w-full rounded-lg bg-slate-950 border border-slate-850 pl-3 pr-9 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
-                              />
-                              {sk.name.trim() && (
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-450">
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.748-5.25Z" clipRule="evenodd" />
-                                  </svg>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Level Slider Area (only show if showLevel is enabled) */}
-                          {showLevel && (
-                            <div className="shrink-0 flex flex-col justify-between">
-                              <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
-                                Level — <span className="text-sky-400 font-bold">{getLevelLabel(sk.level)}</span>
-                              </label>
-                              
-                              {/* Custom Segmented Slider */}
-                              <div className="relative w-44 h-9 bg-slate-950 rounded-lg border border-slate-850 p-1 flex items-center select-none">
-                                {/* Separators */}
-                                <div className="absolute left-[20%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
-                                <div className="absolute left-[40%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
-                                <div className="absolute left-[60%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
-                                <div className="absolute left-[80%] top-2.5 bottom-2.5 w-[1px] bg-slate-800" />
-
-                                {/* Slider Knob */}
-                                <div
-                                  className="absolute top-1 bottom-1 w-[calc(20%-6px)] bg-gradient-to-br from-sky-400 to-sky-500 rounded-md shadow-md transition-all duration-200 ease-out"
-                                  style={{ left: getKnobLeft(sk.level) }}
-                                />
-
-                                {/* Clickable segments */}
-                                <div className="absolute inset-0 flex">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateSkillItem(sk.id, "level", "Beginner");
-                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Beginner" } : s));
-                                    }}
-                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
-                                    title="Cơ bản (Beginner)"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateSkillItem(sk.id, "level", "Intermediate");
-                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Intermediate" } : s));
-                                    }}
-                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
-                                    title="Khá (Intermediate)"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateSkillItem(sk.id, "level", "Advanced");
-                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Advanced" } : s));
-                                    }}
-                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
-                                    title="Thành thạo (Advanced)"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateSkillItem(sk.id, "level", "Professional");
-                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Professional" } : s));
-                                    }}
-                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
-                                    title="Rất giỏi (Professional)"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateSkillItem(sk.id, "level", "Expert");
-                                      saveSkills(skills.map(s => s.id === sk.id ? { ...s, level: "Expert" } : s));
-                                    }}
-                                    className="flex-1 h-full bg-transparent border-none outline-none cursor-pointer"
-                                    title="Chuyên gia (Expert)"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Delete Skill Button */}
-                          <div className="shrink-0 pt-5">
-                            <button
-                              type="button"
-                              onClick={() => removeSkillItem(sk.id)}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-950 hover:bg-rose-950/80 text-slate-400 hover:text-rose-450 border border-slate-850 hover:border-rose-900/60 transition-all"
-                              title="Xóa kỹ năng"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* PROJECTS TAB */}
             {activeTab === "projects" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Dự án cá nhân / Tiêu biểu</h3>
-                  <button
-                    onClick={addProjectItem}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
-                  >
-                    + Thêm dự án
-                  </button>
-                </div>
-
-                {projects.map((proj) => (
-                  <div key={proj.id} className="relative rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4 group">
-                    <button
-                      onClick={() => removeProjectItem(proj.id)}
-                      className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-900/60 transition-all"
-                      title="Xóa dự án"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                      </svg>
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Tên dự án *</label>
-                        <input
-                          type="text"
-                          value={proj.name}
-                          onChange={(e) => updateProjectItem(proj.id, "name", e.target.value)}
-                          onBlur={() => saveProjects()}
-                          placeholder="Ví dụ: BetterCV Web App"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Vai trò trong dự án</label>
-                        <input
-                          type="text"
-                          value={proj.role || ""}
-                          onChange={(e) => updateProjectItem(proj.id, "role", e.target.value)}
-                          onBlur={() => saveProjects()}
-                          placeholder="Ví dụ: Team Lead / Fullstack"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="col-span-2">
-                        <label className="block text-xs font-medium text-slate-400">Đường dẫn liên kết dự án</label>
-                        <input
-                          type="text"
-                          value={proj.url || ""}
-                          onChange={(e) => updateProjectItem(proj.id, "url", e.target.value)}
-                          onBlur={() => saveProjects()}
-                          placeholder="https://github.com/name/project"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400">Công nghệ (cách nhau bằng phẩy)</label>
-                        <input
-                          type="text"
-                          value={Array.isArray(proj.technologies) ? proj.technologies.join(", ") : ""}
-                          onChange={(e) => {
-                            const tags = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                            updateProjectItem(proj.id, "technologies", tags);
-                          }}
-                          onBlur={() => saveProjects()}
-                          placeholder="React, Node.js"
-                          className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Mô tả dự án (Markdown)</label>
-                      <textarea
-                        rows={3}
-                        value={proj.description}
-                        onChange={(e) => updateProjectItem(proj.id, "description", e.target.value)}
-                        onBlur={() => saveProjects()}
-                        placeholder="- Lập trình backend bằng Node.js và NestJS..."
-                        className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ProjectsPanel
+                projects={editor.projects}
+                addProjectItem={editor.addProjectItem}
+                updateProjectItem={editor.updateProjectItem}
+                removeProjectItem={editor.removeProjectItem}
+                saveProjects={editor.saveProjects}
+              />
             )}
 
-            {/* ATS EVALUATE TAB */}
             {activeTab === "ats" && (
-              <div className="space-y-6">
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Chấm Điểm & Tối ưu hóa ATS</h3>
-                    <p className="text-xs text-slate-500 mt-1">Dán mô tả công việc (Job Description) mục tiêu vào đây để hệ thống tự động quét từ khóa và đo lường độ trùng khớp.</p>
-                  </div>
-
-                  <textarea
-                    rows={6}
-                    value={jobDescription}
-                    onChange={(e) => setJobDescription(e.target.value)}
-                    placeholder="Ví dụ: Yêu cầu ứng viên có kinh nghiệm lập trình React, Node.js và TypeScript. Hiểu biết sâu về cơ sở dữ liệu PostgreSQL..."
-                    className="w-full rounded-lg bg-slate-900 border border-slate-800 px-4 py-3 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                  />
-
-                  <button
-                    onClick={runAtsAnalysis}
-                    disabled={isAnalyzingAts}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 py-3 text-sm font-bold text-white shadow shadow-indigo-500/10 border-none transition-all disabled:opacity-50"
-                  >
-                    {isAnalyzingAts ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                        Đang phân tích CV theo chuẩn ATS...
-                      </>
-                    ) : (
-                      "Bắt đầu chấm điểm ATS 🎯"
-                    )}
-                  </button>
-                </div>
-
-                {atsReport && (
-                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-5 space-y-6 animate-in fade-in duration-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-200">Kết quả phân tích tổng quan</h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Dựa trên thuật toán so khớp trọng số thông minh</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-400 uppercase block tracking-wider font-semibold">Điểm ATS</span>
-                          <span className={`text-2xl font-black ${
-                            atsReport.score >= 80 ? "text-emerald-400" : atsReport.score >= 50 ? "text-amber-400" : "text-rose-400"
-                          }`}>{atsReport.score}/100</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      {atsReport.rulesEvaluated.map((rule, idx) => (
-                        <div key={idx} className="rounded-lg border border-slate-850 bg-slate-900/20 p-3 text-center">
-                          <span className="text-[10px] text-slate-400 block truncate font-medium">{rule.ruleName}</span>
-                          <span className={`text-lg font-bold block mt-1.5 ${
-                            rule.score >= 80 ? "text-emerald-400" : rule.score >= 50 ? "text-amber-400" : "text-rose-400"
-                          }`}>{rule.score}%</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="space-y-3 border-t border-slate-800 pt-4">
-                      <h5 className="text-xs font-bold text-amber-400 uppercase tracking-wider">Phát hiện của hệ thống</h5>
-                      <ul className="space-y-1.5">
-                        {atsReport.findings.map((finding, idx) => (
-                          <li key={idx} className="text-xs text-slate-300 flex items-start gap-2 leading-relaxed">
-                            <span className="text-amber-500 mt-1">•</span>
-                            <span>{finding}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="space-y-3 border-t border-slate-800 pt-4">
-                      <h5 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Hành động khắc phục đề xuất</h5>
-                      <ul className="space-y-1.5">
-                        {atsReport.recommendations.map((rec, idx) => (
-                          <li key={idx} className="text-xs text-slate-300 flex items-start gap-2 leading-relaxed">
-                            <span className="text-indigo-400 mt-1">✓</span>
-                            <span>{rec}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AtsPanel cvId={cvId} />
             )}
 
-            {/* SETTINGS TAB */}
             {activeTab === "settings" && (
-              <div className="space-y-6">
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Mẫu giao diện (Template)</h3>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-400">Chọn mẫu thiết kế phù hợp</label>
-                    <select
-                      value={cv.templateId || ""}
-                      onChange={(e) => {
-                        const newTplId = e.target.value;
-                        const matched = templates.find((t) => t.id === newTplId);
-                        if (matched) {
-                          setSelectedTemplate(matched);
-                          saveMetadata({ templateId: newTplId });
-                        }
-                      }}
-                      className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-850 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
-                    >
-                      <option value="" disabled>-- Chọn mẫu giao diện --</option>
-                      {templates.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.category?.name || "General"})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Cài đặt ngôn ngữ</h3>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-400">Ngôn ngữ hiển thị chính</label>
-                    <select
-                      value={cv.locale}
-                      onChange={(e) => {
-                        saveMetadata({ locale: e.target.value as "en" | "vi" });
-                        // Re-trigger load to ensure server has updated the locale configuration
-                        setTimeout(() => loadCv(cvId), 200);
-                      }}
-                      className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-850 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
-                    >
-                      <option value="vi">Tiếng Việt (vi)</option>
-                      <option value="en">Tiếng Anh (en)</option>
-                      <option value="ja">Tiếng Nhật (ja)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Tùy biến dải màu CV</h3>
-                  <p className="text-xs text-slate-500">Tự do tinh chỉnh màu sắc chủ đạo và điểm nhấn để phù hợp với thương hiệu cá nhân của bạn.</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Màu chủ đạo (Primary Color)</label>
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          type="color"
-                          value={profileForm.theme?.primaryColor || (selectedTemplate ? getTemplateStyles(selectedTemplate.id).primaryColor : "#1e293b")}
-                          onChange={(e) => {
-                            const newTheme = { ...profileForm.theme, primaryColor: e.target.value };
-                            const newForm = { ...profileForm, theme: newTheme };
-                            setProfileForm(newForm);
-                            saveProfile(newForm);
-                          }}
-                          className="h-9 w-9 cursor-pointer rounded-lg border border-slate-700 bg-transparent p-0"
-                        />
-                        <input
-                          type="text"
-                          value={profileForm.theme?.primaryColor || ""}
-                          onChange={(e) => {
-                            const newTheme = { ...profileForm.theme, primaryColor: e.target.value };
-                            const newForm = { ...profileForm, theme: newTheme };
-                            setProfileForm(newForm);
-                            saveProfile(newForm);
-                          }}
-                          placeholder={selectedTemplate ? getTemplateStyles(selectedTemplate.id).primaryColor : "#1e293b"}
-                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400">Màu điểm nhấn (Accent Color)</label>
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          type="color"
-                          value={profileForm.theme?.accentColor || (selectedTemplate ? getTemplateStyles(selectedTemplate.id).accentColor : "#3b82f6")}
-                          onChange={(e) => {
-                            const newTheme = { ...profileForm.theme, accentColor: e.target.value };
-                            const newForm = { ...profileForm, theme: newTheme };
-                            setProfileForm(newForm);
-                            saveProfile(newForm);
-                          }}
-                          className="h-9 w-9 cursor-pointer rounded-lg border border-slate-700 bg-transparent p-0"
-                        />
-                        <input
-                          type="text"
-                          value={profileForm.theme?.accentColor || ""}
-                          onChange={(e) => {
-                            const newTheme = { ...profileForm.theme, accentColor: e.target.value };
-                            const newForm = { ...profileForm, theme: newTheme };
-                            setProfileForm(newForm);
-                            saveProfile(newForm);
-                          }}
-                          placeholder={selectedTemplate ? getTemplateStyles(selectedTemplate.id).accentColor : "#3b82f6"}
-                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <TemplatePicker
+                cv={editor.cv}
+                templates={editor.templates}
+                selectedTemplate={editor.selectedTemplate}
+                setSelectedTemplate={editor.setSelectedTemplate}
+                saveMetadata={editor.saveMetadata}
+                profileForm={editor.profileForm}
+                setProfileForm={editor.setProfileForm}
+                saveProfile={editor.saveProfile}
+                loadCv={loadCv}
+              />
             )}
           </div>
         </div>
@@ -2042,7 +385,7 @@ export default function CvEditorPage() {
               className="bg-white shadow-2xl origin-top transition-transform duration-200"
               style={{
                 transform: `scale(${previewScale / 100})`,
-                width: "816px", // Standard US Letter/A4 proportional width
+                width: "816px",
                 minHeight: "1056px",
               }}
             >
@@ -2058,179 +401,31 @@ export default function CvEditorPage() {
           </div>
 
           {/* Versions Sidebar Drawer */}
-          {showHistory && (
-            <div className="absolute right-0 top-0 bottom-0 w-80 bg-slate-950 border-l border-slate-800 shadow-2xl flex flex-col z-30 animate-in slide-in-from-right duration-300">
-              <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60 sticky top-0">
-                <div>
-                  <h3 className="text-sm font-semibold text-indigo-400">Lịch sử sao lưu đám mây</h3>
-                  <p className="text-xs text-slate-500">20 phiên bản tự động sao lưu gần đây</p>
-                </div>
-                <button
-                  onClick={() => setShowHistory(false)}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {isLoadingVersions ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"></div>
-                    <span className="text-xs text-slate-500">Đang tải lịch sử...</span>
-                  </div>
-                ) : versions.length === 0 ? (
-                  <div className="text-center text-xs text-slate-600 py-10">Không tìm thấy bản sao lưu nào.</div>
-                ) : (
-                  versions.map((ver, index) => {
-                    const date = new Date(ver.createdAt);
-                    return (
-                      <div
-                        key={ver.id}
-                        className="rounded-xl border border-slate-800 bg-slate-900/30 p-3 hover:bg-slate-900/80 transition-all flex flex-col gap-2"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="text-xs font-semibold text-slate-300">Bản lưu #{versions.length - index}</span>
-                            <div className="text-[10px] text-slate-500 mt-0.5">
-                              {date.toLocaleDateString("vi-VN")} {date.toLocaleTimeString("vi-VN")}
-                            </div>
-                          </div>
-                          <span className="rounded bg-indigo-950 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-400">
-                            v{index === 0 ? cv.version : (ver.snapshot.version || index)}
-                          </span>
-                        </div>
-                        
-                        <div className="text-xs text-slate-400 truncate">
-                          Mẫu: <span className="font-semibold text-slate-300">{ver.snapshot.templateId || "Standard"}</span>
-                        </div>
-
-                        <button
-                          onClick={() => handleRestoreVersion(ver.id)}
-                          className="mt-1 w-full rounded bg-slate-800 hover:bg-indigo-950 py-1 text-[11px] font-semibold text-slate-300 hover:text-indigo-400 transition-colors border border-slate-700/60 hover:border-indigo-900/60"
-                        >
-                          Phục hồi bản này
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
+          <HistorySidebar
+            showHistory={showHistory}
+            setShowHistory={setShowHistory}
+            cvId={cvId}
+            cvVersionNum={editor.cv.version}
+            cvLocale={editor.cv.locale}
+            loadCv={loadCv}
+          />
         </div>
       </div>
 
       {/* AI Rewrite Assistant Modal Dialog */}
-      {showAiModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-4xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse"></span>
-                <span className="text-sm font-bold text-white">✨ Trợ lý AI Viết CV (Smart Assistant Suite)</span>
-              </div>
-              <button
-                onClick={() => setShowAiModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Workspace - Split View */}
-            <div className="flex-1 flex overflow-hidden">
-              {/* Left Column: Original and Options */}
-              <div className="w-[45%] border-r border-slate-800 p-5 flex flex-col gap-4 overflow-y-auto bg-slate-950/20">
-                <div>
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Định dạng & Phong cách Rewrite</h4>
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                    {[
-                      { id: "professional", label: "Chuyên nghiệp" },
-                      { id: "concise", label: "Ngắn gọn" },
-                      { id: "ats", label: "Chuẩn ATS" }
-                    ].map((style) => (
-                      <button
-                        key={style.id}
-                        onClick={() => setAiStyle(style.id as any)}
-                        className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all ${
-                          aiStyle === style.id
-                            ? "bg-indigo-600 text-white border-none"
-                            : "bg-slate-800 text-slate-300 border border-slate-700/60 hover:bg-slate-700/60"
-                        }`}
-                      >
-                        {style.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex-1 flex flex-col">
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Văn bản gốc trong CV</h4>
-                  <div className="flex-1 bg-slate-950 rounded-xl p-4 border border-slate-850 text-xs text-slate-300 overflow-y-auto leading-relaxed">
-                    {aiTarget.type === "summary" 
-                      ? (summaryText || "(Văn bản trống)")
-                      : (experiences.find(e => e.id === aiTarget.id)?.description || "(Văn bản trống)")}
-                  </div>
-                </div>
-
-                <button
-                  onClick={triggerAiRewrite}
-                  disabled={isAiGenerating}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-sm font-bold text-white shadow shadow-indigo-500/10 border-none transition-all disabled:opacity-50"
-                >
-                  {isAiGenerating ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                      AI Đang viết trực tiếp (SSE)...
-                    </div>
-                  ) : (
-                    "✨ Khởi tạo đề xuất AI"
-                  )}
-                </button>
-              </div>
-
-              {/* Right Column: AI Suggestion output */}
-              <div className="flex-1 p-5 flex flex-col gap-4 bg-slate-950/40">
-                <div className="flex-1 flex flex-col">
-                  <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Đề xuất tối ưu từ AI</h4>
-                    {isAiGenerating && <span className="text-[10px] text-indigo-400 animate-pulse">Streaming từ OpenAI...</span>}
-                  </div>
-                  <textarea
-                    readOnly={isAiGenerating}
-                    value={aiStreamingOutput}
-                    onChange={(e) => setAiStreamingOutput(e.target.value)}
-                    placeholder="Đề xuất của AI sẽ xuất hiện tại đây..."
-                    className="flex-1 bg-slate-950 rounded-xl p-4 border border-slate-850 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 overflow-y-auto leading-relaxed font-sans"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 border-t border-slate-800 pt-4">
-                  <button
-                    onClick={() => setShowAiModal(false)}
-                    className="px-5 py-2.5 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    onClick={acceptAiSuggestion}
-                    disabled={!aiStreamingOutput || isAiGenerating}
-                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow transition-all border-none disabled:opacity-40"
-                  >
-                    Chấp nhận & Thay thế
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AiAssistantModal
+        showAiModal={ai.showAiModal}
+        setShowAiModal={ai.setShowAiModal}
+        aiTarget={ai.aiTarget}
+        aiStyle={ai.aiStyle}
+        setAiStyle={ai.setAiStyle}
+        aiStreamingOutput={ai.aiStreamingOutput}
+        isAiGenerating={ai.isAiGenerating}
+        triggerAiRewrite={ai.triggerAiRewrite}
+        acceptAiSuggestion={ai.acceptAiSuggestion}
+        summaryText={editor.summaryText}
+        experiences={editor.experiences}
+      />
 
       {/* Editing Conflicts Overlay Dialog */}
       <ConflictDialog />

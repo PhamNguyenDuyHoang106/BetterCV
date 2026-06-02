@@ -217,10 +217,27 @@ export class ExportService {
     const browser = await this.getBrowser();
     this.printCount++;
     const page = await browser.newPage();
+
+    // Đặt timeout mặc định 15 giây để tránh treo vô hạn
+    page.setDefaultTimeout(15000);
+    page.setDefaultNavigationTimeout(15000);
+
     try {
-      await page.setContent(html, { waitUntil: 'networkidle0' as any });
-      const pdf = await page.pdf({ format: 'A4', printBackground: true });
+      await page.setContent(html, {
+        waitUntil: 'networkidle0',
+        timeout: 15000,
+      });
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        timeout: 15000,
+      });
       return Buffer.from(pdf);
+    } catch (err: any) {
+      this.logger.error(
+        `Puppeteer render PDF failed or timed out: ${err.message}`,
+      );
+      throw err;
     } finally {
       await page.close();
     }
