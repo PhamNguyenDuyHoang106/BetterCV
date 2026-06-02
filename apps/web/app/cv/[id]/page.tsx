@@ -281,7 +281,7 @@ export default function CvEditorPage() {
                 summaryText={editor.summaryText}
                 setSummaryText={editor.setSummaryText}
                 saveSummary={editor.saveSummary}
-                openAiRewrite={ai.openAiRewrite}
+                openAiRewrite={ai.openAiModal}
               />
             )}
 
@@ -292,7 +292,7 @@ export default function CvEditorPage() {
                 updateExperienceItem={editor.updateExperienceItem}
                 removeExperienceItem={editor.removeExperienceItem}
                 saveExperiences={editor.saveExperiences}
-                openAiRewrite={ai.openAiRewrite}
+                openAiRewrite={ai.openAiModal}
               />
             )}
 
