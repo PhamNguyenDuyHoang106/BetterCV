@@ -6,12 +6,15 @@ import {
   STYLE_BADGE_CLASSES,
 } from "../../lib/dashboard-templates";
 import { PREVIEW_STAGE_INSET_PX, TemplatePreview } from "./TemplatePreview";
+import { renderHtml, GALLERY_DEMO_DATA } from "@acv/template-engine";
 
 export type ApiTemplate = {
   id: string;
   name: string;
+  schema?: any;
   category?: { name: string };
 };
+
 
 type Props = {
   templates: ApiTemplate[];
@@ -45,6 +48,78 @@ const GALLERY_TABS = [
 ] as const;
 
 type GalleryTabId = (typeof GALLERY_TABS)[number]["id"];
+
+// ─── renderHtml-based Gallery Preview ─────────────────────────────────────
+// Renders the actual template HTML at 1:1 size then scales it down into the
+// card thumbnail. This guarantees Gallery ≡ Editor ≡ Export (same pipeline).
+// Falls back to the React mockup when schema is unavailable (offline mode).
+
+const A4_PX_W = 794; // A4 at 96dpi
+const SCALE_FACTOR = 0.35; // approximate card width ÷ A4_PX_W
+
+function TemplateHtmlPreview({
+  templateId,
+  templateName,
+  schema,
+  fallbackVariant,
+}: {
+  templateId: string;
+  templateName: string;
+  schema?: any;
+  fallbackVariant: import("../../lib/dashboard-templates").TemplatePreviewVariant;
+}) {
+  const [imageError, setImageError] = useState(false);
+
+  const html = useMemo(() => {
+    // If image did not error yet, we don't need to generate the HTML dynamically
+    if (!imageError) return null;
+    if (!schema) return null;
+    try {
+      return renderHtml({ template: schema, data: GALLERY_DEMO_DATA });
+    } catch {
+      return null;
+    }
+  }, [schema, imageError]);
+
+  if (!imageError) {
+    return (
+      <picture className="absolute inset-0 w-full h-full block">
+        <source
+          srcSet={`/thumbnails/${templateId}@2x.webp 2x, /thumbnails/${templateId}.webp 1x`}
+          type="image/webp"
+        />
+        <img
+          src={`/thumbnails/${templateId}.webp`}
+          alt={templateName}
+          className="w-full h-full object-cover transition-all duration-300 group-hover:scale-[1.03]"
+          onError={() => setImageError(true)}
+        />
+      </picture>
+    );
+  }
+
+  if (!html) {
+    return <TemplatePreview variant={fallbackVariant} size="card" fill />;
+  }
+
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden bg-white"
+      aria-hidden
+      style={{ pointerEvents: "none", userSelect: "none" }}
+    >
+      <div
+        dangerouslySetInnerHTML={{ __html: html }}
+        style={{
+          width: A4_PX_W,
+          transformOrigin: "top left",
+          transform: `scale(${SCALE_FACTOR})`,
+        }}
+      />
+    </div>
+  );
+}
+
 
 function TemplateCard({
   tpl,
@@ -86,7 +161,13 @@ function TemplateCard({
               bottom: PREVIEW_STAGE_INSET_PX,
             }}
           >
-            <TemplatePreview variant={tpl.meta.preview} size="card" fill />
+            <TemplateHtmlPreview
+              templateId={tpl.id}
+              templateName={tpl.name}
+              schema={tpl.schema}
+              fallbackVariant={tpl.meta.preview}
+            />
+
           </div>
 
           <span

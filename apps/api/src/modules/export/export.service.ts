@@ -32,8 +32,8 @@ export class ExportService {
   }
 
   async exportPdf(supabaseId: string, cvId: string) {
-    const { cv, template } = await this.getCvAndTemplate(supabaseId, cvId);
-    if (!template) {
+    const { cv, templateSchema } = await this.getCvAndTemplate(supabaseId, cvId);
+    if (!templateSchema) {
       throw new ForbiddenException('Template not found');
     }
 
@@ -41,7 +41,7 @@ export class ExportService {
     await this.cvService.snapshotVersion(cvId, true, true);
 
     const html = renderHtml({
-      template: template.schema as any,
+      template: templateSchema as any,
       data: this.flatten(cv),
     });
     const buffer = await this.renderPdf(html);
@@ -94,19 +94,36 @@ export class ExportService {
       throw new ForbiddenException('CV not found');
     }
 
-    if (!cv.templateId) {
+    if (!cv.templateId && !cv.templateVersionId) {
       if (requireTemplate)
         throw new ForbiddenException('Template not selected');
-      return { cv, template: null };
+      return { cv, templateSchema: null };
     }
 
-    const template = await this.prisma.template.findUnique({
-      where: { id: cv.templateId },
-    });
-    if (!template && requireTemplate) {
+    let templateSchema: any = null;
+    if (cv.templateVersionId) {
+      const ver = await this.prisma.templateVersion.findUnique({
+        where: { id: cv.templateVersionId },
+      });
+      if (ver) {
+        templateSchema = ver.schema;
+      }
+    }
+
+    if (!templateSchema && cv.templateId) {
+      const template = await this.prisma.template.findUnique({
+        where: { id: cv.templateId },
+      });
+      if (template) {
+        templateSchema = template.schema;
+      }
+    }
+
+    if (!templateSchema && requireTemplate) {
       throw new ForbiddenException('Template not found');
     }
-    return { cv, template };
+
+    return { cv, templateSchema };
   }
 
   private printCount = 0;

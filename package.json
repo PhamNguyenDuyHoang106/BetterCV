@@ -17,7 +17,8 @@
     "lint:api": "npm --workspace apps/api run lint",
     "db:generate": "npm --workspace apps/api run prisma:generate",
     "db:migrate": "npm --workspace apps/api run prisma:migrate",
-    "db:seed": "npm --workspace apps/api run prisma:seed"
+    "db:seed": "npm --workspace apps/api run prisma:seed",
+    "generate:thumbnails": "npm run generate:thumbnails --prefix packages/template-engine"
   },
   "engines": {
     "node": ">=18.18"

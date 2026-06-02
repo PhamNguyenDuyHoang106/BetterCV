@@ -116,6 +116,9 @@ model Cv {
   title                 String
   locale                String      @default("en")
   templateId            String?
+  templateVersionId     String?
+  templateVersion       TemplateVersion? @relation(fields: [templateVersionId], references: [id])
+  templateVersionNum    Int         @default(1)
   isDeleted             Boolean     @default(false)
   version               Int         @default(1)
   lastEditedSessionId   String?
@@ -172,8 +175,24 @@ model Template {
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
+  versions   TemplateVersion[]
+
   @@index([categoryId])
   @@index([isActive])
+}
+
+model TemplateVersion {
+  id         String   @id @default(cuid())
+  templateId String
+  version    Int      @default(1)
+  schema     Json
+  createdAt  DateTime @default(now())
+
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  cvs        Cv[]
+
+  @@unique([templateId, version])
+  @@index([templateId])
 }
 
 model ShareLink {

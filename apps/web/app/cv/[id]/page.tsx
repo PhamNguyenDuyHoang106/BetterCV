@@ -70,6 +70,9 @@ export default function CvEditorPage() {
     loadCv,
     updateCvMetadata,
     upsertSection,
+    setDraftMetadata,
+    setDraftSection,
+    syncDirtyChanges,
   } = useCvStore();
 
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -192,8 +195,10 @@ export default function CvEditorPage() {
       const matched = templates.find((t) => t.id === cv.templateId);
       if (matched) {
         setSelectedTemplate(matched);
-      } else if (!cv.templateId) {
-        // Set default template
+      } else {
+        // Fallback covers two cases:
+        // (a) cv.templateId is null → assign default
+        // (b) cv.templateId is set but template was deleted/deactivated → migrate gracefully
         const defaultTpl = templates.find((t) => t.id === "standard-ats") || templates[0];
         if (defaultTpl) {
           setSelectedTemplate(defaultTpl);
@@ -391,59 +396,26 @@ export default function CvEditorPage() {
     }
   };
 
-  // Autosave triggers for metadata and sections
-  const saveMetadata = (updates: { title?: string; locale?: "en" | "vi"; templateId?: string }) => {
-    // Update local Zustand store immediately for snappy UI
-    if (cv) {
-      useCvStore.setState({ cv: { ...cv, ...updates } });
-    }
-
-    const key = "metadata";
+  // Central Coalesced Autosave Coordinator
+  const triggerAutosave = useCallback(() => {
+    const key = "autosave";
     if (saveTimersRef.current[key]) {
       clearTimeout(saveTimersRef.current[key]);
     }
     saveTimersRef.current[key] = setTimeout(() => {
-      updateCvMetadata(updates);
+      syncDirtyChanges();
       delete saveTimersRef.current[key];
     }, 1000);
+  }, [syncDirtyChanges]);
+
+  const saveMetadata = (updates: { title?: string; locale?: "en" | "vi"; templateId?: string }) => {
+    setDraftMetadata(updates);
+    triggerAutosave();
   };
 
   const saveProfile = (updatedProfile = profileForm) => {
-    // Update local Zustand store immediately for snappy UI
-    if (cv && cv.sections) {
-      const existing = cv.sections.find((s) => s.type === "PROFILE");
-      const updatedSections = [...cv.sections];
-      const matchIndex = existing ? updatedSections.findIndex((s) => s.id === existing.id) : -1;
-      
-      const newSec = {
-        id: existing?.id || `temp_${Math.random()}`,
-        type: "PROFILE",
-        content: updatedProfile,
-        order: 1,
-      };
-
-      if (matchIndex !== -1) {
-        updatedSections[matchIndex] = newSec;
-      } else {
-        updatedSections.push(newSec);
-      }
-      useCvStore.setState({ cv: { ...cv, sections: updatedSections } });
-    }
-
-    const key = "profile";
-    if (saveTimersRef.current[key]) {
-      clearTimeout(saveTimersRef.current[key]);
-    }
-    saveTimersRef.current[key] = setTimeout(() => {
-      const existing = cv?.sections?.find((s) => s.type === "PROFILE");
-      upsertSection({
-        id: existing?.id,
-        type: "PROFILE",
-        content: updatedProfile,
-        order: 1,
-      });
-      delete saveTimersRef.current[key];
-    }, 1000);
+    setDraftSection("PROFILE", updatedProfile, 1);
+    triggerAutosave();
   };
 
   const handleAvatarUpload = async (file: File) => {
@@ -492,81 +464,28 @@ export default function CvEditorPage() {
   };
 
   const saveSummary = (text = summaryText) => {
-    // Update local Zustand store immediately for snappy UI
-    if (cv && cv.sections) {
-      const existing = cv.sections.find((s) => s.type === "SUMMARY");
-      const updatedSections = [...cv.sections];
-      const matchIndex = existing ? updatedSections.findIndex((s) => s.id === existing.id) : -1;
-      
-      const newSec = {
-        id: existing?.id || `temp_${Math.random()}`,
-        type: "SUMMARY",
-        content: { text },
-        order: 2,
-      };
-
-      if (matchIndex !== -1) {
-        updatedSections[matchIndex] = newSec;
-      } else {
-        updatedSections.push(newSec);
-      }
-      useCvStore.setState({ cv: { ...cv, sections: updatedSections } });
-    }
-
-    const key = "summary";
-    if (saveTimersRef.current[key]) {
-      clearTimeout(saveTimersRef.current[key]);
-    }
-    saveTimersRef.current[key] = setTimeout(() => {
-      const existing = cv?.sections?.find((s) => s.type === "SUMMARY");
-      upsertSection({
-        id: existing?.id,
-        type: "SUMMARY",
-        content: { text },
-        order: 2,
-      });
-      delete saveTimersRef.current[key];
-    }, 1000);
+    setDraftSection("SUMMARY", { text }, 2);
+    triggerAutosave();
   };
 
   const saveExperiences = (items = experiences) => {
-    const existing = cv?.sections?.find((s) => s.type === "EXPERIENCE");
-    upsertSection({
-      id: existing?.id,
-      type: "EXPERIENCE",
-      content: { items },
-      order: 3,
-    });
+    setDraftSection("EXPERIENCE", { items }, 3);
+    triggerAutosave();
   };
 
   const saveEducations = (items = educations) => {
-    const existing = cv?.sections?.find((s) => s.type === "EDUCATION");
-    upsertSection({
-      id: existing?.id,
-      type: "EDUCATION",
-      content: { items },
-      order: 4,
-    });
+    setDraftSection("EDUCATION", { items }, 4);
+    triggerAutosave();
   };
 
   const saveSkills = (items = skills, showLvl = showLevel) => {
-    const existing = cv?.sections?.find((s) => s.type === "SKILLS");
-    upsertSection({
-      id: existing?.id,
-      type: "SKILLS",
-      content: { items, showLevel: showLvl },
-      order: 5,
-    });
+    setDraftSection("SKILLS", { items, showLevel: showLvl }, 5);
+    triggerAutosave();
   };
 
   const saveProjects = (items = projects) => {
-    const existing = cv?.sections?.find((s) => s.type === "PROJECTS");
-    upsertSection({
-      id: existing?.id,
-      type: "PROJECTS",
-      content: { items },
-      order: 6,
-    });
+    setDraftSection("PROJECTS", { items }, 6);
+    triggerAutosave();
   };
 
 
@@ -1975,6 +1894,32 @@ export default function CvEditorPage() {
             {/* SETTINGS TAB */}
             {activeTab === "settings" && (
               <div className="space-y-6">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+                  <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Mẫu giao diện (Template)</h3>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400">Chọn mẫu thiết kế phù hợp</label>
+                    <select
+                      value={cv.templateId || ""}
+                      onChange={(e) => {
+                        const newTplId = e.target.value;
+                        const matched = templates.find((t) => t.id === newTplId);
+                        if (matched) {
+                          setSelectedTemplate(matched);
+                          saveMetadata({ templateId: newTplId });
+                        }
+                      }}
+                      className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-850 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value="" disabled>-- Chọn mẫu giao diện --</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.category?.name || "General"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                   <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Cài đặt ngôn ngữ</h3>
                   <div>

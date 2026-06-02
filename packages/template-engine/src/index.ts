@@ -1,5 +1,141 @@
 import { z } from "zod";
 
+// ─── Gallery Demo Data ─────────────────────────────────────────────────────
+// Canonical demo dataset for Gallery previews. Uses the same shape as real
+// ResumeData so the Gallery renders through the exact same pipeline as the
+// Editor and PDF Export. Stress-tests layout with realistic content density.
+
+export const GALLERY_DEMO_DATA: Record<string, unknown> = {
+  schemaVersion: 1,
+  profile: {
+    fullName: "Alex Mercer",
+    title: "Senior Software Engineer",
+    email: "alex.mercer@email.com",
+    phone: "+84 987 654 321",
+    linkedin: "https://linkedin.com/in/alexmercer",
+    github: "https://github.com/alexmercer",
+    website: "https://alexmercer.dev",
+    address: "123 Cầu Giấy",
+    city: "Hà Nội",
+    avatarUrl: "",
+    theme: { primaryColor: "", accentColor: "" },
+  },
+  summary: {
+    text: "**Senior Software Engineer** với 7 năm kinh nghiệm xây dựng hệ thống phân tán. Dẫn dắt team 5 kỹ sư, tăng throughput hệ thống **40%** và giảm latency **60ms**. Thành thạo Java, Golang, Kubernetes và thiết kế event-driven architecture.",
+  },
+  experience: [
+    {
+      id: "exp_demo_1",
+      position: "Senior Software Engineer",
+      company: "TechCorp Vietnam",
+      location: "Hà Nội",
+      startDate: "2021-03",
+      endDate: "",
+      current: true,
+      description:
+        "- Thiết kế và triển khai microservices xử lý **2M+ requests/ngày**\n- Tối ưu query PostgreSQL, giảm p99 latency từ 800ms xuống 120ms\n- Dẫn dắt migration từ monolith sang event-driven với Apache Kafka",
+    },
+    {
+      id: "exp_demo_2",
+      position: "Software Engineer",
+      company: "StartupXYZ",
+      location: "TP.HCM",
+      startDate: "2018-06",
+      endDate: "2021-02",
+      current: false,
+      description:
+        "- Xây dựng REST API cho nền tảng e-commerce phục vụ **500K users**\n- Implement CI/CD pipeline với GitHub Actions, giảm deploy time 70%\n- Mentor 3 junior engineers về clean code và SOLID principles",
+    },
+  ],
+  education: [
+    {
+      id: "edu_demo_1",
+      institution: "Đại học Bách khoa Hà Nội",
+      degree: "Kỹ sư",
+      fieldOfStudy: "Công nghệ Thông tin",
+      startDate: "2014-09",
+      endDate: "2018-06",
+      current: false,
+      gpa: "3.6/4.0",
+    },
+  ],
+  skills: {
+    items: [
+      { id: "sk_1", name: "Java / Spring Boot", level: "Expert" },
+      { id: "sk_2", name: "Golang", level: "Advanced" },
+      { id: "sk_3", name: "PostgreSQL", level: "Expert" },
+      { id: "sk_4", name: "Kubernetes / Docker", level: "Advanced" },
+      { id: "sk_5", name: "Apache Kafka", level: "Intermediate" },
+      { id: "sk_6", name: "React / TypeScript", level: "Advanced" },
+    ],
+    showLevel: true,
+  },
+  projects: [
+    {
+      id: "proj_demo_1",
+      name: "BetterDeploy",
+      role: "Lead Engineer",
+      url: "https://github.com/alexmercer/betterdeploy",
+      description:
+        "- Platform tự động hóa deploy Kubernetes với zero-downtime rolling update\n- Giảm mean time to deploy từ **45 phút xuống 8 phút**",
+      technologies: ["Golang", "Kubernetes", "Helm", "GitHub Actions"],
+    },
+  ],
+  theme: { primaryColor: "", accentColor: "" },
+};
+
+export const SectionStylesSchema = z.object({
+  experience: z.object({
+    variant: z.enum(["classic", "timeline", "card", "minimal"]),
+  }).optional(),
+  education: z.object({
+    variant: z.enum(["classic", "timeline", "minimal"]),
+  }).optional(),
+  skills: z.object({
+    variant: z.enum(["badges", "bars", "columns"]),
+  }).optional(),
+  projects: z.object({
+    variant: z.enum(["classic", "grid"]),
+  }).optional(),
+}).optional();
+
+export type SectionStyles = z.infer<typeof SectionStylesSchema>;
+
+export const ThemeTokensSchema = z.object({
+  primaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid primaryColor hex color"),
+  secondaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid secondaryColor hex color"),
+  accentColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid accentColor hex color"),
+  dividerColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid dividerColor hex color"),
+  fontHeader: z.string(),
+  fontBody: z.string(),
+  sidebarWidth: z.string(),
+  sectionGap: z.string(),
+  timelineBorderColor: z.string(),
+  headerBackground: z.string(),
+  headerTextColor: z.string(),
+  sidebarBackground: z.string().optional(),
+  sidebarTextColor: z.string().optional(),
+  sidebarPadding: z.string().optional(),
+});
+
+export type ThemeTokens = z.infer<typeof ThemeTokensSchema>;
+
+export const LayoutConfigSchema = z.object({
+  layoutMode: z.enum(["single-column", "sidebar-left", "sidebar-right", "minimal"]),
+  columns: z.object({
+    sidebar: z.array(z.string()).optional(),
+    main: z.array(z.string()),
+  }),
+  order: z.array(z.string()),
+  headerAlignment: z.enum(["left", "center", "right"]).optional().default("left"),
+  showAvatar: z.boolean().optional().default(true),
+  useTimeline: z.boolean().optional().default(false),
+  fullBleedHeader: z.boolean().optional().default(false),
+  fullPageBleed: z.boolean().optional().default(false),
+});
+
+export type LayoutConfig = z.infer<typeof LayoutConfigSchema>;
+
 export const TemplateSchemaZod = z.object({
   id: z.string(),
   name: z.string(),
@@ -17,6 +153,10 @@ export const TemplateSchemaZod = z.object({
       })
     ),
   }),
+  layoutConfig: LayoutConfigSchema.optional(),
+  themeTokens: ThemeTokensSchema.optional(),
+  sectionStyles: SectionStylesSchema.optional(),
+  thumbnailUrl: z.string().optional(),
 });
 
 export type TemplateSchema = z.infer<typeof TemplateSchemaZod>;
@@ -25,29 +165,6 @@ export type RenderInput = {
   template: TemplateSchema;
   data: Record<string, unknown>;
   localFontsDir?: string;
-};
-
-export type ThemeTokens = {
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  dividerColor: string;
-  fontHeader: string;
-  fontBody: string;
-  sidebarWidth: string;
-  sectionGap: string;
-  timelineBorderColor: string;
-  headerBackground: string;
-  headerTextColor: string;
-};
-
-export type LayoutConfig = {
-  layoutMode: "single-column" | "sidebar-left" | "sidebar-right" | "minimal";
-  columns: {
-    sidebar?: string[];
-    main: string[];
-  };
-  order: string[];
 };
 
 // ─── Whitelist Entry-point Sanitizer ──────────────────────────────────────────
@@ -249,6 +366,9 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
     timelineBorderColor: "#e2e8f0",
     headerBackground: "transparent",
     headerTextColor: "#1e293b",
+    sidebarBackground: "transparent",
+    sidebarTextColor: "#334155",
+    sidebarPadding: "0 16px 0 0",
   };
 
   switch (templateId) {
@@ -513,6 +633,14 @@ export const getTemplateStyles = (templateId: string): ThemeTokens => {
 };
 
 export const getLayoutConfig = (templateId: string): LayoutConfig => {
+  const defaults = {
+    headerAlignment: "left" as const,
+    showAvatar: true,
+    useTimeline: false,
+    fullBleedHeader: false,
+    fullPageBleed: false,
+  };
+
   switch (templateId) {
     case "techstack":
     case "nova":
@@ -522,6 +650,7 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
     case "barcelona-creative":
     case "amsterdam":
       return {
+        ...defaults,
         layoutMode: "sidebar-left",
         columns: {
           sidebar: ["SKILLS", "EDUCATION"],
@@ -536,6 +665,7 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
     case "copenhagen":
     case "hong-kong-finance":
       return {
+        ...defaults,
         layoutMode: "sidebar-right",
         columns: {
           sidebar: ["SKILLS", "PROJECTS"],
@@ -549,6 +679,7 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
     case "vienna":
     case "prague":
       return {
+        ...defaults,
         layoutMode: "minimal",
         columns: {
           main: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
@@ -562,6 +693,7 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
     case "chicago":
     case "geneva":
       return {
+        ...defaults,
         layoutMode: "single-column",
         columns: {
           main: ["SUMMARY", "EXPERIENCE", "SKILLS", "EDUCATION", "PROJECTS"],
@@ -571,8 +703,8 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
     case "tech-classic":
     case "sydney":
     case "tokyo":
-    case "prague":
       return {
+        ...defaults,
         layoutMode: "single-column",
         columns: {
           main: ["SUMMARY", "EXPERIENCE", "PROJECTS", "SKILLS", "EDUCATION"],
@@ -581,6 +713,7 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
       };
     default:
       return {
+        ...defaults,
         layoutMode: "single-column",
         columns: {
           main: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
@@ -592,15 +725,15 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
 
 // ─── Componentized Section Renderers ────────────────────────────────────────
 
-const renderSummary = (data: any): string => {
+const renderSummary = (data: any, variant = "classic"): string => {
   if (!data || !data.text) return "";
   return `<div class="summary-text">${compileMarkdown(data.text)}</div>`;
 };
 
-const renderExperience = (data: any): string => {
+const renderExperience = (data: any, variant = "classic"): string => {
   if (!Array.isArray(data) || data.length === 0) return "";
   return data.map((item: any) => `
-    <div class="experience-item">
+    <div class="experience-item variant-${variant}">
       <div class="item-header">
         <span class="item-title">${escapeHtml(item.position || '')}</span>
         <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? 'Hiện tại' : escapeHtml(item.endDate || '')}</span>
@@ -613,10 +746,10 @@ const renderExperience = (data: any): string => {
   `).join("");
 };
 
-const renderEducation = (data: any): string => {
+const renderEducation = (data: any, variant = "classic"): string => {
   if (!Array.isArray(data) || data.length === 0) return "";
   return data.map((item: any) => `
-    <div class="education-item">
+    <div class="education-item variant-${variant}">
       <div class="item-header">
         <span class="item-title">${escapeHtml(item.institution || '')}</span>
         <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? 'Hiện tại' : escapeHtml(item.endDate || '')}</span>
@@ -629,13 +762,11 @@ const renderEducation = (data: any): string => {
   `).join("");
 };
 
-const renderSkills = (data: any): string => {
+const renderSkills = (data: any, variant = "badges"): string => {
   const items = Array.isArray(data) ? data : (data?.items || []);
-  const showLevel = Array.isArray(data) ? (data as any).showLevel !== false : (data?.showLevel !== false);
-
   if (items.length === 0) return "";
-  
-  if (showLevel) {
+
+  if (variant === "bars") {
     const getActiveCount = (level: string): number => {
       switch (level) {
         case "Beginner": return 1;
@@ -647,7 +778,7 @@ const renderSkills = (data: any): string => {
       }
     };
 
-    return `<div class="skills-container">${
+    return `<div class="skills-container variant-bars">${
       items.map((item: any) => {
         const activeCount = getActiveCount(item.level || "Advanced");
         const barsHtml = Array.from({ length: 5 }, (_, i) => 
@@ -666,17 +797,49 @@ const renderSkills = (data: any): string => {
     }</div>`;
   }
 
-  return `<div class="skills-container">${
+  if (variant === "columns") {
+    return `<div class="skills-container variant-columns" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">${
+      items.map((item: any) => `
+        <div class="skill-item-column" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--divider-color); padding-bottom: 4px;">
+          <span class="skill-name" style="font-weight: 600;">${escapeHtml(item.name || '')}</span>
+          <span class="skill-level" style="font-size: 10px; color: var(--accent-color); font-weight: 500;">${escapeHtml(item.level || 'Advanced')}</span>
+        </div>
+      `).join("")
+    }</div>`;
+  }
+
+  // default badges
+  return `<div class="skills-container variant-badges">${
     items.map((item: any) => {
       return `<span class="skill-badge">${escapeHtml(item.name || '')}</span>`;
     }).join("")
   }</div>`;
 };
 
-const renderProjects = (data: any): string => {
+const renderProjects = (data: any, variant = "classic"): string => {
   if (!Array.isArray(data) || data.length === 0) return "";
+  
+  if (variant === "grid") {
+    return `<div class="projects-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">${
+      data.map((item: any) => `
+        <div class="project-item variant-card" style="margin-bottom: 0;">
+          <div class="item-header">
+            <span class="item-title">${escapeHtml(item.name || '')} ${item.role ? `(${escapeHtml(item.role)})` : ''}</span>
+            ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="project-link">Link</a>` : ''}
+          </div>
+          <div class="project-description">${compileMarkdown(item.description || '')}</div>
+          ${item.technologies && item.technologies.length > 0 ? `
+            <div class="tech-container">
+              ${item.technologies.map((t: string) => `<span class="tech-badge">${escapeHtml(t)}</span>`).join("")}
+            </div>
+          ` : ''}
+        </div>
+      `).join("")
+    }</div>`;
+  }
+
   return data.map((item: any) => `
-    <div class="project-item">
+    <div class="project-item variant-classic">
       <div class="item-header">
         <span class="item-title">${escapeHtml(item.name || '')} ${item.role ? `(${escapeHtml(item.role)})` : ''}</span>
         ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="project-link">Link dự án</a>` : ''}
@@ -691,7 +854,7 @@ const renderProjects = (data: any): string => {
   `).join("");
 };
 
-const SECTION_RENDERERS: Record<string, (data: any) => string> = {
+const SECTION_RENDERERS: Record<string, (data: any, variant?: string) => string> = {
   SUMMARY: renderSummary,
   EXPERIENCE: renderExperience,
   EDUCATION: renderEducation,
@@ -701,28 +864,84 @@ const SECTION_RENDERERS: Record<string, (data: any) => string> = {
 
 // ─── Deterministic Rendering Cache Layer ───────────────────────────────────
 
-export const ThemeTokensSchema = z.object({
-  primaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid primaryColor hex color"),
-  secondaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid secondaryColor hex color"),
-  accentColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid accentColor hex color"),
-  dividerColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid dividerColor hex color"),
-  fontHeader: z.string(),
-  fontBody: z.string(),
-  sidebarWidth: z.string(),
-  sectionGap: z.string(),
-  timelineBorderColor: z.string(),
-  headerBackground: z.string(),
-  headerTextColor: z.string(),
-});
+export const DEFAULT_TEMPLATE: TemplateSchema = {
+  id: "standard-ats",
+  name: "Standard ATS",
+  category: "BUSINESS",
+  layout: {
+    sections: [
+      { type: "PROFILE", blocks: [] },
+      { type: "SUMMARY", blocks: [] },
+      { type: "EXPERIENCE", blocks: [] },
+      { type: "EDUCATION", blocks: [] },
+      { type: "SKILLS", blocks: [] },
+      { type: "PROJECTS", blocks: [] },
+    ]
+  },
+  layoutConfig: {
+    layoutMode: "single-column",
+    columns: {
+      main: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+    },
+    order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+    headerAlignment: "left",
+    showAvatar: true,
+    useTimeline: false,
+    fullBleedHeader: false,
+    fullPageBleed: false,
+  },
+  themeTokens: {
+    primaryColor: "#1e293b",
+    secondaryColor: "#475569",
+    accentColor: "#3b82f6",
+    dividerColor: "#cbd5e1",
+    fontHeader: "'Merriweather', serif",
+    fontBody: "'Inter', sans-serif",
+    sidebarWidth: "30%",
+    sectionGap: "20px",
+    timelineBorderColor: "#e2e8f0",
+    headerBackground: "transparent",
+    headerTextColor: "#1e293b",
+    sidebarBackground: "transparent",
+    sidebarTextColor: "#334155",
+    sidebarPadding: "0 16px 0 0",
+  },
+  sectionStyles: {
+    experience: { variant: "classic" },
+    education: { variant: "classic" },
+    skills: { variant: "badges" },
+    projects: { variant: "classic" },
+  }
+};
 
-export const LayoutConfigSchema = z.object({
-  layoutMode: z.enum(["single-column", "sidebar-left", "sidebar-right", "minimal"]),
-  columns: z.object({
-    sidebar: z.array(z.string()).optional(),
-    main: z.array(z.string()),
-  }),
-  order: z.array(z.string()),
-});
+export const sanitizeAndValidateTemplate = (rawSchema: any): TemplateSchema => {
+  const baseId = typeof rawSchema?.id === "string" ? rawSchema.id : "default";
+  
+  const parsedId = z.string().safeParse(rawSchema?.id);
+  const parsedName = z.string().safeParse(rawSchema?.name);
+  const parsedCategory = z.enum(["TECH", "BUSINESS", "DESIGN"]).safeParse(rawSchema?.category);
+  const parsedLayout = z.any().safeParse(rawSchema?.layout);
+  
+  const layoutConfigParsed = LayoutConfigSchema.safeParse(rawSchema?.layoutConfig);
+  const themeTokensParsed = ThemeTokensSchema.safeParse(rawSchema?.themeTokens);
+  const sectionStylesParsed = SectionStylesSchema.safeParse(rawSchema?.sectionStyles);
+
+  return {
+    id: parsedId.success ? parsedId.data : DEFAULT_TEMPLATE.id,
+    name: parsedName.success ? parsedName.data : DEFAULT_TEMPLATE.name,
+    category: parsedCategory.success ? parsedCategory.data : DEFAULT_TEMPLATE.category,
+    layout: parsedLayout.success ? parsedLayout.data : DEFAULT_TEMPLATE.layout,
+    layoutConfig: layoutConfigParsed.success ? layoutConfigParsed.data : getLayoutConfig(baseId),
+    themeTokens: themeTokensParsed.success ? themeTokensParsed.data : getTemplateStyles(baseId),
+    sectionStyles: sectionStylesParsed.success ? sectionStylesParsed.data : {
+      experience: { variant: "classic" },
+      education: { variant: "classic" },
+      skills: { variant: "badges" },
+      projects: { variant: "classic" }
+    },
+    thumbnailUrl: typeof rawSchema?.thumbnailUrl === "string" ? rawSchema.thumbnailUrl : undefined,
+  };
+};
 
 const getHashCode = (str: string): string => {
   let hash = 0;
@@ -737,8 +956,11 @@ const getHashCode = (str: string): string => {
 const renderCache = new Map<string, string>();
 
 export const renderHtml = (input: RenderInput): string => {
+  const validatedTemplate = sanitizeAndValidateTemplate(input.template);
+
   const hashKey = getHashCode(JSON.stringify({
-    templateId: input.template.id,
+    templateId: validatedTemplate.id,
+    templateSchema: validatedTemplate,
     data: input.data,
     localFontsDir: input.localFontsDir,
   }));
@@ -747,7 +969,11 @@ export const renderHtml = (input: RenderInput): string => {
     return renderCache.get(hashKey)!;
   }
 
-  const result = renderHtmlDirect(input);
+  const result = renderHtmlDirect({
+    ...input,
+    template: validatedTemplate,
+  });
+  
   if (renderCache.size >= 100) {
     const firstKey = renderCache.keys().next().value;
     if (firstKey) renderCache.delete(firstKey);
@@ -763,7 +989,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
   const validatedTemplate = TemplateSchemaZod.parse(template);
   const normalized = normalizeData(data);
 
-  let styles = getTemplateStyles(validatedTemplate.id);
+  let styles = validatedTemplate.themeTokens || getTemplateStyles(validatedTemplate.id);
   if (data.theme && typeof data.theme === "object") {
     const themeOverrides = data.theme as any;
     if (themeOverrides.primaryColor) {
@@ -782,13 +1008,20 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
     styles = ThemeTokensSchema.parse(getTemplateStyles("default"));
   }
 
-  let layout = getLayoutConfig(validatedTemplate.id);
+  let layout = validatedTemplate.layoutConfig || getLayoutConfig(validatedTemplate.id);
   try {
     layout = LayoutConfigSchema.parse(layout);
   } catch (err) {
     console.warn("Layout validation failed, using defaults:", err);
     layout = LayoutConfigSchema.parse(getLayoutConfig("default"));
   }
+
+  const sectionStyles = validatedTemplate.sectionStyles || {
+    experience: { variant: "classic" },
+    education: { variant: "classic" },
+    skills: { variant: "badges" },
+    projects: { variant: "classic" },
+  };
 
   // 2. Stage 2: Render Profile Block
   const profile = normalized.profile;
@@ -835,7 +1068,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
     </header>
   `;
 
-  const isSidebarHeader = validatedTemplate.id === "design-classic" || validatedTemplate.id === "techstack";
+  const isSidebarHeader = (layout.layoutMode === "sidebar-left" || layout.layoutMode === "sidebar-right") && layout.fullPageBleed;
 
   const profileHeaderSidebar = `
     <div class="profile-header-sidebar">
@@ -863,7 +1096,15 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
   const renderSectionNode = (type: string): string => {
     const renderer = SECTION_RENDERERS[type];
     if (!renderer) return "";
-    const contentHtml = renderer(normalized[type.toLowerCase()]);
+    
+    // Get correct variant from sectionStyles
+    let variant = "classic";
+    if (type === "EXPERIENCE" && sectionStyles.experience?.variant) variant = sectionStyles.experience.variant;
+    if (type === "EDUCATION" && sectionStyles.education?.variant) variant = sectionStyles.education.variant;
+    if (type === "SKILLS" && sectionStyles.skills?.variant) variant = sectionStyles.skills.variant;
+    if (type === "PROJECTS" && sectionStyles.projects?.variant) variant = sectionStyles.projects.variant;
+
+    const contentHtml = renderer(normalized[type.toLowerCase()], variant);
     if (!contentHtml) return "";
 
     return `
@@ -1007,6 +1248,10 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         --timeline-border-color: ${styles.timelineBorderColor};
         --header-background: ${styles.headerBackground};
         --header-text-color: ${styles.headerTextColor};
+        
+        --sidebar-background: ${styles.sidebarBackground || "transparent"};
+        --sidebar-text-color: ${styles.sidebarTextColor || "#334155"};
+        --sidebar-padding: ${styles.sidebarPadding || "0 16px 0 0"};
       }
       
       body {
@@ -1144,8 +1389,8 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         gap: 12px 24px;
       }
       .skill-badge {
-        background-color: #f8fafc;
-        color: #334155;
+        background-color: var(--sidebar-background, #f8fafc);
+        color: var(--sidebar-text-color, #334155);
         font-size: 10.5px;
         font-weight: 500;
         padding: 2px 6px;
@@ -1210,17 +1455,13 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
       }
       .sidebar {
         width: var(--sidebar-width);
-        border-right: 1.5px solid var(--divider-color);
-        padding-right: 16px;
+        background-color: var(--sidebar-background);
+        color: var(--sidebar-text-color);
+        padding: var(--sidebar-padding);
         display: flex;
         flex-direction: column;
         gap: 16px;
-      }
-      .resume-container.sidebar-right .sidebar {
-        border-right: none;
-        border-left: 1.5px solid var(--divider-color);
-        padding-left: 16px;
-        padding-right: 0;
+        box-sizing: border-box;
       }
       .main-content {
         flex: 1;
@@ -1229,305 +1470,93 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
         gap: 16px;
       }
       
-      /* Template-specific semantic overrides */
-      .template-dublin .profile-header {
+      .sidebar .section-title {
+        color: var(--sidebar-text-color);
+        border-bottom: 1.5px solid var(--divider-color);
+        margin-top: 16px;
+      }
+      
+      /* Variant timeline style overrides */
+      .variant-timeline {
+        border-left: 2px solid var(--timeline-border-color);
+        padding-left: 10px;
+        margin-left: 4px;
+        position: relative;
+      }
+      .timeline-style .section-title {
+        border-bottom: none;
+        background: #f1f5f9;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+
+      /* Variant card style overrides */
+      .variant-card {
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        padding: 12px;
+        background-color: #f8fafc;
+        margin-bottom: 12px;
+      }
+
+      /* Variant minimal style overrides */
+      .variant-minimal {
+        margin-bottom: 4px;
+      }
+
+      /* Full Bleed Header (like Dublin) */
+      .full-bleed-header .profile-header {
         background-color: var(--primary-color);
         color: #ffffff;
         margin: -40px -40px 24px -40px;
         padding: 28px 40px;
         border-bottom: none;
       }
-      .template-dublin .profile-name {
+      .full-bleed-header .profile-name {
         color: #ffffff;
       }
-      .template-dublin .profile-title {
+      .full-bleed-header .profile-title {
         color: var(--accent-color);
         filter: brightness(1.3);
       }
-      .template-dublin .contact-bar {
+      .full-bleed-header .contact-bar {
         color: rgba(255, 255, 255, 0.8);
       }
-      .template-dublin .contact-item a {
+      .full-bleed-header .contact-item a {
         color: rgba(255, 255, 255, 0.8);
       }
-      
-      .template-minimalist .profile-header {
-        text-align: center;
-        border-bottom: none;
-        padding-bottom: 0;
-      }
-      .template-minimalist .profile-header div {
-        justify-content: center !important;
-      }
-      .template-minimalist .profile-avatar {
-        display: none;
-      }
-      
-      .template-nova .section-title {
-        border-bottom: none;
-        background: #f1f5f9;
-        padding: 4px 8px;
-        border-radius: 4px;
-      }
-      .template-nova .experience-item, .template-nova .education-item {
-        border-left: 2px solid var(--timeline-border-color);
-        padding-left: 10px;
-        margin-left: 4px;
-      }
 
-      /* Tech Classic Centered border */
-      .template-tech-classic .profile-header {
-        border-bottom: 2.5px solid var(--accent-color);
-        padding-bottom: 8px;
-      }
-
-      /* Business Classic Centered style */
-      .template-business-classic .profile-header {
-        text-align: center;
-        border-bottom: 2px solid var(--primary-color);
-        padding-bottom: 16px;
-      }
-      .template-business-classic .profile-header div {
-        justify-content: center !important;
-        text-align: center;
-      }
-      .template-business-classic .profile-avatar {
-        display: none;
-      }
-
-      /* Monarch Centered Luxury serif style */
-      .template-monarch .profile-header {
-        border-bottom: 1px solid var(--primary-color);
-        padding-bottom: 12px;
-      }
-      .template-monarch .profile-name {
-        font-weight: 400;
-        letter-spacing: -0.5px;
-      }
-      .template-monarch .profile-title {
-        letter-spacing: 3px;
-        font-size: 11px;
-      }
-
-      /* Design Classic Creative Solid Green Sidebar style */
-      .template-design-classic {
+      /* Full Page Bleed (like Design Classic) */
+      .full-page-bleed-style {
         padding: 0 !important;
       }
-      .template-design-classic .resume-container {
+      .full-page-bleed-style .resume-container {
         display: flex;
         gap: 0;
         min-height: 1056px;
       }
-      .template-design-classic .sidebar {
-        background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-color) 100%);
-        color: #ffffff;
+      .full-page-bleed-style .sidebar {
         width: 36%;
         padding: 40px 24px;
         border-right: none;
-        box-sizing: border-box;
       }
-      .template-design-classic .sidebar .profile-name {
+      .full-page-bleed-style .sidebar .profile-name {
         color: #ffffff;
         font-size: 18px;
         margin-bottom: 6px;
         font-family: var(--font-header);
       }
-      .template-design-classic .sidebar .profile-title {
+      .full-page-bleed-style .sidebar .profile-title {
         color: rgba(255, 255, 255, 0.85);
         font-size: 11px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.25);
         padding-bottom: 8px;
         margin-bottom: 16px;
       }
-      .template-design-classic .sidebar .contact-item {
-        display: block;
-        margin-bottom: 6px;
-        color: rgba(255, 255, 255, 0.85);
-      }
-      .template-design-classic .sidebar .contact-item a {
-        color: rgba(255, 255, 255, 0.85);
-      }
-      .template-design-classic .sidebar .section-title {
-        color: #ffffff;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.25);
-        margin-top: 16px;
-      }
-      .template-design-classic .sidebar .skill-badge {
-        background-color: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-      }
-      .template-design-classic .sidebar .skill-name {
-        color: #ffffff;
-      }
-      .template-design-classic .sidebar .level-bar {
-        background-color: rgba(255, 255, 255, 0.2);
-      }
-      .template-design-classic .sidebar .level-bar.active {
-        background-color: #ffffff;
-      }
-      .template-design-classic .main-content {
+      .full-page-bleed-style .main-content {
         flex: 1;
         padding: 40px 32px;
         box-sizing: border-box;
-      }
-
-      /* TechStack Minimal Sidebar Style */
-      .template-techstack {
-        padding: 0 !important;
-      }
-      .template-techstack .resume-container {
-        display: flex;
-        gap: 0;
-        min-height: 1056px;
-      }
-      .template-techstack .sidebar {
-        background-color: #f4f4f1;
-        width: 30%;
-        padding: 40px 20px;
-        border-right: 1px solid var(--divider-color);
-        box-sizing: border-box;
-      }
-      .template-techstack .sidebar .profile-name {
-        color: var(--primary-color);
-        font-size: 16px;
-        margin-bottom: 4px;
-        font-family: var(--font-header);
-      }
-      .template-techstack .sidebar .profile-title {
-        color: var(--accent-color);
-        font-size: 10px;
-        margin-bottom: 16px;
-      }
-      .template-techstack .sidebar .contact-item {
-        display: block;
-        margin-bottom: 6px;
-      }
-      .template-techstack .sidebar .section-title {
-        color: var(--primary-color);
-        border-bottom: 1px solid var(--divider-color);
-        margin-top: 16px;
-      }
-      .template-techstack .main-content {
-        flex: 1;
-        padding: 40px 32px;
-        box-sizing: border-box;
-      }
-
-      .template-oslo .resume-container {
-        padding: 0 !important;
-        min-height: 1056px;
-      }
-      .template-oslo .sidebar {
-        background-color: #ecfdf5;
-        width: 32%;
-        padding: 36px 24px;
-        border-right: none;
-      }
-      .template-oslo .sidebar .section-title {
-        color: #047857;
-        border-bottom: 1px solid #a7f3d0;
-        margin-top: 16px;
-      }
-      .template-oslo .main-content {
-        flex: 1;
-        padding: 36px 32px;
-        box-sizing: border-box;
-      }
-
-      .template-stockholm .section {
-        border-top: 1px solid var(--divider-color);
-        padding-top: 12px;
-      }
-      .template-stockholm .section:first-child {
-        border-top: none;
-      }
-      .template-stockholm .section-title {
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        color: var(--primary-color);
-      }
-
-      .template-berlin .profile-header {
-        border-bottom: 2px solid var(--accent-color);
-        padding-bottom: 10px;
-      }
-      .template-berlin .resume-container {
-        gap: 18px;
-      }
-      .template-berlin .sidebar {
-        background-color: #faf5eb;
-        width: 32%;
-        padding: 28px 22px;
-      }
-      .template-berlin .sidebar .section-title {
-        color: var(--accent-color);
-      }
-      .template-berlin .main-content {
-        padding: 28px 28px;
-      }
-
-      .template-paris .profile-header {
-        padding-bottom: 16px;
-      }
-      .template-paris .section-title {
-        font-family: var(--font-header);
-        font-size: 11px;
-        letter-spacing: 0.18em;
-        margin-bottom: 6px;
-      }
-      .template-paris .section {
-        padding-bottom: 10px;
-      }
-
-      .template-barcelona-creative .resume-container {
-        padding: 0 !important;
-        min-height: 1056px;
-      }
-      .template-barcelona-creative .sidebar {
-        background: linear-gradient(180deg, #84cc16 0%, #4d7c0f 100%);
-        width: 34%;
-        padding: 40px 24px;
-        color: #ffffff;
-      }
-      .template-barcelona-creative .sidebar .profile-name,
-      .template-barcelona-creative .sidebar .section-title {
-        color: #f8fafc;
-      }
-      .template-barcelona-creative .main-content {
-        flex: 1;
-        padding: 40px 32px;
-      }
-
-      .template-hong-kong-finance .resume-container {
-        gap: 20px;
-      }
-      .template-hong-kong-finance .section {
-        border-bottom: 1px solid var(--divider-color);
-        padding-bottom: 10px;
-      }
-      .template-hong-kong-finance .section:last-child {
-        border-bottom: none;
-      }
-      .template-hong-kong-finance .section-title {
-        color: var(--accent-color);
-      }
-
-      /* Modern Profile Nova styling */
-      .template-nova {
-        background-color: #f8fafc;
-        padding: 0 !important;
-      }
-      .template-nova .profile-header {
-        background: #ffffff;
-        padding: 24px 40px;
-        margin: 0;
-        border-bottom: 1px solid #e2e8f0;
-      }
-      .template-nova .resume-container {
-        padding: 24px 40px;
-        gap: 24px;
       }
 
       /* Strict A4 Print-safe Rules */
@@ -1550,7 +1579,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
       }
     </style>
   </head>
-  <body class="template-${template.id}">
+  <body class="template-${template.id} ${layout.fullBleedHeader ? 'full-bleed-header' : ''} ${layout.fullPageBleed ? 'full-page-bleed-style' : ''}">
     ${bodyHtml}
     <script>
       window.addEventListener('message', (event) => {

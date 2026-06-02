@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { getTemplateStyles, getLayoutConfig } from "@acv/template-engine";
 
 const prisma = new PrismaClient();
 
@@ -6,47 +7,60 @@ const templateSchema = (opts: {
   id: string;
   name: string;
   category: "TECH" | "BUSINESS" | "DESIGN";
-}) => ({
-  id: opts.id,
-  name: opts.name,
-  category: opts.category,
-  layout: {
-    sections: [
-      {
-        type: "PROFILE",
-        blocks: [
-          { key: "profile.fullName", label: "Họ và tên" },
-          { key: "profile.title", label: "Chức danh" },
-          { key: "profile.email", label: "Email" },
-          { key: "profile.phone", label: "Số điện thoại" },
-          { key: "profile.linkedin", label: "LinkedIn" },
-          { key: "profile.github", label: "GitHub" },
-          { key: "profile.website", label: "Website" }
-        ]
-      },
-      {
-        type: "SUMMARY",
-        blocks: [{ key: "summary.text", label: "Giới thiệu" }]
-      },
-      {
-        type: "EXPERIENCE",
-        blocks: [{ key: "experience", label: "Kinh nghiệm làm việc" }]
-      },
-      {
-        type: "EDUCATION",
-        blocks: [{ key: "education", label: "Học vấn & Bằng cấp" }]
-      },
-      {
-        type: "SKILLS",
-        blocks: [{ key: "skills", label: "Kỹ năng chuyên môn" }]
-      },
-      {
-        type: "PROJECTS",
-        blocks: [{ key: "projects", label: "Dự án tiêu biểu" }]
-      }
-    ]
-  }
-});
+}) => {
+  const themeTokens = getTemplateStyles(opts.id);
+  const layoutConfig = getLayoutConfig(opts.id);
+  
+  return {
+    id: opts.id,
+    name: opts.name,
+    category: opts.category,
+    layout: {
+      sections: [
+        {
+          type: "PROFILE",
+          blocks: [
+            { key: "profile.fullName", label: "Họ và tên" },
+            { key: "profile.title", label: "Chức danh" },
+            { key: "profile.email", label: "Email" },
+            { key: "profile.phone", label: "Số điện thoại" },
+            { key: "profile.linkedin", label: "LinkedIn" },
+            { key: "profile.github", label: "GitHub" },
+            { key: "profile.website", label: "Website" }
+          ]
+        },
+        {
+          type: "SUMMARY",
+          blocks: [{ key: "summary.text", label: "Giới thiệu" }]
+        },
+        {
+          type: "EXPERIENCE",
+          blocks: [{ key: "experience", label: "Kinh nghiệm làm việc" }]
+        },
+        {
+          type: "EDUCATION",
+          blocks: [{ key: "education", label: "Học vấn & Bằng cấp" }]
+        },
+        {
+          type: "SKILLS",
+          blocks: [{ key: "skills", label: "Kỹ năng chuyên môn" }]
+        },
+        {
+          type: "PROJECTS",
+          blocks: [{ key: "projects", label: "Dự án tiêu biểu" }]
+        }
+      ]
+    },
+    themeTokens,
+    layoutConfig,
+    sectionStyles: {
+      experience: { variant: opts.id === "nova" ? "timeline" : "classic" },
+      education: { variant: "classic" },
+      skills: { variant: opts.id === "nova" ? "bars" : "badges" },
+      projects: { variant: "classic" }
+    }
+  };
+};
 
 async function main() {
   const planFree = await prisma.plan.upsert({
@@ -165,20 +179,38 @@ async function main() {
   }));
 
   for (const item of templates) {
-    await prisma.template.upsert({
+    const templateRecord = await prisma.template.upsert({
       where: { id: item.schema.id },
       update: {
         name: item.schema.name,
         categoryId: item.category.id,
-        schema: item.schema,
+        schema: item.schema as any,
         isActive: true
       },
       create: {
         id: item.schema.id,
         name: item.schema.name,
         categoryId: item.category.id,
-        schema: item.schema,
+        schema: item.schema as any,
         isActive: true
+      }
+    });
+
+    // Seed TemplateVersion snapshot records
+    await prisma.templateVersion.upsert({
+      where: {
+        templateId_version: {
+          templateId: templateRecord.id,
+          version: 1
+        }
+      },
+      update: {
+        schema: item.schema as any
+      },
+      create: {
+        templateId: templateRecord.id,
+        version: 1,
+        schema: item.schema as any
       }
     });
   }
