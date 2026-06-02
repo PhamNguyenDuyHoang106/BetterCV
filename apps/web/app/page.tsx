@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "../lib/store/auth";
+import { createSupabaseClient } from "../lib/supabase";
 
 const STATS = [
   { value: "120K+", label: "CV đã tối ưu" },
@@ -51,12 +52,38 @@ const TESTIMONIALS = [
 ];
 
 export default function HomePage() {
-  const { accessToken, hydrate } = useAuthStore();
+  const { accessToken, user, hydrate, clear } = useAuthStore();
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setProfileOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      const supabase = createSupabaseClient();
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+    clear();
+    setProfileOpen(false);
+  };
+
+  const initials =
+    user?.fullName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "ME";
 
   const faqs = [
     {
@@ -107,12 +134,62 @@ export default function HomePage() {
 
           <div className="flex items-center gap-3">
             {accessToken ? (
-              <Link
-                href="/dashboard"
-                className="text-sm font-bold bg-primary text-on-primary rounded-xl px-5 py-2.5 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
-              >
-                Vào Dashboard
-              </Link>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-full pl-2 pr-3 py-1.5 border border-primary/35 bg-white/70 hover:bg-white transition-all shadow-sm"
+                  aria-label="Tài khoản"
+                >
+                  <span className="w-9 h-9 rounded-full bg-gradient-to-br from-primary via-primary-dark to-primary-darker flex items-center justify-center text-on-primary font-bold text-xs shadow-sm">
+                    {initials}
+                  </span>
+                  <span className="hidden sm:block text-left">
+                    <span className="block text-xs font-bold text-slate-900 leading-none max-w-[140px] truncate">
+                      {user?.fullName || "BetterCV User"}
+                    </span>
+                    <span className="block text-[10px] text-slate-500 leading-none mt-0.5">
+                      {user?.role || "FREE"}
+                    </span>
+                  </span>
+                  <span className="material-symbols-outlined text-slate-500 text-[18px]">
+                    expand_more
+                  </span>
+                </button>
+
+                {profileOpen && (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-40"
+                      aria-label="Đóng"
+                      onClick={() => setProfileOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 z-50 rounded-2xl bg-white ring-1 ring-slate-200/70 shadow-xl overflow-hidden">
+                      <Link
+                        href="/dashboard"
+                        className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        <span className="material-symbols-outlined text-[18px] text-primary-darker">
+                          dashboard
+                        </span>
+                        Dashboard
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          logout
+                        </span>
+                        Đăng xuất
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             ) : (
               <>
                 <Link
