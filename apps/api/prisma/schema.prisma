@@ -185,6 +185,24 @@ model ShareLink {
   @@index([token])
 }
 
+model AtsScan {
+  id                 String   @id @default(cuid())
+  cvId               String
+  cv                 Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  jobTitle           String?
+  jobDescription     String?  @db.Text
+  jobDescriptionHash String?
+  overallScore       Int
+  keywordScore       Int?
+  formatScore        Int?
+  completenessScore  Int?
+  missingKeywords    Json?
+  recommendations    Json?
+  createdAt          DateTime @default(now())
+
+  @@index([cvId, createdAt(sort: Desc)])
+}
+
 model Prompt {
   id        String          @id @default(cuid())
   key       String          @unique
@@ -399,6 +417,59 @@ enum AuditSeverity {
   INFO
   WARNING
   CRITICAL
+}
+
+enum ThumbnailStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum AuditEventType {
+  CV_CREATED
+  CV_UPDATED
+  CV_SECTION_UPDATED
+  CV_RESTORED
+  SHARE_LINK_CREATED
+  SHARE_LINK_DELETED
+  BILLING_STATUS_CHANGED
+  USER_ROLE_CHANGED
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  CRON
+  WORKER
+  ADMIN
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model AuditLog {
+  id            String         @id @default(uuid())
+  actorUserId   String?
+  actorType     AuditActorType
+  eventType     AuditEventType
+  action        String
+  resourceType  String
+  resourceId    String?
+  oldValue      Json?
+  newValue      Json?
+  severity      AuditSeverity
+  requestId     String?
+  traceId       String?
+  ipHash        String?
+  createdAt     DateTime       @default(now())
+
+  @@index([actorUserId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
 }
 
 enum ThumbnailStatus {

@@ -1,0 +1,72 @@
+discovery.docker "local_containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.local_containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "docker_scrape" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = [loki.process.filter_logs.receiver]
+}
+
+loki.process "filter_logs" {
+  // Parse fields from JSON log payload
+  stage.json {
+    expressions = {
+      url = "url",
+      msg = "msg",
+      service = "service",
+      environment = "environment",
+      module = "module"
+    }
+  }
+
+  // Drop noise logs matching health check endpoints (prefix match to cover query params and future variants)
+  stage.match {
+    selector = "{service=\"bettercv-api\"}"
+    stages   = [
+      {
+        json = {
+          expressions = { req_url = "req.url" }
+        }
+      },
+    ]
+    drop_counter_reason = "health_probe"
+  }
+
+  stage.drop {
+    expression  = "req_url =~ \"/api/health.*\""
+    drop_counter_reason = "health_probe"
+  }
+
+  // Assign only low-cardinality index labels to avoid Loki stream cardinality explosion
+  stage.labels {
+    values = {
+      service     = "service",
+      environment = "environment",
+      module      = "module",
+    }
+  }
+
+  forward_to = [loki.write.loki_endpoint.receiver]
+}
+
+loki.write "loki_endpoint" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

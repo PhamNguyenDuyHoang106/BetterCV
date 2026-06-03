@@ -4,3 +4,8 @@ export {
   BypassTransform,
   BYPASS_TRANSFORM_KEY,
 } from './bypass-transform.decorator';
+export {
+  LogAudit,
+  LogAuditOptions,
+  AUDIT_LOG_KEY,
+} from './log-audit.decorator';

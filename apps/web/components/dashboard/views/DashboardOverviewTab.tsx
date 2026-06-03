@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { DashPanel, DashStatCard } from "../dashboard-ui";
 
@@ -8,6 +9,8 @@ type Cv = {
   title: string;
   updatedAt?: string;
   createdAt?: string;
+  completenessScore?: number | null;
+  atsScore?: number | null;
 };
 
 type Props = {
@@ -27,6 +30,12 @@ export function DashboardOverviewTab({
   onDuplicate,
   formatDate,
 }: Props) {
+  const avgCompleteness = useMemo(() => {
+    if (!cvs.length) return 0;
+    const total = cvs.reduce((acc, cv) => acc + (cv.completenessScore ?? cv.atsScore ?? 0), 0);
+    return Math.round(total / cvs.length);
+  }, [cvs]);
+
   return (
     <div className="flex flex-col gap-8">
       <section className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -44,9 +53,9 @@ export function DashboardOverviewTab({
         <DashStatCard
           icon="fact_check"
           accent="emerald"
-          badge={<span className="dash-badge dash-badge-emerald">ATS Calibrated</span>}
-          label="Average ATS Score"
-          value="88%"
+          badge={<span className="dash-badge dash-badge-emerald">Real-time Check</span>}
+          label="Average Completeness"
+          value={`${avgCompleteness}%`}
         />
         <DashStatCard
           icon="auto_awesome"
