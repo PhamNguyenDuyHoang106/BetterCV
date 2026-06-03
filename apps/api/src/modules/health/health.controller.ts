@@ -83,16 +83,17 @@ export class HealthController {
       checks.database = 'down';
     }
 
-    // // ── Redis check with timeout barrier ──
-    // try {
-    //   await Promise.race([
-    //     this.redis.getClient().ping(),
-    //     timeout(DEPENDENCY_TIMEOUT_MS),
-    //   ]);
-    //   checks.redis = 'up';
-    // } catch {
-    //   checks.redis = 'down';
-    // }
+    // ── Redis check with timeout barrier ──
+    try {
+      const client = this.redis.getClient();
+      if (!client) {
+        throw new Error('Redis client not initialized');
+      }
+      await Promise.race([client.ping(), timeout(DEPENDENCY_TIMEOUT_MS)]);
+      checks.redis = 'up';
+    } catch {
+      checks.redis = 'down';
+    }
 
     const allHealthy = Object.values(checks).every((s) => s === 'up');
     const status = allHealthy ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
