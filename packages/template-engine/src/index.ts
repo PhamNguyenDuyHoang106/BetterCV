@@ -657,6 +657,7 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
           main: ["SUMMARY", "EXPERIENCE", "PROJECTS"],
         },
         order: ["SUMMARY", "EXPERIENCE", "PROJECTS", "EDUCATION", "SKILLS"],
+        fullPageBleed: templateId === "design-classic" || templateId === "amsterdam",
       };
     case "dublin":
     case "business-classic":
@@ -672,6 +673,7 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
           main: ["SUMMARY", "EXPERIENCE", "EDUCATION"],
         },
         order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"],
+        fullBleedHeader: templateId === "dublin",
       };
     case "minimalist":
     case "paris":
@@ -1553,7 +1555,6 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
       /* Strict A4 Print-safe Rules */
       @media print {
         body { 
-          padding: 0;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }

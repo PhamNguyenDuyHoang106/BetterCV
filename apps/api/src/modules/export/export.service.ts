@@ -71,10 +71,29 @@ export class ExportService {
     title: string;
     sections: Array<{ type: string; content: any }>;
   }) {
-    const data: Record<string, unknown> = { title: cv.title };
+    // Mirror the data assembly used by ThumbnailService and the frontend's
+    // assembleLocalResumeData() so that renderHtml produces identical output
+    // across Editor, Thumbnail, and PDF Export pipelines.
+    const data: Record<string, unknown> = {
+      schemaVersion: 1,
+      profile: {},
+      summary: {},
+      experience: [],
+      education: [],
+      skills: { items: [] },
+      projects: [],
+    };
+
     for (const section of cv.sections) {
       data[section.type.toLowerCase()] = section.content;
     }
+
+    // Extract user theme overrides (primaryColor, accentColor) from the
+    // PROFILE section so renderHtmlDirect applies them to CSS variables.
+    if (data.profile && typeof data.profile === 'object') {
+      data.theme = (data.profile as any).theme;
+    }
+
     return data;
   }
 
@@ -104,21 +123,28 @@ export class ExportService {
     }
 
     let templateSchema: any = null;
-    if (cv.templateVersionId) {
-      const ver = await this.prisma.templateVersion.findUnique({
-        where: { id: cv.templateVersionId },
-      });
-      if (ver) {
-        templateSchema = ver.schema;
-      }
-    }
 
-    if (!templateSchema && cv.templateId) {
+    // IMPORTANT: Resolve template schema using the same priority as the
+    // frontend editor. The frontend uses cv.templateId to find the parent
+    // Template from /templates API and uses Template.schema.
+    // Using templateVersionId first caused schema mismatches where the PDF
+    // rendered with different themeTokens/layoutConfig/sectionStyles.
+    if (cv.templateId) {
       const template = await this.prisma.template.findUnique({
         where: { id: cv.templateId },
       });
       if (template) {
         templateSchema = template.schema;
+      }
+    }
+
+    // Fallback to templateVersionId only if parent template not found
+    if (!templateSchema && cv.templateVersionId) {
+      const ver = await this.prisma.templateVersion.findUnique({
+        where: { id: cv.templateVersionId },
+      });
+      if (ver) {
+        templateSchema = ver.schema;
       }
     }
 
@@ -223,13 +249,27 @@ export class ExportService {
     page.setDefaultNavigationTimeout(15000);
 
     try {
+      // Match the viewport dimensions used by ThumbnailService and the
+      // editor iframe (794×1123 = standard A4 at 96dpi).
+      await page.setViewport({ width: 794, height: 1123 });
+
       await page.setContent(html, {
-        waitUntil: 'networkidle0',
+        waitUntil: 'networkidle2',
         timeout: 15000,
       });
+
+      // Wait for web fonts to finish loading before printing
+      await page
+        .evaluate('document.fonts ? document.fonts.ready : Promise.resolve()')
+        .catch(() => {});
+
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
+        // The template HTML already has 40px body padding, so we set
+        // Puppeteer margins to 0 to avoid double-padding that squeezes
+        // the content into a narrow column.
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
         timeout: 15000,
       });
       return Buffer.from(pdf);

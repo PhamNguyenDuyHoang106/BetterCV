@@ -77,3 +77,43 @@ export function assembleResumeDataFromSections(sections: any[]): any {
   return data;
 }
 
+export function isRenderableCv(cv: CvForHealth): boolean {
+  if (!cv.sections || cv.sections.length === 0) return false;
+
+  let nonEmptySectionCount = 0;
+  let hasExperience = false;
+  let hasEducation = false;
+
+  for (const section of cv.sections) {
+    const type = section.type;
+    const content = section.content as any;
+    if (!content) continue;
+
+    let isEmpty = true;
+    if (type === 'PROFILE') {
+      if (content.fullName && content.fullName.trim()) {
+        isEmpty = false;
+      }
+    } else if (type === 'SUMMARY') {
+      const text = content.text || content.objective || '';
+      if (text.trim()) {
+        isEmpty = false;
+      }
+    } else {
+      const items =
+        content.items || (Array.isArray(content) ? content : null);
+      if (items && Array.isArray(items) && items.length > 0) {
+        isEmpty = false;
+      }
+    }
+
+    if (!isEmpty) {
+      nonEmptySectionCount++;
+      if (type === 'EXPERIENCE') hasExperience = true;
+      if (type === 'EDUCATION') hasEducation = true;
+    }
+  }
+
+  return nonEmptySectionCount >= 3 && (hasExperience || hasEducation);
+}
+

@@ -2,10 +2,6 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 
-import { HttpExceptionFilter } from './core/filters/http-exception.filter';
-import { LoggingInterceptor } from './core/interceptors/logging.interceptor';
-
-import * as bodyParser from 'body-parser';
 import { Logger } from 'nestjs-pino';
 
 import { TransformInterceptor } from './core/interceptors/transform.interceptor';

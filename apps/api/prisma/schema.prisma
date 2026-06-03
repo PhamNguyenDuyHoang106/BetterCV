@@ -103,6 +103,8 @@ model Cv {
   atsScannedAt         DateTime?
   atsVersion           String?
   thumbnailStatus      ThumbnailStatus  @default(PENDING)
+  thumbnailAttemptCount Int              @default(0)
+  thumbnailLastError    String?
   atsScans             AtsScan[]
   templateVersion      TemplateVersion? @relation(fields: [templateVersionId], references: [id])
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)

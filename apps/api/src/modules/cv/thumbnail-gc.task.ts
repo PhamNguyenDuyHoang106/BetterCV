@@ -90,4 +90,56 @@ export class ThumbnailGcTask {
       `Thumbnail reconciliation completed. Purged ${deletedCount} deleted CV thumbnails. Checked ${checkedCount} active CV thumbnails.`,
     );
   }
+
+  /**
+   * Reconciles stuck PENDING or PROCESSING CV thumbnails every 5 minutes.
+   * Auto-requeues them if they are stuck/lost.
+   */
+  @Cron('*/5 * * * *')
+  async reconcileStuckThumbnails() {
+    this.logger.log(
+      'Starting periodic thumbnail recovery cron (every 5 minutes)...',
+    );
+
+    // Stuck CV: thumbnailStatus is PENDING or PROCESSING, and it has not been updated in the last 2 minutes
+    const stuckThreshold = new Date(Date.now() - 2 * 60 * 1000);
+    const maxAttempts = 3;
+
+    const stuckCvs = await this.prisma.cv.findMany({
+      where: {
+        isDeleted: false,
+        thumbnailStatus: { in: ['PENDING', 'PROCESSING'] },
+        updatedAt: { lt: stuckThreshold },
+        thumbnailAttemptCount: { lt: maxAttempts },
+      },
+      include: {
+        sections: true,
+      },
+    });
+
+    if (stuckCvs.length === 0) {
+      this.logger.log('No stuck thumbnails found to recover.');
+      return;
+    }
+
+    this.logger.log(
+      `Found ${stuckCvs.length} stuck CV thumbnails. Processing recovery...`,
+    );
+
+    let enqueuedCount = 0;
+    for (const cv of stuckCvs) {
+      if (this.thumbnailService.isRenderable(cv)) {
+        this.logger.log(
+          `Requeuing stuck CV thumbnail for CV ${cv.id} (Version: ${cv.version})`,
+        );
+        await this.thumbnailService.enqueueThumbnailGeneration(
+          cv.id,
+          cv.version,
+        );
+        enqueuedCount++;
+      }
+    }
+
+    this.logger.log(`Requeued ${enqueuedCount} stuck CV thumbnails.`);
+  }
 }

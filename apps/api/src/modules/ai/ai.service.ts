@@ -61,12 +61,14 @@ export class AiService {
       );
 
       let cleanedOutput =
-        typeof output === 'string' ? output : (output as any).text || '';
+        typeof output === 'string'
+          ? output
+          : (output as any).text || (output as any).raw || '';
       cleanedOutput = this.postValidateAndCleanSummary(cleanedOutput);
       return { text: cleanedOutput };
     }
 
-    return this.runPrompt(
+    const output = await this.runPrompt(
       supabaseId,
       'cv_rewrite',
       {
@@ -81,6 +83,12 @@ export class AiService {
       },
       0.4,
     );
+
+    const cleanedOutput =
+      typeof output === 'string'
+        ? output
+        : (output as any).text || (output as any).raw || '';
+    return { text: cleanedOutput };
   }
 
   async score(supabaseId: string, dto: AiScoreDto) {
@@ -386,18 +394,32 @@ export class AiService {
     const periodEnd = new Date(periodStart);
     periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
-    // Đảm bảo bản ghi quota tồn tại cho tháng hiện tại
-    await this.prisma.usageQuota.upsert({
+    const existingQuota = await this.prisma.usageQuota.findUnique({
       where: { userId },
-      update: {},
-      create: {
-        userId,
-        periodStart,
-        periodEnd,
-        usedRequests: 0,
-        usedTokens: 0,
-      },
     });
+
+    const now = new Date();
+    if (!existingQuota) {
+      await this.prisma.usageQuota.create({
+        data: {
+          userId,
+          periodStart,
+          periodEnd,
+          usedRequests: 0,
+          usedTokens: 0,
+        },
+      });
+    } else if (now >= existingQuota.periodEnd) {
+      await this.prisma.usageQuota.update({
+        where: { userId },
+        data: {
+          periodStart,
+          periodEnd,
+          usedRequests: 0,
+          usedTokens: 0,
+        },
+      });
+    }
 
     // Thực hiện Conditional Update nguyên tử có kiểm tra giới hạn trên database
     const affectedRows = await this.prisma.$executeRaw`

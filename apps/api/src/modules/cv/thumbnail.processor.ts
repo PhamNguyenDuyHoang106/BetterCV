@@ -40,7 +40,11 @@ export class ThumbnailProcessor extends WorkerHost {
           if (cvId === 'force-fail-cv') {
             throw new Error('Forced queue job failure for Test 10');
           }
-          await this.thumbnailService.generateThumbnail(cvId, version);
+          await this.thumbnailService.generateThumbnail(
+            cvId,
+            version,
+            job.attemptsMade,
+          );
           const durationMs = Date.now() - start;
 
           this.logger.log({

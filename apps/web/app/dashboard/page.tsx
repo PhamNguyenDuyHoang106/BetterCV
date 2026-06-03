@@ -48,6 +48,7 @@ type Cv = {
   completenessScore?: number | null;
   thumbnailUrl?: string | null;
   thumbnailGeneratedAt?: string | null;
+  thumbnailStatus?: "PENDING" | "PROCESSING" | "READY" | "FAILED";
   atsScans?: AtsScan[];
   updatedAt?: string;
   createdAt?: string;
@@ -159,6 +160,23 @@ function DashboardPageContent() {
   useEffect(() => {
     fetchCvs();
   }, [fetchCvs]);
+
+  // Polling for CV thumbnail updates when rendering is active
+  useEffect(() => {
+    if (!accessToken || cvs.length === 0) return;
+
+    const hasProcessing = cvs.some(
+      (cv) => cv.thumbnailStatus === "PENDING" || cv.thumbnailStatus === "PROCESSING"
+    );
+
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      fetchCvs();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [accessToken, cvs, fetchCvs]);
 
   // Log in check
   if (!accessToken) {

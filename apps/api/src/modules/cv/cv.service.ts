@@ -65,6 +65,7 @@ export class CvService {
         cv.atsScore = scores.atsScore;
         cv.completenessScore = scores.completenessScore;
       }
+      this.autoEnqueueThumbnailIfNeeded(cv);
     }
     return cvs;
   }
@@ -88,6 +89,8 @@ export class CvService {
       cv.completenessScore = scores.completenessScore;
     }
 
+    this.autoEnqueueThumbnailIfNeeded(cv);
+
     // Run the on-read migration pipeline
     const assembled = this.assembleResumeData(cv);
     const { migrated, data: migratedData } = migrateCvData(assembled);
@@ -102,7 +105,10 @@ export class CvService {
           atsScans: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
       });
-      if (updatedCv) return updatedCv;
+      if (updatedCv) {
+        this.autoEnqueueThumbnailIfNeeded(updatedCv);
+        return updatedCv;
+      }
     }
 
     return cv;
@@ -458,6 +464,19 @@ export class CvService {
   }
 
   // ── Private helpers ─────────────────────────────────────────────
+
+  private autoEnqueueThumbnailIfNeeded(cv: any) {
+    if (
+      cv &&
+      (cv.thumbnailStatus === 'PENDING' ||
+        cv.thumbnailStatus === 'PROCESSING') &&
+      this.thumbnailService.isRenderable(cv)
+    ) {
+      this.thumbnailService
+        .enqueueThumbnailGeneration(cv.id, cv.version)
+        .catch(() => {});
+    }
+  }
 
   private async resolveUserId(supabaseId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({

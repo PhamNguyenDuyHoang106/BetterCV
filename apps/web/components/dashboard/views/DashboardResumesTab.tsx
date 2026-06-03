@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import Link from "next/link";
 import { DashEmptyState } from "../dashboard-ui";
 import { renderHtml } from "@acv/template-engine";
@@ -9,6 +9,7 @@ import {
   getCvHealth,
   getCvHealthDetails,
   assembleResumeDataFromSections,
+  isRenderableCv,
 } from "../../../lib/cv-health";
 
 type Recommendation = {
@@ -125,17 +126,8 @@ function Sparkline({ data }: { data: number[] }) {
 }
 
 function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
-  if (cv.thumbnailStatus === "READY" && cv.thumbnailUrl) {
-    return (
-      <div className="absolute inset-0 w-full h-full flex items-center justify-center p-4 bg-slate-50">
-        <img
-          src={cv.thumbnailUrl}
-          alt={cv.title}
-          className="max-w-full max-h-full object-contain rounded shadow-lg border border-slate-200"
-        />
-      </div>
-    );
-  }
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number>(1);
 
   const template = templates.find((t) => t.id === (cv.templateId || "standard-ats"));
   const schema = template?.schema;
@@ -151,53 +143,176 @@ function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
     }
   }, [schema, cv.sections]);
 
-  if (!html) {
+  useIsomorphicLayoutEffect(() => {
+    if (!html) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const { width } = el.getBoundingClientRect();
+      if (width < 1) return;
+      setScale(width / 794); // standard A4 width is 794
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [html]);
+
+  // Prefer live iframe for maximum sharpness (vector text rendering)
+  if (html) {
     return (
-      <picture className="absolute inset-0 w-full h-full block">
-        <source
-          srcSet={`/thumbnails/${cv.templateId || "standard-ats"}@2x.webp 2x, /thumbnails/${cv.templateId || "standard-ats"}.webp 1x`}
-          type="image/webp"
-        />
-        <img
-          src={`/thumbnails/${cv.templateId || "standard-ats"}.webp`}
-          alt={cv.title}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
+      <div
+        ref={containerRef}
+        className="absolute inset-0 overflow-hidden bg-slate-50 w-full h-full flex justify-center items-start p-4"
+      >
+        <div
+          style={{
+            width: 794,
+            height: 1123,
+            position: "relative",
+            transformOrigin: "top center",
+            transform: `scale(${scale * 0.95})`,
           }}
-        />
-      </picture>
+          className="shadow-xl bg-white border border-slate-200"
+        >
+          <iframe
+            srcDoc={html}
+            title="CV Quick Preview"
+            className="w-full h-full border-0 block"
+            sandbox="allow-same-origin"
+          />
+        </div>
+      </div>
     );
   }
 
-  const srcDoc = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            background: white;
-            font-family: system-ui, sans-serif;
-            overflow-x: hidden;
-          }
-        </style>
-      </head>
-      <body>
-        ${html}
-      </body>
-    </html>
-  `;
+  // Fallback: server-rendered thumbnail
+  if (cv.thumbnailStatus === "READY" && cv.thumbnailUrl) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center p-4 bg-slate-50">
+        <img
+          src={cv.thumbnailUrl}
+          alt={cv.title}
+          className="max-w-full max-h-full object-contain rounded shadow-lg border border-slate-200"
+        />
+      </div>
+    );
+  }
+
+  // Last resort: static template preview
+  return (
+    <picture className="absolute inset-0 w-full h-full block">
+      <source
+        srcSet={`/thumbnails/${cv.templateId || "standard-ats"}@2x.webp 2x, /thumbnails/${cv.templateId || "standard-ats"}.webp 1x`}
+        type="image/webp"
+      />
+      <img
+        src={`/thumbnails/${cv.templateId || "standard-ats"}.webp`}
+        alt={cv.title}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
+        }}
+      />
+    </picture>
+  );
+}
+
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+function CvCardHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number>(0.35);
+
+  const template = templates.find((t) => t.id === (cv.templateId || "standard-ats"));
+  const schema = template?.schema;
+
+  const html = useMemo(() => {
+    if (!schema) return null;
+    try {
+      const cvData = assembleResumeDataFromSections(cv.sections || []);
+      return renderHtml({ template: schema, data: cvData });
+    } catch (err) {
+      console.error("Failed to render card preview:", err);
+      return null;
+    }
+  }, [schema, cv.sections]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!html) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const { width } = el.getBoundingClientRect();
+      if (width < 1) return;
+      setScale(width / 794); // standard A4 width is 794
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [html]);
+
+  // Prefer live iframe rendering for maximum sharpness (vector text).
+  // Only fall back to thumbnail images when template schema is unavailable.
+  if (html) {
+    return (
+      <div
+        ref={containerRef}
+        className="absolute inset-0 overflow-hidden bg-white w-full h-full"
+        aria-hidden
+        style={{ pointerEvents: "none", userSelect: "none" }}
+      >
+        <iframe
+          srcDoc={html}
+          title="CV Card Preview"
+          className="border-0 absolute"
+          sandbox="allow-same-origin"
+          style={{
+            width: 794,
+            height: 1123,
+            transformOrigin: "top left",
+            transform: `scale(${scale})`,
+            backfaceVisibility: "hidden",
+            willChange: "transform",
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Fallback: use server-rendered thumbnail or static template preview
+  if (cv.thumbnailStatus === "READY" && cv.thumbnailUrl) {
+    return (
+      <div className="w-full h-full relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white">
+        <img
+          src={cv.thumbnailUrl}
+          alt={cv.title}
+          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.04]"
+        />
+      </div>
+    );
+  }
 
   return (
-    <iframe
-      srcDoc={srcDoc}
-      title="CV Quick Preview"
-      className="w-full h-full border-0 absolute inset-0 bg-white"
-      sandbox="allow-same-origin allow-scripts"
-    />
+    <picture className="w-full h-full block relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white">
+      <source
+        srcSet={`/thumbnails/${cv.templateId || "standard-ats"}@2x.webp 2x, /thumbnails/${cv.templateId || "standard-ats"}.webp 1x`}
+        type="image/webp"
+      />
+      <img
+        src={`/thumbnails/${cv.templateId || "standard-ats"}.webp`}
+        alt={cv.title}
+        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
+        }}
+      />
+    </picture>
   );
 }
 
@@ -274,7 +389,7 @@ export function DashboardResumesTab({
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-2">
           {filteredCvs.map((cv) => {
             const score = cv.completenessScore ?? cv.atsScore ?? 0;
             const health = getCvHealth(cv);
@@ -288,58 +403,41 @@ export function DashboardResumesTab({
                 <div>
                   <Link
                     href={`/cv/${cv.id}`}
-                    className="block h-48 rounded-xl mb-4 relative overflow-hidden border border-slate-100 bg-slate-50 shadow-inner"
+                    className="block relative aspect-[210/297] w-full rounded-2xl mb-4 overflow-hidden border border-slate-200 bg-[#eef2f6] hover:bg-[#e4eaf0] transition-colors duration-300 shadow-[0_1px_3px_rgba(15,23,42,0.03),0_10px_28px_-10px_rgba(15,23,42,0.08)] group-hover:shadow-[0_4px_12px_rgba(15,23,42,0.04),0_24px_48px_-12px_rgba(15,23,42,0.12)]"
                   >
-                    {/* Render Real High-Res Thumbnail with fallback */}
-                    <div className="absolute inset-0 p-2 flex items-center justify-center">
-                      {cv.thumbnailStatus === "PROCESSING" || cv.thumbnailStatus === "PENDING" ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 backdrop-blur-[2px] z-10 p-4 text-center">
-                          <span className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin mb-2" />
-                          <span className="text-xs font-semibold text-indigo-700">Generating Preview</span>
-                          <p className="text-[10px] text-slate-500 mt-1">Vui lòng đợi trong giây lát...</p>
+                    <div
+                      className="absolute z-[1]"
+                      style={{
+                        top: 6,
+                        left: 6,
+                        right: 6,
+                        bottom: 6,
+                      }}
+                    >
+                      {/* Dynamic HTML CV preview (highly sharp vector text) */}
+                      <div className="w-full h-full relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white">
+                        <CvCardHtmlPreview cv={cv} templates={templates} />
+                      </div>
+
+                      {/* Small background rendering spinner badge in top-right */}
+                      {(cv.thumbnailStatus === "PROCESSING" || cv.thumbnailStatus === "PENDING") && isRenderableCv(cv) ? (
+                        <div
+                          className="absolute top-2 right-2 z-20 bg-white/90 backdrop-blur-sm rounded-full p-1 shadow-md border border-slate-200 flex items-center justify-center"
+                          title="Đang cập nhật ảnh xem trước..."
+                        >
+                          <span className="w-3.5 h-3.5 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
                         </div>
                       ) : cv.thumbnailStatus === "FAILED" ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-50/60 z-10 p-4 text-center">
-                          <span className="material-symbols-outlined text-rose-500 text-3xl mb-1">broken_image</span>
-                          <span className="text-xs font-bold text-rose-700">Preview Failed</span>
-                          <p className="text-[9px] text-rose-500 mt-0.5">Không thể tự động chụp màn hình CV này.</p>
+                        <div
+                          className="absolute top-2 right-2 z-20 bg-rose-50/90 backdrop-blur-sm rounded-full p-1 shadow-md border border-rose-200 flex items-center justify-center"
+                          title="Lỗi chụp ảnh xem trước. Bạn vẫn có thể xem trước động."
+                        >
+                          <span className="material-symbols-outlined text-rose-500 text-[14px] font-bold">warning</span>
                         </div>
                       ) : null}
-                      <picture className="w-[85%] h-[90%] block relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white">
-                        {cv.thumbnailUrl && cv.thumbnailStatus === "READY" ? (
-                          <img
-                            src={cv.thumbnailUrl}
-                            alt={cv.title}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              if (target.src === cv.thumbnailUrl) {
-                                target.src = `/thumbnails/${cv.templateId || "standard-ats"}.webp`;
-                              } else if (target.src.includes(`/thumbnails/${cv.templateId || "standard-ats"}.webp`)) {
-                                target.src = "/thumbnails/standard-ats.webp";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <>
-                            <source
-                              srcSet={`/thumbnails/${cv.templateId || "standard-ats"}@2x.webp 2x, /thumbnails/${cv.templateId || "standard-ats"}.webp 1x`}
-                              type="image/webp"
-                            />
-                            <img
-                              src={`/thumbnails/${cv.templateId || "standard-ats"}.webp`}
-                              alt={cv.title}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
-                              }}
-                            />
-                          </>
-                        )}
-                      </picture>
                     </div>
 
-                    <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition-colors flex items-center justify-center gap-3 pb-4 opacity-0 group-hover:opacity-100">
+                    <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition-colors flex items-center justify-center gap-3 pb-4 opacity-0 group-hover:opacity-100 z-[2]">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -377,20 +475,22 @@ export function DashboardResumesTab({
                   {/* ATS scan history display */}
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[11px]">
                     <span className="text-slate-500 font-medium">ATS Match:</span>
-                    {cv.atsScore !== null && cv.atsScore !== undefined && cv.atsScannedAt ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScore)}`}>
-                          {cv.atsScore}%
-                        </span>
-                        <span className="text-[9px] text-slate-400 font-mono">v{cv.atsVersion || "1.0"}</span>
-                      </div>
-                    ) : cv.atsScore !== null && cv.atsScore !== undefined && !cv.atsScannedAt ? (
-                      <div className="flex items-center gap-1.5" title="CV đã được cập nhật sau lần quét cuối">
-                        <span className={`font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500`}>
-                          {cv.atsScore}%
-                        </span>
-                        <span className="text-[8px] px-1 py-0.2 rounded bg-amber-100 text-amber-700 font-medium scale-95">Stale</span>
-                      </div>
+                    {cv.atsScans && cv.atsScans.length > 0 ? (
+                      cv.atsScannedAt ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScore ?? 0)}`}>
+                            {cv.atsScore}%
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">v{cv.atsVersion || "1.0"}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5" title="CV đã được cập nhật sau lần quét cuối">
+                          <span className={`font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500`}>
+                            {cv.atsScore}%
+                          </span>
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-amber-100 text-amber-700 font-medium scale-95">Stale</span>
+                        </div>
+                      )
                     ) : (
                       <span className="text-slate-400 italic">N/A</span>
                     )}

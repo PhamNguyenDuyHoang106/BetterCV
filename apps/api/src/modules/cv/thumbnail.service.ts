@@ -45,6 +45,10 @@ export class ThumbnailService {
     }
   }
 
+  isRenderable(cv: any): boolean {
+    return this.isRenderableCv(cv);
+  }
+
   private isRenderableCv(cv: any): boolean {
     if (!cv.sections || cv.sections.length === 0) return false;
 
@@ -122,7 +126,11 @@ export class ThumbnailService {
 
     await this.prisma.cv.update({
       where: { id: cvId },
-      data: { thumbnailStatus: 'PENDING' },
+      data: {
+        thumbnailStatus: 'PENDING',
+        thumbnailAttemptCount: 0,
+        thumbnailLastError: null,
+      },
     });
 
     const debounceMs = this.config.get<number>('THUMBNAIL_DEBOUNCE_MS', 30000);
@@ -153,7 +161,11 @@ export class ThumbnailService {
     });
   }
 
-  async generateThumbnail(cvId: string, targetVersion?: number): Promise<void> {
+  async generateThumbnail(
+    cvId: string,
+    targetVersion?: number,
+    attemptsMade = 0,
+  ): Promise<void> {
     this.logger.log(`Starting thumbnail generation process for CV: ${cvId}`);
     await this.redisService.hincrby(METRICS_KEY, 'totalJobs', 1);
 
@@ -168,7 +180,10 @@ export class ThumbnailService {
 
     await this.prisma.cv.update({
       where: { id: cvId },
-      data: { thumbnailStatus: 'PROCESSING' },
+      data: {
+        thumbnailStatus: 'PROCESSING',
+        thumbnailAttemptCount: attemptsMade + 1,
+      },
     });
 
     // Race condition prevention: check target version
@@ -181,21 +196,25 @@ export class ThumbnailService {
     }
 
     let templateSchema: any = null;
-    if (cv.templateVersionId) {
-      const ver = await this.prisma.templateVersion.findUnique({
-        where: { id: cv.templateVersionId },
-      });
-      if (ver) {
-        templateSchema = ver.schema;
-      }
-    }
 
-    if (!templateSchema && cv.templateId) {
+    // Resolve template schema using the same priority as the frontend editor.
+    // The frontend uses cv.templateId to find the parent Template.schema.
+    if (cv.templateId) {
       const template = await this.prisma.template.findUnique({
         where: { id: cv.templateId },
       });
       if (template) {
         templateSchema = template.schema;
+      }
+    }
+
+    // Fallback to templateVersionId only if parent template not found
+    if (!templateSchema && cv.templateVersionId) {
+      const ver = await this.prisma.templateVersion.findUnique({
+        where: { id: cv.templateVersionId },
+      });
+      if (ver) {
+        templateSchema = ver.schema;
       }
     }
 
@@ -279,6 +298,8 @@ export class ThumbnailService {
           thumbnailUrl: url,
           thumbnailGeneratedAt: new Date(),
           thumbnailStatus: 'READY',
+          thumbnailAttemptCount: 0,
+          thumbnailLastError: null,
         },
       });
 
@@ -287,10 +308,17 @@ export class ThumbnailService {
         `Thumbnail successfully generated and updated for CV: ${cvId}`,
       );
     } catch (err: any) {
+      const isPermanentError =
+        err instanceof NotFoundException || err.message?.includes('not found');
+      const maxAttempts = 3;
+      const isLastAttempt = attemptsMade + 1 >= maxAttempts || isPermanentError;
       await this.prisma.cv
         .update({
           where: { id: cvId },
-          data: { thumbnailStatus: 'FAILED' },
+          data: {
+            thumbnailStatus: isLastAttempt ? 'FAILED' : 'PROCESSING',
+            thumbnailLastError: err.message,
+          },
         })
         .catch(() => {});
       await this.redisService.hincrby(METRICS_KEY, 'failedJobs', 1);

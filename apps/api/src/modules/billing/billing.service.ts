@@ -88,20 +88,19 @@ export class BillingService {
       );
     }
 
-   const orderCode =
-  Math.floor(Date.now() / 1000) +
-  Math.floor(Math.random() * 1000);
+    const orderCode =
+      Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
 
-const txn = await this.prisma.payosTransaction.create({
-  data: {
-    userId,
-    orderCode,
-    tier,
-    mode,
-    amount,
-    status: 'PENDING',
-  },
-});
+    const txn = await this.prisma.payosTransaction.create({
+      data: {
+        userId,
+        orderCode,
+        tier,
+        mode,
+        amount,
+        status: 'PENDING',
+      },
+    });
 
     const description = `BCV ${tier} ${txn.orderCode}`.slice(0, 25);
     const successUrl = this.appendOrderCode(dto.successUrl, txn.orderCode);

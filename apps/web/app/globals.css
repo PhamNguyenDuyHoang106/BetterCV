@@ -598,3 +598,15 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.2);
 }
+
+/* Optimize image scaling and text rendering for high sharpness */
+img {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: crisp-edges !important;
+}
+
+.resume-preview-doc {
+  -webkit-font-smoothing: subpixel-antialiased !important;
+  -moz-osx-font-smoothing: auto !important;
+  text-rendering: geometricPrecision !important;
+}

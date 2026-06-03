@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useLayoutEffect, useEffect } from "react";
 import {
   getTemplateDisplayMeta,
   STYLE_BADGE_CLASSES,
@@ -54,8 +54,7 @@ type GalleryTabId = (typeof GALLERY_TABS)[number]["id"];
 // card thumbnail. This guarantees Gallery ≡ Editor ≡ Export (same pipeline).
 // Falls back to the React mockup when schema is unavailable (offline mode).
 
-const A4_PX_W = 794; // A4 at 96dpi
-const SCALE_FACTOR = 0.35; // approximate card width ÷ A4_PX_W
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 function TemplateHtmlPreview({
   templateId,
@@ -68,22 +67,40 @@ function TemplateHtmlPreview({
   schema?: any;
   fallbackVariant: import("../../lib/dashboard-templates").TemplatePreviewVariant;
 }) {
-  const [imageError, setImageError] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number>(0.25);
 
   const html = useMemo(() => {
-    // If image did not error yet, we don't need to generate the HTML dynamically
-    if (!imageError) return null;
     if (!schema) return null;
     try {
       return renderHtml({ template: schema, data: GALLERY_DEMO_DATA });
-    } catch {
+    } catch (err) {
+      console.warn("Failed to render gallery preview for", templateId, err);
       return null;
     }
-  }, [schema, imageError]);
+  }, [schema, templateId]);
 
-  if (!imageError) {
+  useIsomorphicLayoutEffect(() => {
+    if (!html) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const { width } = el.getBoundingClientRect();
+      if (width < 1) return;
+      setScale(width / 794);
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [html]);
+
+  // Fallback to static WebP when template schema is unavailable
+  if (!html) {
     return (
-      <picture className="absolute inset-0 w-full h-full block">
+      <picture className="w-full h-full block relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white">
         <source
           srcSet={`/thumbnails/${templateId}@2x.webp 2x, /thumbnails/${templateId}.webp 1x`}
           type="image/webp"
@@ -91,29 +108,34 @@ function TemplateHtmlPreview({
         <img
           src={`/thumbnails/${templateId}.webp`}
           alt={templateName}
-          className="w-full h-full object-cover transition-all duration-300 group-hover:scale-[1.03]"
-          onError={() => setImageError(true)}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
+          }}
         />
       </picture>
     );
   }
 
-  if (!html) {
-    return <TemplatePreview variant={fallbackVariant} size="card" fill />;
-  }
-
   return (
     <div
-      className="absolute inset-0 overflow-hidden bg-white"
+      ref={containerRef}
+      className="w-full h-full relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white"
       aria-hidden
       style={{ pointerEvents: "none", userSelect: "none" }}
     >
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
+      <iframe
+        srcDoc={html}
+        title={`Preview ${templateName}`}
+        className="border-0 absolute"
+        sandbox="allow-same-origin"
         style={{
-          width: A4_PX_W,
+          width: 794,
+          height: 1123,
           transformOrigin: "top left",
-          transform: `scale(${SCALE_FACTOR})`,
+          transform: `scale(${scale})`,
+          backfaceVisibility: "hidden",
+          willChange: "transform",
         }}
       />
     </div>
