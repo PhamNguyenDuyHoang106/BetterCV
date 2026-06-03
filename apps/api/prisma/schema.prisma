@@ -103,7 +103,7 @@ model Cv {
   atsScannedAt         DateTime?
   atsVersion           String?
   thumbnailStatus      ThumbnailStatus  @default(PENDING)
-  AtsScan              AtsScan[]
+  atsScans             AtsScan[]
   templateVersion      TemplateVersion? @relation(fields: [templateVersionId], references: [id])
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections             CvSection[]
@@ -291,46 +291,6 @@ model OcrJob {
   @@index([userId])
 }
 
-model AtsScan {
-  id                 String   @id
-  cvId               String
-  jobTitle           String?
-  jobDescription     String?
-  overallScore       Int
-  keywordScore       Int?
-  formatScore        Int?
-  completenessScore  Int?
-  missingKeywords    Json?
-  createdAt          DateTime @default(now())
-  jobDescriptionHash String?
-  recommendations    Json?
-  Cv                 Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)
-
-  @@index([cvId, createdAt(sort: Desc)])
-}
-
-model AuditLog {
-  id           String         @id
-  actorUserId  String?
-  actorType    AuditActorType
-  action       String
-  resourceType String
-  resourceId   String?
-  oldValue     Json?
-  newValue     Json?
-  severity     AuditSeverity
-  requestId    String?
-  ipHash       String?
-  createdAt    DateTime       @default(now())
-  eventType    AuditEventType
-  traceId      String?
-
-  @@index([actorUserId])
-  @@index([createdAt])
-  @@index([resourceType, resourceId])
-}
-
-
 model PayosTransaction {
   id            String   @id @default(cuid())
   userId        String
@@ -426,31 +386,6 @@ enum ThumbnailStatus {
   FAILED
 }
 
-enum AuditEventType {
-  CV_CREATED
-  CV_UPDATED
-  CV_SECTION_UPDATED
-  CV_RESTORED
-  SHARE_LINK_CREATED
-  SHARE_LINK_DELETED
-  BILLING_STATUS_CHANGED
-  USER_ROLE_CHANGED
-}
-
-enum AuditActorType {
-  USER
-  SYSTEM
-  CRON
-  WORKER
-  ADMIN
-}
-
-enum AuditSeverity {
-  INFO
-  WARNING
-  CRITICAL
-}
-
 model AuditLog {
   id            String         @id @default(uuid())
   actorUserId   String?
@@ -470,11 +405,4 @@ model AuditLog {
   @@index([actorUserId])
   @@index([resourceType, resourceId])
   @@index([createdAt])
-}
-
-enum ThumbnailStatus {
-  PENDING
-  PROCESSING
-  READY
-  FAILED
 }
