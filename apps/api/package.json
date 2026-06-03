@@ -9,7 +9,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "test:integration": "ts-node test-integration.ts",
+    "test:integration": "tsc --project ../../packages/shared/tsconfig.json && tsc --project ../../packages/template-engine/tsconfig.json && ts-node test-integration.ts",
     "test:health": "ts-node test-health.ts",
     "test:throttler": "ts-node test-throttler.ts"
   },
