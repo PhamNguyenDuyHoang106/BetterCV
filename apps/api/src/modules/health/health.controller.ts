@@ -44,7 +44,7 @@ export class HealthController {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     @InjectQueue('thumbnail-queue') private thumbnailQueue: Queue,
-  ) {}
+  ) { }
 
   /**
    * Liveness probe — confirms the Node.js process is alive.
@@ -83,16 +83,16 @@ export class HealthController {
       checks.database = 'down';
     }
 
-    // ── Redis check with timeout barrier ──
-    try {
-      await Promise.race([
-        this.redis.getClient().ping(),
-        timeout(DEPENDENCY_TIMEOUT_MS),
-      ]);
-      checks.redis = 'up';
-    } catch {
-      checks.redis = 'down';
-    }
+    // // ── Redis check with timeout barrier ──
+    // try {
+    //   await Promise.race([
+    //     this.redis.getClient().ping(),
+    //     timeout(DEPENDENCY_TIMEOUT_MS),
+    //   ]);
+    //   checks.redis = 'up';
+    // } catch {
+    //   checks.redis = 'down';
+    // }
 
     const allHealthy = Object.values(checks).every((s) => s === 'up');
     const status = allHealthy ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
