@@ -14,8 +14,8 @@ import {
 
 type Recommendation = {
   id: string;
-  category: 'ATS' | 'CONTENT' | 'FORMAT' | 'KEYWORD';
-  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  category: "semantic" | "keyword" | "experience" | "skills" | "formatting" | 'ATS' | 'CONTENT' | 'FORMAT' | 'KEYWORD';
+  severity: "low" | "medium" | "high" | 'LOW' | 'MEDIUM' | 'HIGH';
   title: string;
   description: string;
   actionable: boolean;
@@ -60,7 +60,8 @@ type Props = {
   templates: any[];
 };
 
-function scoreBadgeClass(score: number) {
+function scoreBadgeClass(score: number | null | undefined) {
+  if (score === null || score === undefined) return "bg-slate-100 text-slate-500 border border-slate-200/60";
   if (score >= 85) return "dash-score-high";
   if (score >= 60) return "dash-score-mid";
   return "dash-score-low";
@@ -478,15 +479,18 @@ export function DashboardResumesTab({
                     {cv.atsScans && cv.atsScans.length > 0 ? (
                       cv.atsScannedAt ? (
                         <div className="flex items-center gap-1.5">
-                          <span className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScore ?? 0)}`}>
-                            {cv.atsScore}%
+                          <span 
+                            className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScore)}`}
+                            title={cv.atsScore === null ? "AI service temporarily unavailable (Analysis Degraded)" : undefined}
+                          >
+                            {cv.atsScore === null || cv.atsScore === undefined ? "N/A" : `${cv.atsScore}%`}
                           </span>
                           <span className="text-[9px] text-slate-400 font-mono">v{cv.atsVersion || "1.0"}</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5" title="CV đã được cập nhật sau lần quét cuối">
-                          <span className={`font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500`}>
-                            {cv.atsScore}%
+                        <div className="flex items-center gap-1.5" title={cv.atsScore === null ? "AI service temporarily unavailable (Analysis Degraded)" : "CV đã được cập nhật sau lần quét cuối"}>
+                          <span className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScore)}`}>
+                            {cv.atsScore === null || cv.atsScore === undefined ? "N/A" : `${cv.atsScore}%`}
                           </span>
                           <span className="text-[8px] px-1 py-0.2 rounded bg-amber-100 text-amber-700 font-medium scale-95">Stale</span>
                         </div>
@@ -657,16 +661,20 @@ export function DashboardResumesTab({
                                   let sevColor = "bg-emerald-50 border-emerald-100 text-emerald-800";
                                   let icon = "info";
 
-                                  if (rec.severity === "HIGH") {
+                                  const severityLower = rec.severity.toLowerCase();
+                                  const categoryLower = rec.category.toLowerCase();
+
+                                  if (severityLower === "high") {
                                     sevColor = "bg-rose-50 border-rose-100 text-rose-800";
-                                  } else if (rec.severity === "MEDIUM") {
+                                  } else if (severityLower === "medium") {
                                     sevColor = "bg-amber-50 border-amber-100 text-amber-800";
                                   }
 
-                                  if (rec.category === "KEYWORD") icon = "key";
-                                  else if (rec.category === "CONTENT") icon = "edit_note";
-                                  else if (rec.category === "FORMAT") icon = "format_paint";
-                                  else if (rec.category === "ATS") icon = "smart_toy";
+                                  if (categoryLower === "keyword") icon = "key";
+                                  else if (categoryLower === "formatting" || categoryLower === "format") icon = "format_paint";
+                                  else if (categoryLower === "semantic" || categoryLower === "ats") icon = "smart_toy";
+                                  else if (categoryLower === "experience" || categoryLower === "content") icon = "work";
+                                  else if (categoryLower === "skills") icon = "school";
 
                                   return (
                                     <div key={rec.id} className={`p-3.5 rounded-xl border flex gap-3 ${sevColor}`}>

@@ -194,15 +194,22 @@ model AtsScan {
   jobTitle           String?
   jobDescription     String?  @db.Text
   jobDescriptionHash String?
-  overallScore       Int
+  overallScore       Int?
   keywordScore       Int?
   formatScore        Int?
   completenessScore  Int?
+  semanticScore      Int?
+  experienceScore    Int?
+  skillsScore        Int?
+  aiModel            String?
+  promptVersion      String?
+  contentHash        String?
   missingKeywords    Json?
   recommendations    Json?
   createdAt          DateTime @default(now())
 
   @@index([cvId, createdAt(sort: Desc)])
+  @@index([cvId, contentHash])
 }
 
 model Prompt {

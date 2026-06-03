@@ -3,8 +3,39 @@ import { AtsService } from './src/modules/ats/ats.service';
 import { CvService } from './src/modules/cv/cv.service';
 
 const prisma = new PrismaClient();
+let runPromptCount = 0;
+const mockAiService = {
+  runPrompt: async (supabaseId: string, promptKey: string, payload: any, temp: number) => {
+    runPromptCount++;
+    return JSON.stringify({
+      semanticScore: 85,
+      keywordScore: 80,
+      experienceScore: 75,
+      skillsScore: 90,
+      findings: ['CV matches job requirements very well.', 'Experience matches seniority level.'],
+      missingKeywords: ['Redis', 'Docker'],
+      recommendations: [
+        {
+          title: 'Bổ sung Docker',
+          description: 'Nên thêm kỹ năng Docker vào CV vì JD yêu cầu.',
+          category: 'keyword',
+          severity: 'medium',
+          actionable: true,
+        },
+        {
+          title: 'Cải thiện mô tả kinh nghiệm',
+          description: 'Nên mô tả rõ hơn về dự án Backend.',
+          category: 'experience',
+          severity: 'low',
+          actionable: false,
+        }
+      ]
+    });
+  }
+};
+
 // Instantiate services directly with the Prisma client, mimicking NestJS dependency injection
-const atsService = new AtsService(prisma as any);
+const atsService = new AtsService(prisma as any, mockAiService as any);
 const cvService = new CvService(prisma as any, null as any, null as any);
 
 async function runTests() {
@@ -114,6 +145,62 @@ async function runTests() {
       console.log('\x1b[32m  [PASS] ✓ Test 3: Concurrent ATS Retention successfully capped scans below 50!\x1b[0m\n');
     } else {
       throw new Error(`[FAIL] ✗ Test 3 FAILED: Expected scan count to be capped at <= ${expectedCappedCount}, but found ${concurrentScanCount} in DB!`);
+    }
+
+    // ─── TEST 4: Invalid AI Response Fallback ───
+    console.log('🧪 Running Test 4: Invalid AI Response Fallback (Inject malformed JSON, verify fallback is active)...');
+    
+    // Mutate mockAiService to return invalid JSON
+    const originalRunPrompt = mockAiService.runPrompt;
+    mockAiService.runPrompt = async () => {
+      return 'Sorry, I cannot analyze this. The CV text is empty or format is unsupported.';
+    };
+
+    try {
+      const fallbackResult = await atsService.evaluateCv(
+        testUser.supabaseId!,
+        testCv.id,
+        'React and Node Developer Job Description'
+      );
+
+      console.log('  └─ Fallback scores:', {
+        success: fallbackResult.success,
+        overallScore: fallbackResult.data.score,
+        findings: fallbackResult.data.findings
+      });
+
+      // Verify that the analysis is marked as success: false (degraded) and the score is null
+      if (fallbackResult.success === false && fallbackResult.data.score === null) {
+        console.log('\x1b[32m  [PASS] ✓ Test 4: Successfully verified graceful degraded fallback returning null score!\x1b[0m\n');
+      } else {
+        throw new Error(`[FAIL] ✗ Test 4 FAILED: Expected success to be false and score to be null, but got success=${fallbackResult.success} and score=${fallbackResult.data.score}!`);
+      }
+    } finally {
+      // Restore original mock
+      mockAiService.runPrompt = originalRunPrompt;
+    }
+
+    // ─── TEST 5: Concurrent Scan Deduplication ───
+    console.log('🧪 Running Test 5: Concurrent Scan Deduplication (Trigger 5 parallel requests for same CV + JD, verify exactly 1 AI call)...');
+    
+    // Reset call counter
+    runPromptCount = 0;
+
+    // Trigger 5 concurrent requests simultaneously
+    const deduplicateJd = 'A completely fresh and unique job description to bypass any existing DB cache check ' + Math.random();
+    
+    await Promise.all(
+      Array.from({ length: 5 }).map(() =>
+        atsService.evaluateCv(testUser.supabaseId!, testCv.id, deduplicateJd)
+      )
+    );
+
+    console.log(`  └─ Completed 5 concurrent requests. AI calls: ${runPromptCount}`);
+    
+    if (runPromptCount === 1) {
+      console.log('\x1b[32m  [PASS] ✓ Test 5: Successfully verified concurrent scan deduplication (only 1 AI call made)!\x1b[0m\n');
+    } else {
+      throw new Error(`[FAIL] ✗ Test 5 FAILED: Expected exactly 1 AI call for concurrent requests, but got ${runPromptCount}!`);
     }
 
   } catch (error: any) {

@@ -1,6 +1,15 @@
 import React, { useState } from "react";
 import { apiFetch } from "../../../lib/api";
 
+type Recommendation = {
+  id: string;
+  category: "semantic" | "keyword" | "experience" | "skills" | "formatting" | "ATS" | "CONTENT" | "FORMAT" | "KEYWORD";
+  severity: "low" | "medium" | "high" | "LOW" | "MEDIUM" | "HIGH";
+  title: string;
+  description: string;
+  actionable: boolean;
+};
+
 type AtsReport = {
   score: number;
   rulesEvaluated: Array<{
@@ -10,7 +19,7 @@ type AtsReport = {
     findings: string[];
   }>;
   findings: string[];
-  recommendations: string[];
+  recommendations: Recommendation[];
 };
 
 type AtsPanelProps = {
@@ -84,11 +93,23 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
 
       {atsReport && (
         <div className="rounded-xl border border-slate-800 bg-slate-950 p-5 space-y-6 animate-in fade-in duration-200">
+          {atsReport.score === null && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl text-xs flex gap-2">
+              <span className="material-symbols-outlined shrink-0 text-lg">error</span>
+              <div>
+                <p className="font-bold">Phân tích AI tạm thời gián đoạn</p>
+                <p className="text-slate-400 mt-0.5">Hệ thống AI không phản hồi. Các tiêu chuẩn trình bày (Formatting) vẫn được kiểm tra bình thường.</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-slate-200">Kết quả phân tích tổng quan</h4>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Dựa trên thuật toán so khớp trọng số thông minh
+                {atsReport.score === null
+                  ? "Dịch vụ AI phân tích CV tạm thời không khả dụng"
+                  : "Dựa trên thuật toán so khớp trọng số thông minh"}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -98,14 +119,16 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
                 </span>
                 <span
                   className={`text-2xl font-black ${
-                    atsReport.score >= 80
-                      ? "text-emerald-400"
-                      : atsReport.score >= 50
-                        ? "text-amber-400"
-                        : "text-rose-400"
+                    atsReport.score === null || atsReport.score === undefined
+                      ? "text-slate-400"
+                      : atsReport.score >= 80
+                        ? "text-emerald-400"
+                        : atsReport.score >= 50
+                          ? "text-amber-400"
+                          : "text-rose-400"
                   }`}
                 >
-                  {atsReport.score}/100
+                  {atsReport.score === null || atsReport.score === undefined ? "N/A" : `${atsReport.score}/100`}
                 </span>
               </div>
             </div>
@@ -122,14 +145,16 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
                 </span>
                 <span
                   className={`text-lg font-bold block mt-1.5 ${
-                    rule.score >= 80
-                      ? "text-emerald-400"
-                      : rule.score >= 50
-                        ? "text-amber-400"
-                        : "text-rose-400"
+                    rule.score === null || rule.score === undefined
+                      ? "text-slate-500"
+                      : rule.score >= 80
+                        ? "text-emerald-400"
+                        : rule.score >= 50
+                          ? "text-amber-400"
+                          : "text-rose-400"
                   }`}
                 >
-                  {rule.score}%
+                  {rule.score === null || rule.score === undefined ? "N/A" : `${rule.score}%`}
                 </span>
               </div>
             ))}
@@ -156,17 +181,52 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
             <h5 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
               Hành động khắc phục đề xuất
             </h5>
-            <ul className="space-y-1.5">
-              {atsReport.recommendations.map((rec, idx) => (
-                <li
-                  key={idx}
-                  className="text-xs text-slate-300 flex items-start gap-2 leading-relaxed"
-                >
-                  <span className="text-indigo-400 mt-1">✓</span>
-                  <span>{rec}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-3">
+               {atsReport.recommendations.map((rec) => {
+                let sevColor = "bg-emerald-500/10 border-emerald-500/20 text-emerald-300";
+                let iconColor = "text-emerald-400";
+                let icon = "check_circle";
+
+                const severityLower = rec.severity.toLowerCase();
+
+                if (severityLower === "high") {
+                  sevColor = "bg-rose-500/10 border-rose-500/20 text-rose-300";
+                  iconColor = "text-rose-400";
+                  icon = "warning";
+                } else if (severityLower === "medium") {
+                  sevColor = "bg-amber-500/10 border-amber-500/20 text-amber-300";
+                  iconColor = "text-amber-400";
+                  icon = "info";
+                }
+
+                return (
+                  <div
+                    key={rec.id}
+                    className={`p-3.5 rounded-xl border border-slate-800/80 flex gap-3 ${sevColor}`}
+                  >
+                    <span className={`material-symbols-outlined shrink-0 text-lg mt-0.5 ${iconColor}`}>
+                      {icon}
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs text-white leading-none">{rec.title}</span>
+                        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-white/10 text-slate-300 shrink-0 leading-none">
+                          {rec.category}
+                        </span>
+                        {rec.actionable && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-600 text-white shrink-0 leading-none">
+                            Có thể sửa ngay
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-slate-300 font-medium">
+                        {rec.description}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

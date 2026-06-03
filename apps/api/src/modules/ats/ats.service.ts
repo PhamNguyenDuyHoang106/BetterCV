@@ -1,22 +1,40 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { AtsRule, AtsRuleResult } from './rules/ats-rule.interface';
-import { KeywordRule } from './rules/keyword-rule';
-import { CompletenessRule } from './rules/completeness-rule';
-import { FormattingRule } from './rules/formatting-rule';
+import { AiService } from '../ai/ai.service';
+import * as crypto from 'crypto';
+import { z } from 'zod';
 
-const ATS_ENGINE_VERSION = process.env.ATS_ENGINE_VERSION || '1.0.0';
+const ATS_ENGINE_VERSION = process.env.ATS_ENGINE_VERSION || '2.0.0';
+
+const AtsAnalyzeSchema = z.object({
+  semanticScore: z.number().min(0).max(100),
+  keywordScore: z.number().min(0).max(100),
+  experienceScore: z.number().min(0).max(100),
+  skillsScore: z.number().min(0).max(100),
+  findings: z.array(z.string()),
+  missingKeywords: z.array(z.string()),
+  recommendations: z.array(
+    z.object({
+      title: z.string(),
+      description: z.string(),
+      category: z.enum(['semantic', 'keyword', 'experience', 'skills', 'formatting']),
+      severity: z.enum(['low', 'medium', 'high']),
+      actionable: z.boolean(),
+    })
+  )
+}).strict();
+
+type AtsAnalyzeOutput = z.infer<typeof AtsAnalyzeSchema>;
 
 @Injectable()
 export class AtsService {
-  private readonly rules: AtsRule[] = [];
+  private readonly logger = new Logger(AtsService.name);
+  private readonly activeScans = new Map<string, Promise<any>>();
 
-  constructor(private prisma: PrismaService) {
-    // Register ATS Evaluation Rules
-    this.rules.push(new KeywordRule());
-    this.rules.push(new CompletenessRule());
-    this.rules.push(new FormattingRule());
-  }
+  constructor(
+    private prisma: PrismaService,
+    private aiService: AiService,
+  ) {}
 
   async evaluateCv(supabaseId: string, cvId: string, jobDescription: string) {
     const user = await this.prisma.user.findUnique({
@@ -31,153 +49,199 @@ export class AtsService {
     });
     if (!cv) throw new NotFoundException('CV not found');
 
-    const ruleResults: AtsRuleResult[] = [];
+    // 1. Token Optimization: Serialize CV text representation
+    const cvText = this.serializeCvForAi(cv);
+    const cleanedJd = (jobDescription || '').trim();
 
-    // Evaluate all registered rules
-    for (const rule of this.rules) {
-      const result = await rule.evaluate(cv, jobDescription);
-      ruleResults.push(result);
+    const aiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    // 2. Caching check: Hash CV content + JD content + version + model
+    const contentHash = crypto
+      .createHash('sha256')
+      .update(cvText + '\n' + cleanedJd + '\n' + ATS_ENGINE_VERSION + '\n' + aiModel)
+      .digest('hex');
+
+    // Deduplication: Check if there's an active in-flight request for this hash
+    const activePromise = this.activeScans.get(contentHash);
+    if (activePromise) {
+      this.logger.log(`ATS scan already in-flight for hash ${contentHash}. Reusing active promise.`);
+      return activePromise;
     }
 
-    // Calculate total weighted score
-    let totalScore = 0;
-    let totalWeight = 0;
+    const scanPromise = this.executeScan(supabaseId, cvId, cv, cvText, cleanedJd, contentHash, aiModel, jobDescription);
+    this.activeScans.set(contentHash, scanPromise);
+    try {
+      return await scanPromise;
+    } finally {
+      this.activeScans.delete(contentHash);
+    }
+  }
 
-    for (const res of ruleResults) {
-      totalScore += res.score * res.weight;
-      totalWeight += res.weight;
+  private async executeScan(
+    supabaseId: string,
+    cvId: string,
+    cv: any,
+    cvText: string,
+    cleanedJd: string,
+    contentHash: string,
+    aiModel: string,
+    jobDescription: string,
+  ) {
+    // 1. Indefinite Caching check (no TTL since hash uniquely identifies content, version, and model)
+    const existingScan = await this.prisma.atsScan.findFirst({
+      where: {
+        cvId,
+        contentHash,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingScan) {
+      this.logger.log(`ATS cache hit for CV ${cvId} and identical JD.`);
+      return {
+        success: true,
+        data: {
+          cvId,
+          score: existingScan.overallScore,
+          rulesEvaluated: [
+            { ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)', score: existingScan.semanticScore, weight: 0.4, findings: [] },
+            { ruleName: 'Độ phủ từ khóa (Keyword Match)', score: existingScan.keywordScore, weight: 0.2, findings: [] },
+            { ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)', score: existingScan.experienceScore, weight: 0.2, findings: [] },
+            { ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)', score: existingScan.skillsScore, weight: 0.1, findings: [] },
+            { ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)', score: existingScan.formatScore, weight: 0.1, findings: [] },
+          ],
+          findings: ['Kết quả phân tích được tải từ cache của lượt quét trước đó.'],
+          recommendations: existingScan.recommendations as any,
+          evaluatedAt: existingScan.createdAt.toISOString(),
+        },
+      };
     }
 
-    const finalScore =
-      totalWeight > 0 ? Math.round(totalScore / totalWeight) : 0;
+    // 2. Rule-based formatting evaluation
+    const formatRuleResult = this.evaluateFormattingRule(cv);
 
-    // Extract sub-scores for detailed historical analysis
-    const keywordRes = ruleResults.find(
-      (r) => r.ruleName.includes('Từ khóa') || r.ruleName.includes('Keywords'),
-    );
-    const completenessRes = ruleResults.find(
-      (r) =>
-        r.ruleName.includes('hoàn thiện') ||
-        r.ruleName.includes('Completeness'),
-    );
-    const formatRes = ruleResults.find(
-      (r) =>
-        r.ruleName.includes('Định dạng') || r.ruleName.includes('Formatting'),
-    );
+    // 3. OpenAI prompt and execution
+    const systemPrompt = `You are an expert ATS (Applicant Tracking System) Resume Analyzer.
+Your task is to analyze the candidate's CV against the provided Job Description (JD).
 
-    const keywordScore = keywordRes ? keywordRes.score : null;
-    const completenessScore = completenessRes ? completenessRes.score : null;
-    const formatScore = formatRes ? formatRes.score : null;
+Evaluate the CV across 4 criteria:
+1. Semantic Match: Overall role compatibility, semantic relevance of experience, and transferability of skills.
+2. Keyword Match: Coverage of required tools, programming languages, and key technical concepts, including matching synonyms (e.g. "ReactJS" = "React").
+3. Experience Relevance: Seniority level compatibility, appropriate depth of responsibilities, and years of experience match.
+4. Skills Coverage: Breadth and depth of core skills.
 
-    // Parse missing keywords from findings list for future recommendations, limiting to 20 items to prevent DB bloating
-    let missingKeywords: string[] = [];
-    if (keywordRes && keywordRes.findings) {
-      const missingFinding = keywordRes.findings.find((f: string) =>
-        f.startsWith('Từ khóa còn thiếu:'),
+RULES:
+1. Return ONLY a valid JSON object matching the schema below.
+2. Do NOT wrap the JSON in markdown formatting (like \`\`\`json). Just return the raw JSON object.
+3. Be objective. Do not inflate scores. If a CV is completely unrelated to the JD, the score must be near 0.
+4. Extract all missing keywords from the JD that are not present in the CV.
+5. Provide detailed recommendations with title, description, category ("semantic", "keyword", "experience", "skills"), severity ("low", "medium", "high"), and actionable (true/false).
+
+JSON RESPONSE SCHEMA:
+{
+  "semanticScore": number (0-100),
+  "keywordScore": number (0-100),
+  "experienceScore": number (0-100),
+  "skillsScore": number (0-100),
+  "findings": string[],
+  "missingKeywords": string[],
+  "recommendations": Array<{
+    "title": string,
+    "description": string,
+    "category": "semantic" | "keyword" | "experience" | "skills",
+    "severity": "low" | "medium" | "high",
+    "actionable": boolean
+  }>
+}`;
+
+    const userPrompt = `CV CONTENT:
+${cvText}
+
+JOB DESCRIPTION:
+${cleanedJd}`;
+
+    let aiResult: AtsAnalyzeOutput | null = null;
+    let isDegraded = false;
+
+    try {
+      const output = await this.aiService['runPrompt'](
+        supabaseId,
+        'cv_ats_analyze',
+        {
+          system: systemPrompt,
+          user: userPrompt,
+          input: { cvId, jobDescriptionLength: cleanedJd.length },
+        },
+        0.2,
       );
-      if (missingFinding) {
-        missingKeywords = missingFinding
-          .replace('Từ khóa còn thiếu:', '')
-          .split(',')
-          .map((k: string) => k.trim().replace('...', ''))
-          .filter(Boolean)
-          .slice(0, 20);
+
+      let parsedOutput: any;
+      if (typeof output === 'string') {
+        parsedOutput = this.cleanAndParseJson(output);
+      } else if (typeof output === 'object' && output !== null) {
+        if ('text' in output && typeof (output as any).text === 'string') {
+          parsedOutput = this.cleanAndParseJson((output as any).text);
+        } else if ('raw' in output && typeof (output as any).raw === 'string') {
+          parsedOutput = this.cleanAndParseJson((output as any).raw);
+        } else {
+          parsedOutput = output;
+        }
+      } else {
+        parsedOutput = {};
       }
+
+      aiResult = AtsAnalyzeSchema.parse(parsedOutput);
+    } catch (err: any) {
+      this.logger.error(`AI-powered ATS evaluation failed: ${err.message}. Falling back to degraded baseline.`);
+      isDegraded = true;
     }
 
-    // Convert findings and recommendations to structured Recommendation models
-    const structuredRecommendations: any[] = [];
-    let recIdCounter = 1;
+    // 4. Overall score calculation & recommendations consolidation
+    let finalScore: number | null = null;
+    let allFindings = [...formatRuleResult.findings];
+    let finalRecommendations: any[] = [];
 
-    for (const res of ruleResults) {
-      let category: 'ATS' | 'CONTENT' | 'FORMAT' | 'KEYWORD' = 'ATS';
-      if (
-        res.ruleName.includes('hoàn thiện') ||
-        res.ruleName.includes('Completeness')
-      ) {
-        category = 'CONTENT';
-      } else if (
-        res.ruleName.includes('Từ khóa') ||
-        res.ruleName.includes('Keywords')
-      ) {
-        category = 'KEYWORD';
-      } else if (
-        res.ruleName.includes('Định dạng') ||
-        res.ruleName.includes('Formatting')
-      ) {
-        category = 'FORMAT';
-      }
+    if (!isDegraded && aiResult) {
+      finalScore = Math.round(
+        aiResult.semanticScore * 0.4 +
+          aiResult.keywordScore * 0.2 +
+          aiResult.experienceScore * 0.2 +
+          aiResult.skillsScore * 0.1 +
+          formatRuleResult.score * 0.1,
+      );
 
-      for (const recText of res.recommendations) {
-        if (!recText || recText.trim() === '') continue;
-
-        let severity: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
-        let title = 'Cải thiện CV';
-        let actionable = true;
-
-        if (
-          recText.includes('Thiếu phần') ||
-          recText.includes('Quan trọng') ||
-          recText.includes('Vui lòng thêm') ||
-          recText.includes('tối thiểu')
-        ) {
-          severity = 'HIGH';
-          title = 'Yêu cầu bổ sung phần chính';
-        } else if (
-          recText.includes('Tuyệt vời') ||
-          recText.includes('rất đầy đủ') ||
-          recText.includes('Chuẩn') ||
-          recText.includes('Hoàn hảo')
-        ) {
-          severity = 'LOW';
-          title = 'Đánh giá tốt';
-          actionable = false;
-        } else if (recText.includes('Từ khóa')) {
-          severity = 'HIGH';
-          title = 'Thiếu từ khóa quan trọng';
-        } else if (
-          recText.includes('đo độ dài') ||
-          recText.includes('mô tả') ||
-          recText.includes('Bổ sung mô tả')
-        ) {
-          severity = 'MEDIUM';
-          title = 'Tối ưu hóa mô tả kinh nghiệm';
-        }
-
-        if (recText.length < 40) {
-          title = recText;
-        }
-
-        // Cap recommendation description size to avoid runaway AI payloads
-        const cleanDescription =
-          recText.length > 1000 ? recText.substring(0, 1000) + '...' : recText;
-
-        structuredRecommendations.push({
-          id: `rec-${category.toLowerCase()}-${recIdCounter++}`,
-          category,
-          severity,
-          title,
-          description: cleanDescription,
-          actionable,
-        });
-      }
+      allFindings = [...aiResult.findings, ...formatRuleResult.findings];
+      const rawRecommendations = [
+        ...aiResult.recommendations,
+        ...formatRuleResult.recommendations,
+      ];
+      let recIdCounter = 1;
+      finalRecommendations = rawRecommendations.slice(0, 20).map((rec) => ({
+        ...rec,
+        id: `rec-${rec.category}-${recIdCounter++}`,
+      }));
+    } else {
+      // Degraded State: We save null scores, and only formatting recommendations
+      let recIdCounter = 1;
+      finalRecommendations = formatRuleResult.recommendations.slice(0, 20).map((rec) => ({
+        ...rec,
+        id: `rec-${rec.category}-${recIdCounter++}`,
+      }));
+      allFindings.unshift('Hệ thống phân tích AI tạm thời không khả dụng. Kết quả đánh giá bị giảm cấp (Degraded).');
     }
-
-    // Cap to max 20 recommendations to avoid database bloating from abnormal AI outputs
-    const finalRecommendations = structuredRecommendations.slice(0, 20);
 
     // Extract a descriptive Job Title from the first line of the JD
     let jobTitle = 'Vị trí công việc';
-    if (jobDescription) {
-      const firstLine = jobDescription.split('\n')[0].trim();
+    if (cleanedJd) {
+      const firstLine = cleanedJd.split('\n')[0].trim();
       jobTitle =
         firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine;
     }
 
-    // Persist detailed ATS Scan history to DB inside a transaction to ensure atomic consistency
+    // 5. Persist ATS Scan history to database
     await this.prisma.$transaction(
       async (tx) => {
-        // Row-lock the parent Cv record using SELECT FOR UPDATE to serialize concurrent scans for this CV and prevent race conditions.
+        // Row-lock the parent Cv record using SELECT FOR UPDATE
         await tx.$executeRaw`SELECT * FROM "Cv" WHERE "id" = ${cvId} FOR UPDATE;`;
 
         await tx.atsScan.create({
@@ -186,10 +250,16 @@ export class AtsService {
             jobTitle,
             jobDescription,
             overallScore: finalScore,
-            keywordScore,
-            completenessScore,
-            formatScore,
-            missingKeywords: missingKeywords as any,
+            keywordScore: aiResult?.keywordScore ?? null,
+            formatScore: formatRuleResult.score,
+            completenessScore: aiResult?.semanticScore ?? null,
+            semanticScore: aiResult?.semanticScore ?? null,
+            experienceScore: aiResult?.experienceScore ?? null,
+            skillsScore: aiResult?.skillsScore ?? null,
+            aiModel,
+            promptVersion: ATS_ENGINE_VERSION,
+            contentHash,
+            missingKeywords: (aiResult?.missingKeywords as any) ?? undefined,
             recommendations: finalRecommendations as any,
           },
         });
@@ -218,28 +288,227 @@ export class AtsService {
         }
       },
       {
-        timeout: 30000, // 30-second timeout to handle sequential queueing under high concurrency locks
+        timeout: 30000,
       },
     );
 
-    // Generate general findings list
-    const allFindings = ruleResults.flatMap((r) => r.findings);
-
     return {
-      success: true,
+      success: !isDegraded,
       data: {
         cvId,
         score: finalScore,
-        rulesEvaluated: ruleResults.map((r) => ({
-          ruleName: r.ruleName,
-          score: r.score,
-          weight: r.weight,
-          findings: r.findings,
-        })),
+        rulesEvaluated: [
+          { ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)', score: aiResult?.semanticScore ?? null, weight: 0.4, findings: aiResult?.findings ?? [] },
+          { ruleName: 'Độ phủ từ khóa (Keyword Match)', score: aiResult?.keywordScore ?? null, weight: 0.2, findings: [] },
+          { ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)', score: aiResult?.experienceScore ?? null, weight: 0.2, findings: [] },
+          { ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)', score: aiResult?.skillsScore ?? null, weight: 0.1, findings: [] },
+          { ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)', score: formatRuleResult.score, weight: 0.1, findings: formatRuleResult.findings },
+        ],
         findings: allFindings,
         recommendations: finalRecommendations,
         evaluatedAt: new Date().toISOString(),
       },
     };
+  }
+
+  private serializeCvForAi(cv: any): string {
+    const sections = cv.sections || [];
+    const lines: string[] = [];
+
+    lines.push(`CV Title: ${cv.title || ''}`);
+
+    const profileSec = sections.find((s: any) => s.type === 'PROFILE');
+    if (profileSec && profileSec.content) {
+      const p = profileSec.content;
+      lines.push('PROFILE:');
+      if (p.fullName) lines.push(`- Full Name: ${p.fullName}`);
+      if (p.title) lines.push(`- Professional Title: ${p.title}`);
+    }
+
+    const summarySec = sections.find((s: any) => s.type === 'SUMMARY');
+    if (summarySec && summarySec.content && summarySec.content.text) {
+      lines.push(`SUMMARY: ${summarySec.content.text}`);
+    }
+
+    const expSec = sections.find((s: any) => s.type === 'EXPERIENCE');
+    if (expSec && expSec.content) {
+      lines.push('EXPERIENCE:');
+      const items = Array.isArray(expSec.content.items)
+        ? expSec.content.items
+        : Array.isArray(expSec.content)
+        ? expSec.content
+        : [];
+      items.forEach((item: any) => {
+        lines.push(`- Role: ${item.role || ''} at ${item.company || ''}`);
+        if (item.description) lines.push(`  Description: ${item.description}`);
+      });
+    }
+
+    const eduSec = sections.find((s: any) => s.type === 'EDUCATION');
+    if (eduSec && eduSec.content) {
+      lines.push('EDUCATION:');
+      const items = Array.isArray(eduSec.content.items)
+        ? eduSec.content.items
+        : Array.isArray(eduSec.content)
+        ? eduSec.content
+        : [];
+      items.forEach((item: any) => {
+        lines.push(`- Degree: ${item.degree || ''} in ${item.field || ''} from ${item.institution || ''}`);
+      });
+    }
+
+    const skillSec = sections.find((s: any) => s.type === 'SKILLS');
+    if (skillSec && skillSec.content) {
+      const items = Array.isArray(skillSec.content.items)
+        ? skillSec.content.items
+        : Array.isArray(skillSec.content)
+        ? skillSec.content
+        : [];
+      const skillNames = items.map((item: any) => item.name || '').filter(Boolean);
+      if (skillNames.length > 0) {
+        lines.push(`SKILLS: ${skillNames.join(', ')}`);
+      }
+    }
+
+    const projSec = sections.find((s: any) => s.type === 'PROJECTS');
+    if (projSec && projSec.content) {
+      lines.push('PROJECTS:');
+      const items = Array.isArray(projSec.content.items)
+        ? projSec.content.items
+        : Array.isArray(projSec.content)
+        ? projSec.content
+        : [];
+      items.forEach((item: any) => {
+        lines.push(`- Project: ${item.name || ''} (${item.role || ''})`);
+        if (item.description) lines.push(`  Description: ${item.description}`);
+      });
+    }
+
+    return lines.join('\n');
+  }
+
+  private evaluateFormattingRule(cv: any): {
+    score: number;
+    findings: string[];
+    recommendations: any[];
+  } {
+    const findings: string[] = [];
+    const recommendations: any[] = [];
+    let score = 100;
+
+    const sections = cv.sections || [];
+
+    // 1. Placeholder check
+    const PLACEHOLDER_PATTERNS = [
+      /lorem\s+ipsum/i,
+      /\[tên\s+công\s+ty\]/i,
+      /\[company\s+name\]/i,
+      /abcxyz/i,
+      /insert\s+here/i,
+      /điền\s+vào\s+đây/i,
+      /\[nhập\s+thông\s+tin\]/i,
+    ];
+
+    let placeholderFound = false;
+    for (const sec of sections) {
+      const text = JSON.stringify(sec.content || '').toLowerCase();
+      for (const pattern of PLACEHOLDER_PATTERNS) {
+        if (pattern.test(text)) {
+          placeholderFound = true;
+          break;
+        }
+      }
+    }
+
+    if (placeholderFound) {
+      score -= 30;
+      findings.push(
+        'Phát hiện văn bản tạm thời / placeholder chưa hoàn thiện (ví dụ: Lorem Ipsum, [tên công ty]).',
+      );
+      recommendations.push({
+        title: 'Thay thế placeholder',
+        description: 'Thay thế tất cả các placeholder và văn bản tạm thời bằng thông tin thực tế của bạn trước khi nộp.',
+        category: 'formatting',
+        severity: 'high',
+        actionable: true,
+      });
+    }
+
+    // 2. Length check
+    let totalWordCount = 0;
+    for (const sec of sections) {
+      const text = JSON.stringify(sec.content || '');
+      totalWordCount += text.split(/\s+/).filter(Boolean).length;
+    }
+
+    if (totalWordCount < 100) {
+      score -= 20;
+      findings.push(`CV quá ngắn (${totalWordCount} từ), thiếu thông tin trầm trọng.`);
+      recommendations.push({
+        title: 'Bổ sung dung lượng CV',
+        description: 'Bổ sung thêm mô tả dự án và chi tiết kinh nghiệm làm việc để đạt ít nhất 300 từ.',
+        category: 'formatting',
+        severity: 'high',
+        actionable: true,
+      });
+    } else if (totalWordCount > 1200) {
+      score -= 10;
+      findings.push(`CV có dung lượng lớn (${totalWordCount} từ), hãy cân nhắc thu gọn.`);
+      recommendations.push({
+        title: 'Tối ưu hóa độ dài',
+        description: 'Tối ưu hóa từ ngữ, làm nổi bật thành tựu chính và hạn chế mô tả rườm rà.',
+        category: 'formatting',
+        severity: 'low',
+        actionable: true,
+      });
+    } else {
+      findings.push(`Độ dài CV phù hợp (${totalWordCount} từ).`);
+    }
+
+    // 3. Fake metrics
+    const metricsPattern = /\b\d+%\b/g;
+    const allMetrics: string[] = [];
+    for (const sec of sections) {
+      const contentStr = JSON.stringify(sec.content || '');
+      const matches = contentStr.match(metricsPattern);
+      if (matches) {
+        allMetrics.push(...matches);
+      }
+    }
+
+    const uniqueMetrics = new Set(allMetrics);
+    if (allMetrics.length > 5 && uniqueMetrics.size === 1) {
+      score -= 15;
+      findings.push('Phát hiện tỷ lệ phần trăm số liệu giống hệt nhau lặp đi lặp lại. Có nguy cơ AI tự bịa số liệu.');
+      recommendations.push({
+        title: 'Đa dạng hóa số liệu',
+        description: 'Thay thế hoặc đa dạng hóa các số liệu thống kê để phản ánh chính xác kết quả thực tế của bạn.',
+        category: 'formatting',
+        severity: 'medium',
+        actionable: true,
+      });
+    }
+
+    score = Math.max(0, score);
+    if (score === 100) {
+      findings.push('Định dạng và phân phối văn bản đạt chuẩn ATS.');
+    }
+
+    return {
+      score,
+      findings,
+      recommendations,
+    };
+  }
+
+  private cleanAndParseJson(rawOutput: string): any {
+    let cleanStr = rawOutput.trim();
+    if (cleanStr.startsWith('```')) {
+      cleanStr = cleanStr
+        .replace(/^```(json)?/i, '')
+        .replace(/```$/i, '')
+        .trim();
+    }
+    return JSON.parse(cleanStr);
   }
 }
