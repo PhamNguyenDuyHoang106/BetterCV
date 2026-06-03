@@ -44,7 +44,7 @@ export class HealthController {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     @InjectQueue('thumbnail-queue') private thumbnailQueue: Queue,
-  ) { }
+  ) {}
 
   /**
    * Liveness probe — confirms the Node.js process is alive.

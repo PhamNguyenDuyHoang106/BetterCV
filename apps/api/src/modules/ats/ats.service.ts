@@ -6,23 +6,31 @@ import { z } from 'zod';
 
 const ATS_ENGINE_VERSION = process.env.ATS_ENGINE_VERSION || '2.0.0';
 
-const AtsAnalyzeSchema = z.object({
-  semanticScore: z.number().min(0).max(100),
-  keywordScore: z.number().min(0).max(100),
-  experienceScore: z.number().min(0).max(100),
-  skillsScore: z.number().min(0).max(100),
-  findings: z.array(z.string()),
-  missingKeywords: z.array(z.string()),
-  recommendations: z.array(
-    z.object({
-      title: z.string(),
-      description: z.string(),
-      category: z.enum(['semantic', 'keyword', 'experience', 'skills', 'formatting']),
-      severity: z.enum(['low', 'medium', 'high']),
-      actionable: z.boolean(),
-    })
-  )
-}).strict();
+const AtsAnalyzeSchema = z
+  .object({
+    semanticScore: z.number().min(0).max(100),
+    keywordScore: z.number().min(0).max(100),
+    experienceScore: z.number().min(0).max(100),
+    skillsScore: z.number().min(0).max(100),
+    findings: z.array(z.string()),
+    missingKeywords: z.array(z.string()),
+    recommendations: z.array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        category: z.enum([
+          'semantic',
+          'keyword',
+          'experience',
+          'skills',
+          'formatting',
+        ]),
+        severity: z.enum(['low', 'medium', 'high']),
+        actionable: z.boolean(),
+      }),
+    ),
+  })
+  .strict();
 
 type AtsAnalyzeOutput = z.infer<typeof AtsAnalyzeSchema>;
 
@@ -58,17 +66,30 @@ export class AtsService {
     // 2. Caching check: Hash CV content + JD content + version + model
     const contentHash = crypto
       .createHash('sha256')
-      .update(cvText + '\n' + cleanedJd + '\n' + ATS_ENGINE_VERSION + '\n' + aiModel)
+      .update(
+        cvText + '\n' + cleanedJd + '\n' + ATS_ENGINE_VERSION + '\n' + aiModel,
+      )
       .digest('hex');
 
     // Deduplication: Check if there's an active in-flight request for this hash
     const activePromise = this.activeScans.get(contentHash);
     if (activePromise) {
-      this.logger.log(`ATS scan already in-flight for hash ${contentHash}. Reusing active promise.`);
+      this.logger.log(
+        `ATS scan already in-flight for hash ${contentHash}. Reusing active promise.`,
+      );
       return activePromise;
     }
 
-    const scanPromise = this.executeScan(supabaseId, cvId, cv, cvText, cleanedJd, contentHash, aiModel, jobDescription);
+    const scanPromise = this.executeScan(
+      supabaseId,
+      cvId,
+      cv,
+      cvText,
+      cleanedJd,
+      contentHash,
+      aiModel,
+      jobDescription,
+    );
     this.activeScans.set(contentHash, scanPromise);
     try {
       return await scanPromise;
@@ -104,13 +125,40 @@ export class AtsService {
           cvId,
           score: existingScan.overallScore,
           rulesEvaluated: [
-            { ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)', score: existingScan.semanticScore, weight: 0.4, findings: [] },
-            { ruleName: 'Độ phủ từ khóa (Keyword Match)', score: existingScan.keywordScore, weight: 0.2, findings: [] },
-            { ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)', score: existingScan.experienceScore, weight: 0.2, findings: [] },
-            { ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)', score: existingScan.skillsScore, weight: 0.1, findings: [] },
-            { ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)', score: existingScan.formatScore, weight: 0.1, findings: [] },
+            {
+              ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)',
+              score: existingScan.semanticScore,
+              weight: 0.4,
+              findings: [],
+            },
+            {
+              ruleName: 'Độ phủ từ khóa (Keyword Match)',
+              score: existingScan.keywordScore,
+              weight: 0.2,
+              findings: [],
+            },
+            {
+              ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)',
+              score: existingScan.experienceScore,
+              weight: 0.2,
+              findings: [],
+            },
+            {
+              ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)',
+              score: existingScan.skillsScore,
+              weight: 0.1,
+              findings: [],
+            },
+            {
+              ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)',
+              score: existingScan.formatScore,
+              weight: 0.1,
+              findings: [],
+            },
           ],
-          findings: ['Kết quả phân tích được tải từ cache của lượt quét trước đó.'],
+          findings: [
+            'Kết quả phân tích được tải từ cache của lượt quét trước đó.',
+          ],
           recommendations: existingScan.recommendations as any,
           evaluatedAt: existingScan.createdAt.toISOString(),
         },
@@ -192,7 +240,9 @@ ${cleanedJd}`;
 
       aiResult = AtsAnalyzeSchema.parse(parsedOutput);
     } catch (err: any) {
-      this.logger.error(`AI-powered ATS evaluation failed: ${err.message}. Falling back to degraded baseline.`);
+      this.logger.error(
+        `AI-powered ATS evaluation failed: ${err.message}. Falling back to degraded baseline.`,
+      );
       isDegraded = true;
     }
 
@@ -223,11 +273,15 @@ ${cleanedJd}`;
     } else {
       // Degraded State: We save null scores, and only formatting recommendations
       let recIdCounter = 1;
-      finalRecommendations = formatRuleResult.recommendations.slice(0, 20).map((rec) => ({
-        ...rec,
-        id: `rec-${rec.category}-${recIdCounter++}`,
-      }));
-      allFindings.unshift('Hệ thống phân tích AI tạm thời không khả dụng. Kết quả đánh giá bị giảm cấp (Degraded).');
+      finalRecommendations = formatRuleResult.recommendations
+        .slice(0, 20)
+        .map((rec) => ({
+          ...rec,
+          id: `rec-${rec.category}-${recIdCounter++}`,
+        }));
+      allFindings.unshift(
+        'Hệ thống phân tích AI tạm thời không khả dụng. Kết quả đánh giá bị giảm cấp (Degraded).',
+      );
     }
 
     // Extract a descriptive Job Title from the first line of the JD
@@ -298,11 +352,36 @@ ${cleanedJd}`;
         cvId,
         score: finalScore,
         rulesEvaluated: [
-          { ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)', score: aiResult?.semanticScore ?? null, weight: 0.4, findings: aiResult?.findings ?? [] },
-          { ruleName: 'Độ phủ từ khóa (Keyword Match)', score: aiResult?.keywordScore ?? null, weight: 0.2, findings: [] },
-          { ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)', score: aiResult?.experienceScore ?? null, weight: 0.2, findings: [] },
-          { ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)', score: aiResult?.skillsScore ?? null, weight: 0.1, findings: [] },
-          { ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)', score: formatRuleResult.score, weight: 0.1, findings: formatRuleResult.findings },
+          {
+            ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)',
+            score: aiResult?.semanticScore ?? null,
+            weight: 0.4,
+            findings: aiResult?.findings ?? [],
+          },
+          {
+            ruleName: 'Độ phủ từ khóa (Keyword Match)',
+            score: aiResult?.keywordScore ?? null,
+            weight: 0.2,
+            findings: [],
+          },
+          {
+            ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)',
+            score: aiResult?.experienceScore ?? null,
+            weight: 0.2,
+            findings: [],
+          },
+          {
+            ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)',
+            score: aiResult?.skillsScore ?? null,
+            weight: 0.1,
+            findings: [],
+          },
+          {
+            ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)',
+            score: formatRuleResult.score,
+            weight: 0.1,
+            findings: formatRuleResult.findings,
+          },
         ],
         findings: allFindings,
         recommendations: finalRecommendations,
@@ -336,8 +415,8 @@ ${cleanedJd}`;
       const items = Array.isArray(expSec.content.items)
         ? expSec.content.items
         : Array.isArray(expSec.content)
-        ? expSec.content
-        : [];
+          ? expSec.content
+          : [];
       items.forEach((item: any) => {
         lines.push(`- Role: ${item.role || ''} at ${item.company || ''}`);
         if (item.description) lines.push(`  Description: ${item.description}`);
@@ -350,10 +429,12 @@ ${cleanedJd}`;
       const items = Array.isArray(eduSec.content.items)
         ? eduSec.content.items
         : Array.isArray(eduSec.content)
-        ? eduSec.content
-        : [];
+          ? eduSec.content
+          : [];
       items.forEach((item: any) => {
-        lines.push(`- Degree: ${item.degree || ''} in ${item.field || ''} from ${item.institution || ''}`);
+        lines.push(
+          `- Degree: ${item.degree || ''} in ${item.field || ''} from ${item.institution || ''}`,
+        );
       });
     }
 
@@ -362,9 +443,11 @@ ${cleanedJd}`;
       const items = Array.isArray(skillSec.content.items)
         ? skillSec.content.items
         : Array.isArray(skillSec.content)
-        ? skillSec.content
-        : [];
-      const skillNames = items.map((item: any) => item.name || '').filter(Boolean);
+          ? skillSec.content
+          : [];
+      const skillNames = items
+        .map((item: any) => item.name || '')
+        .filter(Boolean);
       if (skillNames.length > 0) {
         lines.push(`SKILLS: ${skillNames.join(', ')}`);
       }
@@ -376,8 +459,8 @@ ${cleanedJd}`;
       const items = Array.isArray(projSec.content.items)
         ? projSec.content.items
         : Array.isArray(projSec.content)
-        ? projSec.content
-        : [];
+          ? projSec.content
+          : [];
       items.forEach((item: any) => {
         lines.push(`- Project: ${item.name || ''} (${item.role || ''})`);
         if (item.description) lines.push(`  Description: ${item.description}`);
@@ -427,7 +510,8 @@ ${cleanedJd}`;
       );
       recommendations.push({
         title: 'Thay thế placeholder',
-        description: 'Thay thế tất cả các placeholder và văn bản tạm thời bằng thông tin thực tế của bạn trước khi nộp.',
+        description:
+          'Thay thế tất cả các placeholder và văn bản tạm thời bằng thông tin thực tế của bạn trước khi nộp.',
         category: 'formatting',
         severity: 'high',
         actionable: true,
@@ -443,20 +527,26 @@ ${cleanedJd}`;
 
     if (totalWordCount < 100) {
       score -= 20;
-      findings.push(`CV quá ngắn (${totalWordCount} từ), thiếu thông tin trầm trọng.`);
+      findings.push(
+        `CV quá ngắn (${totalWordCount} từ), thiếu thông tin trầm trọng.`,
+      );
       recommendations.push({
         title: 'Bổ sung dung lượng CV',
-        description: 'Bổ sung thêm mô tả dự án và chi tiết kinh nghiệm làm việc để đạt ít nhất 300 từ.',
+        description:
+          'Bổ sung thêm mô tả dự án và chi tiết kinh nghiệm làm việc để đạt ít nhất 300 từ.',
         category: 'formatting',
         severity: 'high',
         actionable: true,
       });
     } else if (totalWordCount > 1200) {
       score -= 10;
-      findings.push(`CV có dung lượng lớn (${totalWordCount} từ), hãy cân nhắc thu gọn.`);
+      findings.push(
+        `CV có dung lượng lớn (${totalWordCount} từ), hãy cân nhắc thu gọn.`,
+      );
       recommendations.push({
         title: 'Tối ưu hóa độ dài',
-        description: 'Tối ưu hóa từ ngữ, làm nổi bật thành tựu chính và hạn chế mô tả rườm rà.',
+        description:
+          'Tối ưu hóa từ ngữ, làm nổi bật thành tựu chính và hạn chế mô tả rườm rà.',
         category: 'formatting',
         severity: 'low',
         actionable: true,
@@ -479,10 +569,13 @@ ${cleanedJd}`;
     const uniqueMetrics = new Set(allMetrics);
     if (allMetrics.length > 5 && uniqueMetrics.size === 1) {
       score -= 15;
-      findings.push('Phát hiện tỷ lệ phần trăm số liệu giống hệt nhau lặp đi lặp lại. Có nguy cơ AI tự bịa số liệu.');
+      findings.push(
+        'Phát hiện tỷ lệ phần trăm số liệu giống hệt nhau lặp đi lặp lại. Có nguy cơ AI tự bịa số liệu.',
+      );
       recommendations.push({
         title: 'Đa dạng hóa số liệu',
-        description: 'Thay thế hoặc đa dạng hóa các số liệu thống kê để phản ánh chính xác kết quả thực tế của bạn.',
+        description:
+          'Thay thế hoặc đa dạng hóa các số liệu thống kê để phản ánh chính xác kết quả thực tế của bạn.',
         category: 'formatting',
         severity: 'medium',
         actionable: true,

@@ -13,7 +13,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private client?: Redis;
   private redisEnabled = false;
 
-  constructor(private readonly config: ConfigService) { }
+  constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
     this.redisEnabled =
@@ -70,11 +70,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client.get(key);
   }
 
-  async set(
-    key: string,
-    value: string,
-    ttlSeconds?: number,
-  ): Promise<void> {
+  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
     const client = this.ensureClient();
 
     if (ttlSeconds) {
@@ -84,18 +80,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async hset(
-    key: string,
-    field: string,
-    value: string,
-  ): Promise<number> {
+  async hset(key: string, field: string, value: string): Promise<number> {
     return this.ensureClient().hset(key, field, value);
   }
 
-  async hget(
-    key: string,
-    field: string,
-  ): Promise<string | null> {
+  async hget(key: string, field: string): Promise<string | null> {
     return this.ensureClient().hget(key, field);
   }
 
@@ -104,16 +93,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     field: string,
     increment: number,
   ): Promise<number> {
-    return this.ensureClient().hincrby(
-      key,
-      field,
-      increment,
-    );
+    return this.ensureClient().hincrby(key, field, increment);
   }
 
-  async hgetall(
-    key: string,
-  ): Promise<Record<string, string>> {
+  async hgetall(key: string): Promise<Record<string, string>> {
     return this.ensureClient().hgetall(key);
   }
 
