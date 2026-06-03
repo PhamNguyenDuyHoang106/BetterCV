@@ -73,7 +73,7 @@ export function DashboardUpgradeTab() {
     <div className="max-w-4xl mx-auto w-full py-4">
       <DashPageHero
         title="Gói phù hợp nhất để cạnh tranh"
-        subtitle="Giá cực rẻ để bạn tập trung đi phỏng vấn: Free $0, Pro $0.99/tháng, Annual $4.99 trả 1 lần."
+        subtitle="Giá cực rẻ để bạn tập trung đi phỏng vấn: Free 0đ, Pro 50.000đ/tháng, Annual 120.000đ trả 1 lần."
         accent="amber"
       />
 
@@ -93,7 +93,7 @@ export function DashboardUpgradeTab() {
             <p className="text-xs text-slate-500 mt-1">Miễn phí trọn đời.</p>
           </div>
           <p className="dash-pricing-price mt-6">
-            $0 <span className="text-sm font-semibold text-slate-500">/ forever</span>
+            0đ <span className="text-sm font-semibold text-slate-500"></span>
           </p>
           <ul className="dash-feature-list mt-8">
             {FREE_FEATURES.map((f) => (
@@ -125,7 +125,7 @@ export function DashboardUpgradeTab() {
             </p>
           </div>
           <p className="dash-pricing-price mt-6">
-            $0.99 <span className="text-sm font-semibold text-slate-500">/ month</span>
+            50.000đ <span className="text-sm font-semibold text-slate-500">/ tháng</span>
           </p>
           <ul className="dash-feature-list mt-8">
             {PRO_FEATURES.map((f) => (
@@ -172,7 +172,7 @@ export function DashboardUpgradeTab() {
             <p className="text-xs text-slate-500 mt-1">Trả 1 lần (không subscription).</p>
           </div>
           <p className="dash-pricing-price mt-6">
-            $4.99 <span className="text-sm font-semibold text-slate-500">/ once</span>
+            120.000đ <span className="text-sm font-semibold text-slate-500">/ lần</span>
           </p>
           <ul className="dash-feature-list mt-8">
             <li>
@@ -243,9 +243,9 @@ export function DashboardUpgradeTab() {
                 type="button"
                 className="p-2 rounded-xl hover:bg-slate-50 text-slate-500"
                 onClick={() => {
-              setCheckoutUrl(null);
-              setCheckoutQr(null);
-            }}
+                  setCheckoutUrl(null);
+                  setCheckoutQr(null);
+                }}
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -276,7 +276,7 @@ export function DashboardUpgradeTab() {
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(checkoutUrl);
-                  } catch {}
+                  } catch { }
                 }}
               >
                 Copy link

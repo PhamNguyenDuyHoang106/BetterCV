@@ -125,18 +125,6 @@ function Sparkline({ data }: { data: number[] }) {
 }
 
 function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
-  if (cv.thumbnailStatus === "READY" && cv.thumbnailUrl) {
-    return (
-      <div className="absolute inset-0 w-full h-full flex items-center justify-center p-4 bg-slate-50">
-        <img
-          src={cv.thumbnailUrl}
-          alt={cv.title}
-          className="max-w-full max-h-full object-contain rounded shadow-lg border border-slate-200"
-        />
-      </div>
-    );
-  }
-
   const template = templates.find((t) => t.id === (cv.templateId || "standard-ats"));
   const schema = template?.schema;
 
@@ -150,6 +138,19 @@ function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
       return null;
     }
   }, [schema, cv.sections]);
+
+  if (cv.thumbnailStatus === "READY" && cv.thumbnailUrl) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center p-4 bg-slate-50">
+        <img
+          src={cv.thumbnailUrl}
+          alt={cv.title}
+          className="max-w-full max-h-full object-contain rounded shadow-lg border border-slate-200"
+        />
+      </div>
+    );
+  }
+
 
   if (!html) {
     return (
