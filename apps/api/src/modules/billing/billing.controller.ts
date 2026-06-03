@@ -1,24 +1,16 @@
 import {
   Body,
   Controller,
-  Headers,
+  Param,
+  ParseIntPipe,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
 import { BillingService } from './billing.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { CurrentUser, JwtPayload } from '../../core/decorators';
 
-/**
- * Billing controller.
- *
- * NOTE: The webhook endpoint is NOT protected by JWT — Stripe sends
- * unauthenticated server-to-server calls signed with the webhook secret.
- * Only checkout and portal are JWT-protected.
- */
 @Controller('billing')
 export class BillingController {
   constructor(private billingService: BillingService) {}
@@ -35,15 +27,18 @@ export class BillingController {
     return this.billingService.createPortal(user.sub);
   }
 
-  /**
-   * Stripe Webhook — NO JWT guard.
-   * Stripe authenticates via signature verification.
-   */
-  @Post('webhook')
-  async webhook(
-    @Req() req: Request & { body: Buffer },
-    @Headers('stripe-signature') signature: string | undefined,
+  @Post('payos/webhook')
+  async payosWebhook(@Body() body: unknown) {
+    return this.billingService.handlePayosWebhook(body);
+  }
+
+  /** Fallback when webhook chưa kịp — xác nhận sau khi user quay về successUrl */
+  @UseGuards(AuthGuard('jwt'))
+  @Post('payos/confirm/:orderCode')
+  async confirmPayos(
+    @CurrentUser() user: JwtPayload,
+    @Param('orderCode', ParseIntPipe) orderCode: number,
   ) {
-    return this.billingService.handleWebhook(req.body, signature);
+    return this.billingService.confirmPayment(user.sub, orderCode);
   }
 }

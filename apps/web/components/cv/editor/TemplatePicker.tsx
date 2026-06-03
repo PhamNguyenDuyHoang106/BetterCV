@@ -1,5 +1,6 @@
 import React from "react";
 import { getTemplateStyles } from "@acv/template-engine";
+import { getTemplateDisplayMeta } from "../../../lib/dashboard-templates";
 
 type TemplatePickerProps = {
   cv: any;
@@ -11,6 +12,7 @@ type TemplatePickerProps = {
   setProfileForm: (val: any) => void;
   saveProfile: (val?: any) => void;
   loadCv: (id: string) => Promise<any>;
+  userRole?: string;
 };
 
 export function TemplatePicker({
@@ -23,6 +25,7 @@ export function TemplatePicker({
   setProfileForm,
   saveProfile,
   loadCv,
+  userRole,
 }: TemplatePickerProps) {
   return (
     <div className="space-y-6">
@@ -40,6 +43,11 @@ export function TemplatePicker({
               const newTplId = e.target.value;
               const matched = templates.find((t) => t.id === newTplId);
               if (matched) {
+                const meta = getTemplateDisplayMeta(newTplId);
+                if (meta.tag === "Premium" && userRole === "FREE") {
+                  alert(`Mẫu "${matched.name}" là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng mẫu thiết kế này!`);
+                  return;
+                }
                 setSelectedTemplate(matched);
                 saveMetadata({ templateId: newTplId });
               }

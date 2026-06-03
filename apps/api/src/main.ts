@@ -1,7 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as bodyParser from 'body-parser';
 import { HttpExceptionFilter } from './core/filters/http-exception.filter';
 import { LoggingInterceptor } from './core/interceptors/logging.interceptor';
 import { TransformInterceptor } from './core/interceptors/transform.interceptor';
@@ -16,9 +15,6 @@ async function bootstrap() {
     origin: process.env.APP_PUBLIC_URL ?? 'http://localhost:3000',
     credentials: true,
   });
-
-  // Stripe webhook needs raw body — must be registered BEFORE global pipes
-  app.use('/api/billing/webhook', bodyParser.raw({ type: 'application/json' }));
 
   // Global pipes, filters, interceptors
   const reflector = app.get(Reflector);

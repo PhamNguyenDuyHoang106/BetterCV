@@ -98,6 +98,35 @@ export class AuthService {
       };
     }
 
+    if (user.role === 'PRO') {
+      const dbUserWithSubs = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          subscriptions: {
+            include: { plan: true },
+          },
+        },
+      });
+
+      if (dbUserWithSubs) {
+        const activeProSub = dbUserWithSubs.subscriptions.find(
+          (sub) =>
+            sub.plan.tier === 'PRO' &&
+            ['active', 'trialing'].includes(sub.status) &&
+            (!sub.currentPeriodEnd || sub.currentPeriodEnd > new Date()),
+        );
+
+        if (!activeProSub) {
+          // Downgrade to FREE
+          await this.prisma.user.update({
+            where: { id: user.id },
+            data: { role: 'FREE' },
+          });
+          user.role = 'FREE';
+        }
+      }
+    }
+
     return user;
   }
 }

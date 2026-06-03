@@ -1,10 +1,6 @@
 import { IsIn, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class CheckoutDto {
-  /**
-   * Prefer sending tier+mode (server resolves Stripe price IDs).
-   * `priceId` is kept for backward compatibility.
-   */
   @IsOptional()
   @IsString()
   priceId?: string;
@@ -13,13 +9,14 @@ export class CheckoutDto {
   @IsIn(['PRO', 'PREMIUM'])
   tier?: 'PRO' | 'PREMIUM';
 
+  /** PRO: gói tháng (lưu subscription 30 ngày). PREMIUM: trả một lần. */
   @IsOptional()
   @IsIn(['subscription', 'payment'])
   mode?: 'subscription' | 'payment';
 
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   successUrl!: string;
 
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   cancelUrl!: string;
 }

@@ -7,7 +7,334 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ──────────────────────────────────────────────────────────────────
+model User {
+  id               String          @id @default(cuid())
+  email            String          @unique
+  passwordHash     String?
+  fullName         String
+  avatarUrl        String?
+  role             UserRole        @default(FREE)
+  supabaseId       String?         @unique
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  aiUsages         AiUsage[]
+  cvs              Cv[]
+  invoices         Invoice[]
+  ocrJobs          OcrJob[]
+  stripeCustomer   StripeCustomer?
+  subscriptions    Subscription[]
+  usageQuota       UsageQuota?
+  payosTransactions PayosTransaction[]
+
+  @@index([email])
+  @@index([supabaseId])
+}
+
+model Plan {
+  id             String         @id @default(cuid())
+  tier           PlanTier       @unique
+  name           String
+  monthlyAiQuota Int
+  stripePriceId  String?        @unique
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  subscriptions  Subscription[]
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String
+  planId               String
+  status               String
+  currentPeriodEnd     DateTime?
+  stripeSubscriptionId String?   @unique
+  stripeCustomerId     String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  plan                 Plan      @relation(fields: [planId], references: [id])
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model StripeCustomer {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  customerId String   @unique
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  currency  String   @default("usd")
+  status    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Cv {
+  id                   String           @id @default(cuid())
+  userId               String
+  title                String
+  locale               String           @default("en")
+  templateId           String?
+  isDeleted            Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  lastEditedAt         DateTime?
+  lastEditedDevice     String?
+  lastEditedSessionId  String?
+  version              Int              @default(1)
+  templateVersionId    String?
+  templateVersionNum   Int              @default(1)
+  atsScore             Int?
+  completenessScore    Int?
+  thumbnailGeneratedAt DateTime?
+  thumbnailUrl         String?
+  atsScannedAt         DateTime?
+  atsVersion           String?
+  thumbnailStatus      ThumbnailStatus  @default(PENDING)
+  AtsScan              AtsScan[]
+  templateVersion      TemplateVersion? @relation(fields: [templateVersionId], references: [id])
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections             CvSection[]
+  versions             CvVersion[]
+  shareLinks           ShareLink[]
+
+  @@index([userId])
+  @@index([userId, isDeleted])
+  @@index([updatedAt, thumbnailGeneratedAt])
+}
+
+model CvVersion {
+  id        String   @id @default(cuid())
+  cvId      String
+  snapshot  Json
+  createdAt DateTime @default(now())
+  cv        Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+}
+
+model CvSection {
+  id        String        @id @default(cuid())
+  cvId      String
+  type      CvSectionType
+  content   Json
+  order     Int
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  cv        Cv            @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@index([cvId, type])
+}
+
+model TemplateCategory {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  templates Template[]
+}
+
+model Template {
+  id         String            @id @default(cuid())
+  name       String
+  categoryId String
+  schema     Json
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  category   TemplateCategory  @relation(fields: [categoryId], references: [id])
+  versions   TemplateVersion[]
+
+  @@index([categoryId])
+  @@index([isActive])
+}
+
+model TemplateVersion {
+  id         String   @id @default(cuid())
+  templateId String
+  version    Int      @default(1)
+  schema     Json
+  createdAt  DateTime @default(now())
+  cvs        Cv[]
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([templateId])
+}
+
+model ShareLink {
+  id        String    @id @default(cuid())
+  cvId      String
+  token     String    @unique
+  isActive  Boolean   @default(true)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  cv        Cv        @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+model Prompt {
+  id        String          @id @default(cuid())
+  key       String          @unique
+  createdAt DateTime        @default(now())
+  versions  PromptVersion[]
+}
+
+model PromptVersion {
+  id        String   @id @default(cuid())
+  promptId  String
+  version   Int
+  content   String
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  prompt    Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId, isActive])
+}
+
+model AiRequest {
+  id              String          @id @default(cuid())
+  userId          String?
+  promptKey       String
+  input           Json
+  createdAt       DateTime        @default(now())
+  estimatedTokens Int?
+  status          AiRequestStatus @default(PENDING)
+  idempotencyKey  String?         @unique
+
+  @@index([userId])
+  @@index([status, createdAt])
+}
+
+model AiResponse {
+  id        String   @id @default(cuid())
+  requestId String
+  output    Json
+  tokens    Int
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+}
+
+model AiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  tokens    Int
+  requests  Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UsageQuota {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  periodStart  DateTime
+  periodEnd    DateTime
+  usedTokens   Int      @default(0)
+  usedRequests Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SafetyRule {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  pattern   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model OcrJob {
+  id            String       @id @default(uuid())
+  userId        String
+  filename      String
+  status        OcrJobStatus @default(UPLOADED)
+  extractedCvId String?
+  error         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AtsScan {
+  id                 String   @id
+  cvId               String
+  jobTitle           String?
+  jobDescription     String?
+  overallScore       Int
+  keywordScore       Int?
+  formatScore        Int?
+  completenessScore  Int?
+  missingKeywords    Json?
+  createdAt          DateTime @default(now())
+  jobDescriptionHash String?
+  recommendations    Json?
+  Cv                 Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId, createdAt(sort: Desc)])
+}
+
+model AuditLog {
+  id           String         @id
+  actorUserId  String?
+  actorType    AuditActorType
+  action       String
+  resourceType String
+  resourceId   String?
+  oldValue     Json?
+  newValue     Json?
+  severity     AuditSeverity
+  requestId    String?
+  ipHash       String?
+  createdAt    DateTime       @default(now())
+  eventType    AuditEventType
+  traceId      String?
+
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@index([resourceType, resourceId])
+}
+
+
+model PayosTransaction {
+  id            String   @id @default(cuid())
+  userId        String
+  orderCode     Int      @unique
+  amount        Int
+
+  status        String
+  mode          String
+  tier          String
+
+  description   String?
+  checkoutUrl   String?
+  paymentLinkId String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
 
 enum UserRole {
   GUEST
@@ -43,276 +370,40 @@ enum CvSectionType {
 
 enum AiRequestStatus {
   PENDING
-  PROCESSING
   COMPLETED
   FAILED
   REFUNDED
+  PROCESSING
 }
 
-// ─── Core Identity & Access ─────────────────────────────────────────────────
-
-model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String?
-  fullName      String
-  avatarUrl     String?
-  role          UserRole       @default(FREE)
-  supabaseId    String?        @unique
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  subscriptions Subscription[]
-  cvs           Cv[]
-  aiUsages      AiUsage[]
-  usageQuota    UsageQuota?
-  stripeCustomer StripeCustomer?
-  ocrJobs       OcrJob[]
-  invoices      Invoice[]
-
-  @@index([email])
-  @@index([supabaseId])
+enum AuditActorType {
+  USER
+  SYSTEM
+  CRON
+  WORKER
+  ADMIN
 }
 
-// ─── Plans & Billing ────────────────────────────────────────────────────────
-
-model Plan {
-  id             String         @id @default(cuid())
-  tier           PlanTier       @unique
-  name           String
-  monthlyAiQuota Int
-  stripePriceId  String?        @unique
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  subscriptions  Subscription[]
+enum AuditEventType {
+  CV_CREATED
+  CV_UPDATED
+  CV_SECTION_UPDATED
+  CV_RESTORED
+  SHARE_LINK_CREATED
+  SHARE_LINK_DELETED
+  BILLING_STATUS_CHANGED
+  USER_ROLE_CHANGED
 }
 
-model Subscription {
-  id                   String    @id @default(cuid())
-  userId               String
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId               String
-  plan                 Plan      @relation(fields: [planId], references: [id])
-  status               String
-  currentPeriodEnd     DateTime?
-  stripeSubscriptionId String?   @unique
-  stripeCustomerId     String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([status])
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
 }
 
-model StripeCustomer {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customerId String   @unique
-  createdAt  DateTime @default(now())
-}
-
-model Invoice {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount    Int
-  currency  String   @default("usd")
-  status    String
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-// ─── CV & Templates ─────────────────────────────────────────────────────────
-
-model Cv {
-  id                    String      @id @default(cuid())
-  userId                String
-  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title                 String
-  locale                String      @default("en")
-  templateId            String?
-  templateVersionId     String?
-  templateVersion       TemplateVersion? @relation(fields: [templateVersionId], references: [id])
-  templateVersionNum    Int         @default(1)
-  isDeleted             Boolean     @default(false)
-  version               Int         @default(1)
-  lastEditedSessionId   String?
-  lastEditedDevice      String?
-  lastEditedAt          DateTime?
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
-
-  versions   CvVersion[]
-  sections   CvSection[]
-  shareLinks ShareLink[]
-
-  @@index([userId])
-  @@index([userId, isDeleted])
-}
-
-model CvVersion {
-  id        String   @id @default(cuid())
-  cvId      String
-  cv        Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)
-  snapshot  Json
-  createdAt DateTime @default(now())
-
-  @@index([cvId])
-}
-
-model CvSection {
-  id        String        @id @default(cuid())
-  cvId      String
-  cv        Cv            @relation(fields: [cvId], references: [id], onDelete: Cascade)
-  type      CvSectionType
-  content   Json
-  order     Int
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-
-  @@index([cvId])
-  @@index([cvId, type])
-}
-
-model TemplateCategory {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  templates Template[]
-}
-
-model Template {
-  id         String           @id @default(cuid())
-  name       String
-  categoryId String
-  category   TemplateCategory @relation(fields: [categoryId], references: [id])
-  schema     Json
-  isActive   Boolean          @default(true)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-
-  versions   TemplateVersion[]
-
-  @@index([categoryId])
-  @@index([isActive])
-}
-
-model TemplateVersion {
-  id         String   @id @default(cuid())
-  templateId String
-  version    Int      @default(1)
-  schema     Json
-  createdAt  DateTime @default(now())
-
-  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  cvs        Cv[]
-
-  @@unique([templateId, version])
-  @@index([templateId])
-}
-
-model ShareLink {
-  id        String    @id @default(cuid())
-  cvId      String
-  cv        Cv        @relation(fields: [cvId], references: [id], onDelete: Cascade)
-  token     String    @unique
-  isActive  Boolean   @default(true)
-  expiresAt DateTime?
-  createdAt DateTime  @default(now())
-
-  @@index([token])
-}
-
-// ─── AI Orchestration ───────────────────────────────────────────────────────
-
-model Prompt {
-  id        String          @id @default(cuid())
-  key       String          @unique
-  createdAt DateTime        @default(now())
-  versions  PromptVersion[]
-}
-
-model PromptVersion {
-  id        String   @id @default(cuid())
-  promptId  String
-  prompt    Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
-  version   Int
-  content   String
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([promptId, isActive])
-}
-
-model AiRequest {
-  id              String          @id @default(cuid())
-  userId          String?
-  promptKey       String
-  input           Json
-  estimatedTokens Int?
-  status          AiRequestStatus @default(PENDING)
-  idempotencyKey  String?         @unique
-  createdAt       DateTime        @default(now())
-
-  @@index([userId])
-  @@index([status, createdAt])
-}
-
-model AiResponse {
-  id        String   @id @default(cuid())
-  requestId String
-  output    Json
-  tokens    Int
-  createdAt DateTime @default(now())
-
-  @@index([requestId])
-}
-
-model AiUsage {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokens    Int
-  requests  Int
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-model UsageQuota {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  periodStart  DateTime
-  periodEnd    DateTime
-  usedTokens   Int      @default(0)
-  usedRequests Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model SafetyRule {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  pattern   String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-}
-
-model OcrJob {
-  id            String       @id @default(uuid())
-  userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  filename      String
-  status        OcrJobStatus @default(UPLOADED)
-  extractedCvId String?
-  error         String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  @@index([userId])
+enum ThumbnailStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
 }

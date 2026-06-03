@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { DashPageHero } from "../dashboard-ui";
 import { apiFetch } from "../../../lib/api";
+import { useAuthStore } from "../../../lib/store/auth";
 
 const FREE_FEATURES = [
   "Tạo CV không giới hạn",
@@ -18,9 +19,11 @@ const PRO_FEATURES = [
 ];
 
 export function DashboardUpgradeTab() {
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState<"PRO" | "PREMIUM" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const successUrl = useMemo(() => `${origin}/dashboard?paid=1`, [origin]);
@@ -33,6 +36,7 @@ export function DashboardUpgradeTab() {
     setLoading(tier);
     setError(null);
     setCheckoutUrl(null);
+    setCheckoutQr(null);
     try {
       const res = await apiFetch<any>("/billing/checkout", {
         method: "POST",
@@ -44,9 +48,11 @@ export function DashboardUpgradeTab() {
         }),
       });
 
-      const url = res?.data?.url ?? res?.url;
-      if (!url) throw new Error("Không tạo được checkout session.");
+      const payload = res?.data ?? res;
+      const url = payload?.checkoutUrl ?? payload?.url;
+      if (!url) throw new Error("Không tạo được link thanh toán PayOS.");
       setCheckoutUrl(url);
+      if (payload?.qrCode) setCheckoutQr(payload.qrCode);
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Thanh toán thất bại");
@@ -55,9 +61,13 @@ export function DashboardUpgradeTab() {
     }
   };
 
-  const qrSrc = checkoutUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
-    : null;
+  const qrSrc = checkoutQr
+    ? checkoutQr.startsWith("data:") || checkoutQr.startsWith("http")
+      ? checkoutQr
+      : `data:image/png;base64,${checkoutQr}`
+    : checkoutUrl
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
+      : null;
 
   return (
     <div className="max-w-4xl mx-auto w-full py-4">
@@ -130,14 +140,24 @@ export function DashboardUpgradeTab() {
               </li>
             ))}
           </ul>
-          <button
-            type="button"
-            onClick={() => startCheckout("PRO", "subscription")}
-            className="dash-btn-primary w-full mt-8"
-            disabled={loading !== null}
-          >
-            {loading === "PRO" ? "Đang tạo thanh toán..." : "Nâng cấp Pro"}
-          </button>
+          {user?.role === "PRO" ? (
+            <button type="button" className="dash-btn-ghost w-full mt-8" disabled>
+              Gói hiện tại (Pro)
+            </button>
+          ) : user?.role === "PREMIUM" ? (
+            <button type="button" className="dash-btn-ghost w-full mt-8" disabled>
+              Không khả dụng (Đã là Premium)
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => startCheckout("PRO", "subscription")}
+              className="dash-btn-primary w-full mt-8"
+              disabled={loading !== null}
+            >
+              {loading === "PRO" ? "Đang tạo thanh toán..." : "Nâng cấp Pro"}
+            </button>
+          )}
         </div>
 
         <div className="dash-pricing-card">
@@ -183,14 +203,20 @@ export function DashboardUpgradeTab() {
               Không cần quản lý hủy gia hạn
             </li>
           </ul>
-          <button
-            type="button"
-            onClick={() => startCheckout("PREMIUM", "payment")}
-            className="dash-btn-primary w-full mt-8"
-            disabled={loading !== null}
-          >
-            {loading === "PREMIUM" ? "Đang tạo thanh toán..." : "Thanh toán 1 lần"}
-          </button>
+          {user?.role === "PREMIUM" ? (
+            <button type="button" className="dash-btn-ghost w-full mt-8" disabled>
+              Gói hiện tại (Premium)
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => startCheckout("PREMIUM", "payment")}
+              className="dash-btn-primary w-full mt-8"
+              disabled={loading !== null}
+            >
+              {loading === "PREMIUM" ? "Đang tạo thanh toán..." : "Thanh toán 1 lần"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -200,7 +226,10 @@ export function DashboardUpgradeTab() {
             type="button"
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             aria-label="Đóng"
-            onClick={() => setCheckoutUrl(null)}
+            onClick={() => {
+              setCheckoutUrl(null);
+              setCheckoutQr(null);
+            }}
           />
           <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200/70 p-6">
             <div className="flex items-start justify-between gap-3">
@@ -213,7 +242,10 @@ export function DashboardUpgradeTab() {
               <button
                 type="button"
                 className="p-2 rounded-xl hover:bg-slate-50 text-slate-500"
-                onClick={() => setCheckoutUrl(null)}
+                onClick={() => {
+              setCheckoutUrl(null);
+              setCheckoutQr(null);
+            }}
               >
                 <span className="material-symbols-outlined">close</span>
               </button>

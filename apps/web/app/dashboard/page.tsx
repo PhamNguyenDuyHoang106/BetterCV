@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { apiFetch } from "../../lib/api";
@@ -17,7 +17,7 @@ import { DashboardResumesTab } from "../../components/dashboard/views/DashboardR
 import { DashboardUpgradeTab } from "../../components/dashboard/views/DashboardUpgradeTab";
 import { DashboardSettingsTab } from "../../components/dashboard/views/DashboardSettingsTab";
 import { DashboardProfileTab } from "../../components/dashboard/views/DashboardProfileTab";
-import { FALLBACK_TEMPLATES } from "../../lib/dashboard-templates";
+import { FALLBACK_TEMPLATES, getTemplateDisplayMeta } from "../../lib/dashboard-templates";
 import { syncSessionToApp } from "../../lib/auth-session";
 
 type Template = {
@@ -54,8 +54,9 @@ type ProfileUpdateForm = {
   fullName: string;
 };
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { accessToken, user, clear, hydrate, setAuth } = useAuthStore();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [cvs, setCvs] = useState<Cv[]>([]);
@@ -83,6 +84,25 @@ export default function DashboardPage() {
     // Always sync session on mount to ensure we refresh any expired tokens hydrated from localStorage
     syncSessionToApp().catch(() => {});
   }, [hydrate]);
+
+  useEffect(() => {
+    const paid = searchParams.get("paid");
+    const orderCode = searchParams.get("orderCode");
+    if (paid !== "1") return;
+
+    const finish = async () => {
+      try {
+        if (orderCode) {
+          await apiFetch(`/billing/payos/confirm/${orderCode}`, { method: "POST" });
+        }
+      } catch {
+        /* webhook có thể đã xử lý */
+      }
+      await syncSessionToApp();
+      router.replace("/dashboard");
+    };
+    finish();
+  }, [searchParams, router]);
 
   // Set default full name in profile form when user loads
   useEffect(() => {
@@ -187,12 +207,24 @@ export default function DashboardPage() {
   };
 
   const handleUseTemplate = (templateId: string) => {
+    const meta = getTemplateDisplayMeta(templateId);
+    if (meta.tag === "Premium" && user?.role === "FREE") {
+      alert(`Mẫu thiết kế này là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng!`);
+      setActiveTab("upgrade");
+      return;
+    }
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
   };
 
   const handleQuickCreateFromTemplate = async (templateId: string, templateName: string) => {
+    const meta = getTemplateDisplayMeta(templateId);
+    if (meta.tag === "Premium" && user?.role === "FREE") {
+      alert(`Mẫu "${templateName}" là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng!`);
+      setActiveTab("upgrade");
+      return;
+    }
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
@@ -572,5 +604,19 @@ export default function DashboardPage() {
         onUploadAndParse={handleUploadAndParse}
       />
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      }
+    >
+      <DashboardPageContent />
+    </Suspense>
   );
 }

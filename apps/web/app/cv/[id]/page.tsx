@@ -38,7 +38,7 @@ export default function CvEditorPage() {
   const initialHtmlRef = useRef<string>("");
   const lastHtmlRef = useRef<string>("");
 
-  const { accessToken, hydrate } = useAuthStore();
+  const { accessToken, user, hydrate } = useAuthStore();
   const { loadCv, saveStatus } = useCvStore();
 
   const [activeTab, setActiveTab] = useState<string>("profile");
@@ -346,6 +346,7 @@ export default function CvEditorPage() {
                 setProfileForm={editor.setProfileForm}
                 saveProfile={editor.saveProfile}
                 loadCv={loadCv}
+                userRole={user?.role}
               />
             )}
           </div>
