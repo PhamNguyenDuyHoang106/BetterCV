@@ -5,6 +5,8 @@ import { KeywordRule } from './rules/keyword-rule';
 import { CompletenessRule } from './rules/completeness-rule';
 import { FormattingRule } from './rules/formatting-rule';
 
+const ATS_ENGINE_VERSION = process.env.ATS_ENGINE_VERSION || '1.0.0';
+
 @Injectable()
 export class AtsService {
   private readonly rules: AtsRule[] = [];
@@ -189,6 +191,15 @@ export class AtsService {
             formatScore,
             missingKeywords: missingKeywords as any,
             recommendations: finalRecommendations as any,
+          },
+        });
+
+        await tx.cv.update({
+          where: { id: cvId },
+          data: {
+            atsScore: finalScore,
+            atsScannedAt: new Date(),
+            atsVersion: ATS_ENGINE_VERSION,
           },
         });
 

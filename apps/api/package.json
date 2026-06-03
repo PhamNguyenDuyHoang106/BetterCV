@@ -10,11 +10,16 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "test:integration": "ts-node test-integration.ts",
-    "test:health": "ts-node test-health.ts"
+    "test:health": "ts-node test-health.ts",
+    "test:throttler": "ts-node test-throttler.ts"
   },
   "dependencies": {
     "@acv/shared": "*",
     "@acv/template-engine": "*",
+    "@bull-board/api": "^7.1.5",
+    "@bull-board/express": "^7.1.5",
+    "@bull-board/nestjs": "^7.1.5",
+    "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.2.0",
@@ -24,6 +29,7 @@
     "@nestjs/platform-express": "^10.3.0",
     "@nestjs/schedule": "^6.1.3",
     "@nestjs/terminus": "^11.1.1",
+    "@nestjs/throttler": "^6.5.0",
     "@sentry/node": "^10.55.0",
     "@supabase/supabase-js": "^2.45.0",
     "body-parser": "^2.2.2",
@@ -31,6 +37,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
     "docx": "^9.5.1",
+    "express-basic-auth": "^1.2.1",
     "ioredis": "^5.11.0",
     "jwks-rsa": "^4.0.1",
     "nestjs-pino": "^4.6.1",

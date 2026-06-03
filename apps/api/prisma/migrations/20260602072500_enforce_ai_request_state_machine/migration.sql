@@ -2,7 +2,7 @@
 CREATE TYPE "AiRequestStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
 
 -- AlterTable
-ALTER TABLE "AiRequest" DROP COLUMN "isReconciled",
+ALTER TABLE "AiRequest" DROP COLUMN IF EXISTS "isReconciled",
 ADD COLUMN     "status" "AiRequestStatus" NOT NULL DEFAULT 'PENDING';
 
 -- CreateIndex

@@ -11,12 +11,14 @@ import { CvSectionUpsertDto } from './dto/section.dto';
 import { Prisma } from '@prisma/client';
 import { migrateCvData } from './migrations';
 import { ThumbnailService } from './thumbnail.service';
+import { AuditLogService } from '../audit/audit.service';
 
 @Injectable()
 export class CvService {
   constructor(
     private prisma: PrismaService,
     private thumbnailService: ThumbnailService,
+    private auditService: AuditLogService,
   ) {}
 
   async create(supabaseId: string, dto: CvCreateDto) {
@@ -111,6 +113,7 @@ export class CvService {
     id: string,
     dto: CvUpdateDto,
     clientSession?: { sessionId?: string; device?: string },
+    requestId?: string,
   ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, id);
@@ -157,35 +160,62 @@ export class CvService {
       }
     }
 
-    const cv = await this.prisma.cv.update({
-      where: { id },
-      data: {
-        title: dto.title,
-        locale: dto.locale,
-        templateId: dto.templateId,
-        templateVersionId,
-        templateVersionNum,
-        version: { increment: 1 },
-        lastEditedSessionId: clientSession?.sessionId || null,
-        lastEditedDevice: clientSession?.device || null,
-        lastEditedAt: new Date(),
-      },
+    const cv = await this.prisma.$transaction(async (tx) => {
+      const updatedCv = await tx.cv.update({
+        where: { id },
+        data: {
+          title: dto.title,
+          locale: dto.locale,
+          templateId: dto.templateId,
+          templateVersionId,
+          templateVersionNum,
+          version: { increment: 1 },
+          lastEditedSessionId: clientSession?.sessionId || null,
+          lastEditedDevice: clientSession?.device || null,
+          lastEditedAt: new Date(),
+          atsScannedAt: null,
+          thumbnailStatus: 'PENDING',
+        },
+      });
+
+      await this.snapshotVersion(id, true, false, tx);
+
+      await this.auditService.logEvent(
+        {
+          actorUserId: userId,
+          actorType: 'USER',
+          eventType: 'CV_UPDATED',
+          action: 'CV metadata updated',
+          resourceType: 'Cv',
+          resourceId: id,
+          oldValue: existing,
+          newValue: updatedCv,
+          severity: 'INFO',
+        },
+        tx,
+      );
+
+      return updatedCv;
     });
-    await this.snapshotVersion(id, true);
 
     // Trigger real-time CV thumbnail generation
-    await this.thumbnailService.enqueueThumbnailGeneration(id, cv.version);
+    await this.thumbnailService.enqueueThumbnailGeneration(
+      id,
+      cv.version,
+      requestId,
+    );
 
     return cv;
   }
 
-  async softDelete(supabaseId: string, id: string) {
+  async softDelete(supabaseId: string, id: string, requestId?: string) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, id);
     await this.prisma.cv.update({
       where: { id },
       data: { isDeleted: true },
     });
+    await this.thumbnailService.enqueueThumbnailCleanup(id, requestId);
     return { success: true };
   }
 
@@ -194,6 +224,7 @@ export class CvService {
     cvId: string,
     dto: CvSectionUpsertDto,
     clientSession?: { sessionId?: string; device?: string },
+    requestId?: string,
   ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, cvId);
@@ -216,55 +247,83 @@ export class CvService {
       });
     }
 
-    let section;
-    if (dto.id && !dto.id.startsWith('temp_')) {
-      section = await this.prisma.cvSection.update({
-        where: { id: dto.id },
+    const result = await this.prisma.$transaction(async (tx) => {
+      let section;
+      const existingSection =
+        dto.id && !dto.id.startsWith('temp_')
+          ? await tx.cvSection.findUnique({ where: { id: dto.id } })
+          : null;
+
+      if (dto.id && !dto.id.startsWith('temp_')) {
+        section = await tx.cvSection.update({
+          where: { id: dto.id },
+          data: {
+            type: dto.type,
+            content: dto.content as Prisma.InputJsonValue,
+            order: dto.order,
+          },
+        });
+      } else {
+        section = await tx.cvSection.create({
+          data: {
+            cvId,
+            type: dto.type,
+            content: dto.content as Prisma.InputJsonValue,
+            order: dto.order,
+          },
+        });
+      }
+
+      // Increment document version, update edit attributions, and compute new scores
+      const allSections = await tx.cvSection.findMany({
+        where: { cvId },
+      });
+      const { completenessScore } = this.computeScoresFromSections(allSections);
+
+      const updatedCv = await tx.cv.update({
+        where: { id: cvId },
         data: {
-          type: dto.type,
-          content: dto.content as Prisma.InputJsonValue,
-          order: dto.order,
+          version: { increment: 1 },
+          lastEditedSessionId: clientSession?.sessionId || null,
+          lastEditedDevice: clientSession?.device || null,
+          lastEditedAt: new Date(),
+          completenessScore,
+          atsScannedAt: null,
+          thumbnailStatus: 'PENDING',
         },
       });
-    } else {
-      section = await this.prisma.cvSection.create({
-        data: {
-          cvId,
-          type: dto.type,
-          content: dto.content as Prisma.InputJsonValue,
-          order: dto.order,
+
+      await this.snapshotVersion(cvId, false, false, tx);
+
+      // Audit section update inside transaction
+      await this.auditService.logEvent(
+        {
+          actorUserId: userId,
+          actorType: 'USER',
+          eventType: 'CV_SECTION_UPDATED',
+          action: existingSection
+            ? `Section ${dto.type} updated`
+            : `Section ${dto.type} created`,
+          resourceType: 'CvSection',
+          resourceId: section.id,
+          oldValue: existingSection,
+          newValue: section,
+          severity: 'INFO',
         },
-      });
-    }
+        tx,
+      );
 
-    // Increment document version, update edit attributions, and compute new scores
-    const allSections = await this.prisma.cvSection.findMany({
-      where: { cvId },
+      return { section, updatedCv };
     });
-    const { atsScore, completenessScore } =
-      this.computeScoresFromSections(allSections);
-
-    const updatedCv = await this.prisma.cv.update({
-      where: { id: cvId },
-      data: {
-        version: { increment: 1 },
-        lastEditedSessionId: clientSession?.sessionId || null,
-        lastEditedDevice: clientSession?.device || null,
-        lastEditedAt: new Date(),
-        atsScore,
-        completenessScore,
-      },
-    });
-
-    await this.snapshotVersion(cvId, false);
 
     // Trigger real-time CV thumbnail generation
     await this.thumbnailService.enqueueThumbnailGeneration(
       cvId,
-      updatedCv.version,
+      result.updatedCv.version,
+      requestId,
     );
 
-    return section;
+    return result.section;
   }
 
   async listVersions(supabaseId: string, cvId: string) {
@@ -294,7 +353,12 @@ export class CvService {
     return scans.reverse(); // Descending latest 20 -> reverse to return chronologically ascending (oldest to newest)
   }
 
-  async restoreVersion(supabaseId: string, cvId: string, versionId: string) {
+  async restoreVersion(
+    supabaseId: string,
+    cvId: string,
+    versionId: string,
+    requestId?: string,
+  ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.assertOwnership(userId, cvId);
 
@@ -305,56 +369,83 @@ export class CvService {
 
     const snapshot = cvVersion.snapshot as any;
 
-    // Clear all existing sections for this CV
-    await this.prisma.cvSection.deleteMany({
+    // Get current sections for old state logging
+    const oldSections = await this.prisma.cvSection.findMany({
       where: { cvId },
     });
 
-    // Recreate sections from snapshot
-    const sectionsToCreate: any[] = [];
-    if (snapshot.sections && Array.isArray(snapshot.sections)) {
-      for (const sec of snapshot.sections) {
-        const created = await this.prisma.cvSection.create({
-          data: {
-            cvId,
-            type: sec.type,
-            content: sec.content,
-            order: sec.order,
-          },
-        });
-        sectionsToCreate.push(created);
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Clear all existing sections for this CV
+      await tx.cvSection.deleteMany({
+        where: { cvId },
+      });
+
+      // Recreate sections from snapshot
+      const sectionsToCreate: any[] = [];
+      if (snapshot.sections && Array.isArray(snapshot.sections)) {
+        for (const sec of snapshot.sections) {
+          const created = await tx.cvSection.create({
+            data: {
+              cvId,
+              type: sec.type,
+              content: sec.content,
+              order: sec.order,
+            },
+          });
+          sectionsToCreate.push(created);
+        }
       }
-    }
 
-    const { atsScore, completenessScore } =
-      this.computeScoresFromSections(sectionsToCreate);
+      const { completenessScore } =
+        this.computeScoresFromSections(sectionsToCreate);
 
-    // Update CV details, incrementing version to push to other tabs
-    const updated = await this.prisma.cv.update({
-      where: { id: cvId },
-      data: {
-        title: snapshot.title || 'Untitled CV',
-        locale: snapshot.locale || 'en',
-        templateId: snapshot.templateId || null,
-        version: { increment: 1 },
-        lastEditedSessionId: 'rollback',
-        lastEditedDevice: 'Hệ thống (Phục hồi phiên bản)',
-        lastEditedAt: new Date(),
-        atsScore,
-        completenessScore,
-      },
-      include: { sections: { orderBy: { order: 'asc' } } },
+      // Update CV details, incrementing version to push to other tabs
+      const updated = await tx.cv.update({
+        where: { id: cvId },
+        data: {
+          title: snapshot.title || 'Untitled CV',
+          locale: snapshot.locale || 'en',
+          templateId: snapshot.templateId || null,
+          version: { increment: 1 },
+          lastEditedSessionId: 'rollback',
+          lastEditedDevice: 'Hệ thống (Phục hồi phiên bản)',
+          lastEditedAt: new Date(),
+          completenessScore,
+          atsScannedAt: null,
+          thumbnailStatus: 'PENDING',
+        },
+        include: { sections: { orderBy: { order: 'asc' } } },
+      });
+
+      await this.snapshotVersion(cvId, true, false, tx);
+
+      // Audit log inside transaction
+      await this.auditService.logEvent(
+        {
+          actorUserId: userId,
+          actorType: 'USER',
+          eventType: 'CV_RESTORED',
+          action: `CV restored to version ${cvVersion.id}`,
+          resourceType: 'Cv',
+          resourceId: cvId,
+          oldValue: oldSections,
+          newValue: sectionsToCreate,
+          severity: 'INFO',
+        },
+        tx,
+      );
+
+      return updated;
     });
 
-    await this.snapshotVersion(cvId, true);
-
-    // Trigger real-time CV thumbnail generation
+    // Trigger real-time CV thumbnail generation outside of tx
     await this.thumbnailService.enqueueThumbnailGeneration(
       cvId,
-      updated.version,
+      result.version,
+      requestId,
     );
 
-    return updated;
+    return result;
   }
 
   async createShareLink(supabaseId: string, cvId: string) {
@@ -389,15 +480,21 @@ export class CvService {
     }
   }
 
-  async snapshotVersion(cvId: string, force = false, isExport = false) {
-    const cv = await this.prisma.cv.findUnique({
+  async snapshotVersion(
+    cvId: string,
+    force = false,
+    isExport = false,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx || this.prisma;
+    const cv = await client.cv.findUnique({
       where: { id: cvId },
       include: { sections: true },
     });
     if (!cv) return;
 
     if (!force) {
-      const latest = await this.prisma.cvVersion.findFirst({
+      const latest = await client.cvVersion.findFirst({
         where: { cvId },
         orderBy: { createdAt: 'desc' },
       });
@@ -410,7 +507,7 @@ export class CvService {
       }
     }
 
-    await this.prisma.cvVersion.create({
+    await client.cvVersion.create({
       data: {
         cvId,
         snapshot: {
@@ -429,7 +526,7 @@ export class CvService {
 
     // Run Retention Policy Cleanups
     try {
-      const versions = await this.prisma.cvVersion.findMany({
+      const versions = await client.cvVersion.findMany({
         where: { cvId },
       });
 
@@ -463,7 +560,7 @@ export class CvService {
       }
 
       if (idsToDelete.length > 0) {
-        await this.prisma.cvVersion.deleteMany({
+        await client.cvVersion.deleteMany({
           where: {
             id: { in: idsToDelete },
           },
@@ -561,13 +658,15 @@ export class CvService {
     });
     if (!cv) return;
 
-    const { completenessScore, atsScore } = this.computeScoresFromSections(
-      cv.sections,
-    );
+    const { completenessScore } = this.computeScoresFromSections(cv.sections);
 
     await this.prisma.cv.update({
       where: { id: cvId },
-      data: { completenessScore, atsScore },
+      data: {
+        completenessScore,
+        atsScannedAt: null,
+        thumbnailStatus: 'PENDING',
+      },
     });
   }
 

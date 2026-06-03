@@ -16,7 +16,9 @@ import { CvService } from './cv.service';
 import { ThumbnailService } from './thumbnail.service';
 import { CvCreateDto, CvUpdateDto } from './dto/cv.dto';
 import { CvSectionUpsertDto } from './dto/section.dto';
-import { CurrentUser, JwtPayload } from '../../core/decorators';
+import { CurrentUser, JwtPayload, LogAudit } from '../../core/decorators';
+
+import { ThumbnailGcTask } from './thumbnail-gc.task';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('cvs')
@@ -24,9 +26,24 @@ export class CvController {
   constructor(
     private cvService: CvService,
     private thumbnailService: ThumbnailService,
+    private thumbnailGcTask: ThumbnailGcTask,
   ) {}
 
+  @Post('internal/test-reconcile')
+  async testReconcile() {
+    if (process.env.ALLOW_TEST_ENDPOINTS !== 'true') {
+      throw new ForbiddenException('Test endpoints are disabled');
+    }
+    await this.thumbnailGcTask.reconcileThumbnails();
+    return { success: true };
+  }
+
   @Post()
+  @LogAudit({
+    action: 'CV created',
+    resourceType: 'Cv',
+    eventType: 'CV_CREATED',
+  })
   async create(@CurrentUser() user: JwtPayload, @Body() dto: CvCreateDto) {
     return this.cvService.create(user.sub, dto);
   }
@@ -42,6 +59,11 @@ export class CvController {
   }
 
   @Put(':id')
+  @LogAudit({
+    action: 'CV updated',
+    resourceType: 'Cv',
+    eventType: 'CV_UPDATED',
+  })
   async update(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -50,15 +72,37 @@ export class CvController {
   ) {
     const sessionId = req.headers['x-session-id'] as string;
     const device = getDeviceFromUserAgent(req.headers['user-agent']);
-    return this.cvService.update(user.sub, id, dto, { sessionId, device });
+    const requestId = (req as any).id || req.headers['x-request-id'];
+    return this.cvService.update(
+      user.sub,
+      id,
+      dto,
+      { sessionId, device },
+      requestId,
+    );
   }
 
   @Delete(':id')
-  async delete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.cvService.softDelete(user.sub, id);
+  @LogAudit({
+    action: 'CV soft deleted',
+    resourceType: 'Cv',
+    eventType: 'CV_UPDATED',
+  })
+  async delete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const requestId = (req as any).id || req.headers['x-request-id'];
+    return this.cvService.softDelete(user.sub, id, requestId);
   }
 
   @Post(':id/sections')
+  @LogAudit({
+    action: 'CV section upserted',
+    resourceType: 'CvSection',
+    eventType: 'CV_SECTION_UPDATED',
+  })
   async upsertSection(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -67,10 +111,14 @@ export class CvController {
   ) {
     const sessionId = req.headers['x-session-id'] as string;
     const device = getDeviceFromUserAgent(req.headers['user-agent']);
-    return this.cvService.upsertSection(user.sub, id, dto, {
-      sessionId,
-      device,
-    });
+    const requestId = (req as any).id || req.headers['x-request-id'];
+    return this.cvService.upsertSection(
+      user.sub,
+      id,
+      dto,
+      { sessionId, device },
+      requestId,
+    );
   }
 
   @Get(':id/versions')
@@ -84,12 +132,19 @@ export class CvController {
   }
 
   @Post(':id/versions/:versionId/restore')
+  @LogAudit({
+    action: 'CV version restored',
+    resourceType: 'Cv',
+    eventType: 'CV_RESTORED',
+  })
   async restoreVersion(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Param('versionId') versionId: string,
+    @Req() req: Request,
   ) {
-    return this.cvService.restoreVersion(user.sub, id, versionId);
+    const requestId = (req as any).id || req.headers['x-request-id'];
+    return this.cvService.restoreVersion(user.sub, id, versionId, requestId);
   }
 
   @Get('internal/thumbnail-health')
@@ -107,6 +162,11 @@ export class CvController {
   }
 
   @Post(':id/share')
+  @LogAudit({
+    action: 'Share link created',
+    resourceType: 'ShareLink',
+    eventType: 'SHARE_LINK_CREATED',
+  })
   async share(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.cvService.createShareLink(user.sub, id);
   }

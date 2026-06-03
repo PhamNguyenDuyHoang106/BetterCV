@@ -11,6 +11,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
+import { addJobWithTrace } from '../../core/utils/queue.util';
+
 export type OcrJobStatus =
   | 'UPLOADED'
   | 'QUEUED'
@@ -44,7 +46,11 @@ export class OcrService {
     }
   }
 
-  async createJob(supabaseId: string, file: any): Promise<any> {
+  async createJob(
+    supabaseId: string,
+    file: any,
+    requestId?: string,
+  ): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { supabaseId },
       select: { id: true },
@@ -103,13 +109,17 @@ export class OcrService {
       );
 
       // 4. Đẩy storageKey vào BullMQ ocr-queue
-      await this.ocrQueue.add(
+      await addJobWithTrace(
+        this.ocrQueue,
         'ocr-task',
         {
           jobId,
           storageKey,
           filename: file.originalname,
           mimetype: file.mimetype,
+          meta: {
+            requestId,
+          },
         },
         {
           attempts: 3,

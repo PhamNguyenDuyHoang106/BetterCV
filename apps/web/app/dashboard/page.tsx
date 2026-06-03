@@ -425,15 +425,6 @@ export default function DashboardPage() {
     cv.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Generate ATS Score dynamically based on CV id (for UI display)
-  const getAtsScore = (id: string) => {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = id.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash % 25) + 72; // Scores ranging from 72 to 96
-  };
-
   // Format date nicely
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "Just now";

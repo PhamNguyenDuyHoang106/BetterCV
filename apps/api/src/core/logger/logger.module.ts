@@ -3,6 +3,8 @@ import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { IncomingMessage, ServerResponse } from 'http';
+import { hostname } from 'os';
+import { RequestContextStore } from '../context/request-context.store';
 
 @Module({
   imports: [
@@ -33,6 +35,21 @@ import { IncomingMessage, ServerResponse } from 'http';
               return reqId;
             },
 
+            // ── Mixin: Inject requestId and hashes dynamically from context store ──
+            mixin() {
+              const store = RequestContextStore.getStore();
+              if (store) {
+                const props: Record<string, any> = {
+                  requestId: store.requestId,
+                };
+                if (store.userHash) props.userHash = store.userHash;
+                if (store.tenantHash) props.tenantHash = store.tenantHash;
+                if (store.ipHash) props.ipHash = store.ipHash;
+                return props;
+              }
+              return {};
+            },
+
             // ── Echo the request ID back in response headers ──
             customProps(req: IncomingMessage) {
               return {
@@ -40,14 +57,42 @@ import { IncomingMessage, ServerResponse } from 'http';
               };
             },
 
+            // ── Base metadata from CI/CD ──
+            base: {
+              pid: process.pid,
+              hostname: hostname(),
+              service: config.get<string>('SERVICE_NAME', 'bettercv-api'),
+              environment: config.get<string>('NODE_ENV', 'development'),
+              version: config.get<string>(
+                'APP_VERSION',
+                process.env.npm_package_version || '0.1.0',
+              ),
+              deploymentId: config.get<string>('DEPLOYMENT_ID', 'local-dev'),
+              gitSha: config.get<string>('GIT_SHA', 'local'),
+            },
+
             // ── Redact sensitive data from logs ──
             redact: {
               paths: [
+                // HTTP headers
                 'req.headers.authorization',
                 'req.headers.cookie',
+                // Request body fields (CV content)
                 '*.jobDescription',
                 '*.resumeText',
                 '*.fullResumeText',
+                '*.coverLetter',
+                '*.personalStatement',
+                // Auth & PII fields
+                '*.email',
+                '*.password',
+                '*.passwordHash',
+                '*.accessToken',
+                '*.refreshToken',
+                '*.phone',
+                // Nested user object
+                '*.user.email',
+                '*.user.phone',
               ],
               censor: '[REDACTED]',
             },

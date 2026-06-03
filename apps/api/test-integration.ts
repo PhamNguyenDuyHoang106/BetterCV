@@ -5,7 +5,7 @@ import { CvService } from './src/modules/cv/cv.service';
 const prisma = new PrismaClient();
 // Instantiate services directly with the Prisma client, mimicking NestJS dependency injection
 const atsService = new AtsService(prisma as any);
-const cvService = new CvService(prisma as any, null as any);
+const cvService = new CvService(prisma as any, null as any, null as any);
 
 async function runTests() {
   console.log('\x1b[36m==================================================\x1b[0m');

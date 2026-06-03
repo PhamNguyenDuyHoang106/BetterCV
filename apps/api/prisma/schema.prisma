@@ -147,9 +147,12 @@ model Cv {
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   atsScore              Int?
+  atsScannedAt          DateTime?
+  atsVersion            String?
   completenessScore     Int?
   thumbnailUrl          String?
   thumbnailGeneratedAt  DateTime?
+  thumbnailStatus       ThumbnailStatus @default(PENDING)
 
   versions   CvVersion[]
   sections   CvSection[]
@@ -158,6 +161,7 @@ model Cv {
 
   @@index([userId])
   @@index([userId, isDeleted])
+  @@index([updatedAt, thumbnailGeneratedAt])
 }
 
 model CvVersion {
@@ -338,4 +342,57 @@ model OcrJob {
   updatedAt     DateTime     @updatedAt
 
   @@index([userId])
+}
+
+enum AuditEventType {
+  CV_CREATED
+  CV_UPDATED
+  CV_SECTION_UPDATED
+  CV_RESTORED
+  SHARE_LINK_CREATED
+  SHARE_LINK_DELETED
+  BILLING_STATUS_CHANGED
+  USER_ROLE_CHANGED
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  CRON
+  WORKER
+  ADMIN
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model AuditLog {
+  id            String         @id @default(uuid())
+  actorUserId   String?
+  actorType     AuditActorType
+  eventType     AuditEventType
+  action        String
+  resourceType  String
+  resourceId    String?
+  oldValue      Json?
+  newValue      Json?
+  severity      AuditSeverity
+  requestId     String?
+  traceId       String?
+  ipHash        String?
+  createdAt     DateTime       @default(now())
+
+  @@index([actorUserId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+}
+
+enum ThumbnailStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
 }

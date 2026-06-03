@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { PrismaService } from '../../database/prisma.service';
+import { hashUser } from '../../core/utils/hash.util';
 
 @Injectable()
 export class AuthService {
@@ -31,7 +32,7 @@ export class AuthService {
           data: { supabaseId },
         });
         this.logger.log(
-          `Linked existing user ${email} to Supabase ID ${supabaseId}`,
+          `Linked existing user [hash:${hashUser(supabaseId).substring(0, 8)}] to Supabase account`,
         );
       } else {
         // Create new user
@@ -43,7 +44,9 @@ export class AuthService {
             role: 'FREE',
           },
         });
-        this.logger.log(`Created new user ${email}`);
+        this.logger.log(
+          `Created new user [hash:${hashUser(supabaseId).substring(0, 8)}]`,
+        );
       }
     }
 
@@ -79,7 +82,7 @@ export class AuthService {
 
     if (!user) {
       this.logger.log(
-        `User ${userPayload.email} not found in DB. Auto-syncing...`,
+        `User [hash:${hashUser(supabaseId).substring(0, 8)}] not found in DB. Auto-syncing...`,
       );
       const fallbackName =
         userPayload.fullName || userPayload.email.split('@')[0];

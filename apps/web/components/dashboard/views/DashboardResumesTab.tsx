@@ -36,9 +36,12 @@ type Cv = {
   title: string;
   templateId?: string;
   atsScore?: number | null;
+  atsScannedAt?: string | null;
+  atsVersion?: string | null;
   completenessScore?: number | null;
   thumbnailUrl?: string | null;
   thumbnailGeneratedAt?: string | null;
+  thumbnailStatus?: "PENDING" | "PROCESSING" | "READY" | "FAILED";
   atsScans?: AtsScan[];
   updatedAt?: string;
   createdAt?: string;
@@ -122,6 +125,18 @@ function Sparkline({ data }: { data: number[] }) {
 }
 
 function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
+  if (cv.thumbnailStatus === "READY" && cv.thumbnailUrl) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center p-4 bg-slate-50">
+        <img
+          src={cv.thumbnailUrl}
+          alt={cv.title}
+          className="max-w-full max-h-full object-contain rounded shadow-lg border border-slate-200"
+        />
+      </div>
+    );
+  }
+
   const template = templates.find((t) => t.id === (cv.templateId || "standard-ats"));
   const schema = template?.schema;
 
@@ -277,14 +292,21 @@ export function DashboardResumesTab({
                   >
                     {/* Render Real High-Res Thumbnail with fallback */}
                     <div className="absolute inset-0 p-2 flex items-center justify-center">
-                      {isStale && (
-                        <span className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/90 text-white font-medium text-[9px] shadow-sm backdrop-blur-sm tracking-wide animate-pulse">
-                          <span className="w-1 h-1 rounded-full bg-white animate-ping" />
-                          Preview pending
-                        </span>
-                      )}
+                      {cv.thumbnailStatus === "PROCESSING" || cv.thumbnailStatus === "PENDING" ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 backdrop-blur-[2px] z-10 p-4 text-center">
+                          <span className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin mb-2" />
+                          <span className="text-xs font-semibold text-indigo-700">Generating Preview</span>
+                          <p className="text-[10px] text-slate-500 mt-1">Vui lòng đợi trong giây lát...</p>
+                        </div>
+                      ) : cv.thumbnailStatus === "FAILED" ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-50/60 z-10 p-4 text-center">
+                          <span className="material-symbols-outlined text-rose-500 text-3xl mb-1">broken_image</span>
+                          <span className="text-xs font-bold text-rose-700">Preview Failed</span>
+                          <p className="text-[9px] text-rose-500 mt-0.5">Không thể tự động chụp màn hình CV này.</p>
+                        </div>
+                      ) : null}
                       <picture className="w-[85%] h-[90%] block relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white">
-                        {cv.thumbnailUrl ? (
+                        {cv.thumbnailUrl && cv.thumbnailStatus === "READY" ? (
                           <img
                             src={cv.thumbnailUrl}
                             alt={cv.title}
@@ -355,12 +377,22 @@ export function DashboardResumesTab({
                   {/* ATS scan history display */}
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[11px]">
                     <span className="text-slate-500 font-medium">ATS Match:</span>
-                    {cv.atsScans && cv.atsScans.length > 0 ? (
-                      <span className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScans[0].overallScore)}`}>
-                        {cv.atsScans[0].overallScore}%
-                      </span>
+                    {cv.atsScore !== null && cv.atsScore !== undefined && cv.atsScannedAt ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScore)}`}>
+                          {cv.atsScore}%
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">v{cv.atsVersion || "1.0"}</span>
+                      </div>
+                    ) : cv.atsScore !== null && cv.atsScore !== undefined && !cv.atsScannedAt ? (
+                      <div className="flex items-center gap-1.5" title="CV đã được cập nhật sau lần quét cuối">
+                        <span className={`font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500`}>
+                          {cv.atsScore}%
+                        </span>
+                        <span className="text-[8px] px-1 py-0.2 rounded bg-amber-100 text-amber-700 font-medium scale-95">Stale</span>
+                      </div>
                     ) : (
-                      <span className="text-slate-400 italic">No ATS scan yet</span>
+                      <span className="text-slate-400 italic">N/A</span>
                     )}
                   </div>
 

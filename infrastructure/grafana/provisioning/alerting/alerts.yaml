@@ -1,0 +1,132 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: bettercv-loki-alerts
+    folder: BetterCV Alerts
+    interval: 1m
+    rules:
+      - uid: redis-conn-lost
+        title: Redis Connection Lost
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({service="bettercv-api"} | json | event="redis_disconnected"[1m]) > 0'
+              queryType: instant
+        for: 1m
+        annotations:
+          summary: Redis connection has been lost.
+        labels:
+          severity: CRITICAL
+
+      - uid: prisma-db-fail
+        title: Prisma Database Failure
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({service="bettercv-api", module="PrismaService"} | json | event="database_query_failed"[5m]) > 5'
+              queryType: instant
+        for: 2m
+        annotations:
+          summary: Multiple database query failures detected.
+        labels:
+          severity: CRITICAL
+
+      - uid: slow-queue-worker
+        title: Slow Queue Worker Processing
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({service="bettercv-api", module="QueueWorker"} | json | event="job_slow"[5m]) > 10'
+              queryType: instant
+        for: 2m
+        annotations:
+          summary: Queue worker is processing jobs slowly (>5s).
+        labels:
+          severity: WARNING
+
+      - uid: ats-scan-throttled
+        title: ATS Scan Route Throttled
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({service="bettercv-api"} | json | event="ats_throttled"[1m]) > 10'
+              queryType: instant
+        for: 2m
+        annotations:
+          summary: ATS scan endpoints are heavily throttled.
+        labels:
+          severity: WARNING
+
+      - uid: queue-job-fail-spikes
+        title: Queue Job Failure Spikes
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({service="bettercv-api", module="QueueWorker"} | json | event="job_failed"[5m]) > 5'
+              queryType: instant
+        for: 2m
+        annotations:
+          summary: Spikes in general queue job failures.
+        labels:
+          severity: WARNING
+
+      - uid: high-ocr-failure-rate
+        title: High OCR Failure Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({service="bettercv-api", module="QueueWorker"} | json | jobType="ocr" | event="job_failed"[5m]) > 5'
+              queryType: instant
+        for: 2m
+        annotations:
+          summary: Sudden spike in OCR job failures.
+        labels:
+          severity: WARNING
+
+      - uid: openai-provider-failure
+        title: OpenAI Provider Failure
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'count_over_time({service="bettercv-api"} | json | module="OpenAiProvider" | event="openai_request_failed"[5m]) > 10'
+              queryType: instant
+        for: 1m
+        annotations:
+          summary: OpenAI API request failures exceeded threshold.
+        labels:
+          severity: CRITICAL

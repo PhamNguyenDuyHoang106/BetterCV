@@ -24,7 +24,8 @@ export class BillingService {
     const userId = await this.resolveUserId(supabaseId);
     const customerId = await this.getOrCreateCustomer(userId);
 
-    const mode = dto.mode ?? (dto.tier === 'PREMIUM' ? 'payment' : 'subscription');
+    const mode =
+      dto.mode ?? (dto.tier === 'PREMIUM' ? 'payment' : 'subscription');
     const priceId = dto.priceId ?? this.resolvePriceId(dto.tier, mode);
     if (!priceId) {
       throw new ForbiddenException(
@@ -97,7 +98,7 @@ export class BillingService {
 
   private resolvePriceId(
     tier: CheckoutDto['tier'] | undefined,
-    mode: 'subscription' | 'payment',
+    _mode: 'subscription' | 'payment',
   ) {
     // Back-compat with existing env names
     const pro =
@@ -206,7 +207,9 @@ export class BillingService {
     return 'FREE';
   }
 
-  private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+  private async handleCheckoutSessionCompleted(
+    session: Stripe.Checkout.Session,
+  ) {
     // Only handle one-time payments here. Subscriptions are handled by subscription.* events.
     if (session.mode !== 'payment') return;
     const userId = session.client_reference_id;
@@ -222,8 +225,10 @@ export class BillingService {
     });
 
     // Best-effort invoice record for analytics
-    const amount = typeof session.amount_total === 'number' ? session.amount_total : null;
-    const currency = typeof session.currency === 'string' ? session.currency : 'usd';
+    const amount =
+      typeof session.amount_total === 'number' ? session.amount_total : null;
+    const currency =
+      typeof session.currency === 'string' ? session.currency : 'usd';
     const status = session.payment_status ?? 'paid';
     if (amount !== null) {
       await this.prisma.invoice.create({

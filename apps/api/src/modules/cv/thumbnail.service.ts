@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -8,6 +9,8 @@ import { RedisService } from '../../database/redis/redis.service';
 import { renderHtml } from '@acv/template-engine';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import puppeteer from 'puppeteer';
+
+import { addJobWithTrace } from '../../core/utils/queue.util';
 
 const METRICS_KEY = 'cv:thumbnail:metrics';
 
@@ -19,6 +22,7 @@ export class ThumbnailService {
 
   constructor(
     @InjectQueue('thumbnail-queue') private thumbnailQueue: Queue,
+    @InjectQueue('thumbnail-cleanup-queue') private cleanupQueue: Queue,
     private prisma: PrismaService,
     private config: ConfigService,
     private redisService: RedisService,
@@ -32,6 +36,12 @@ export class ThumbnailService {
 
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey);
+    }
+
+    // Ensure local storage directory exists
+    const storageDir = path.join(process.cwd(), 'storage', 'thumbnails');
+    if (!fs.existsSync(storageDir)) {
+      fs.mkdirSync(storageDir, { recursive: true });
     }
   }
 
@@ -78,6 +88,7 @@ export class ThumbnailService {
   async enqueueThumbnailGeneration(
     cvId: string,
     version: number,
+    requestId?: string,
   ): Promise<void> {
     const cv = await this.prisma.cv.findUnique({
       where: { id: cvId },
@@ -91,38 +102,55 @@ export class ThumbnailService {
 
     if (!this.isRenderableCv(cv)) {
       this.logger.log(
-        `Skipping enqueuing thumbnail for CV ${cvId}: not renderable yet.`,
+        `Skipping enqueuing thumbnail for CV ${cvId}: not renderable yet. Clearing existing preview if any.`,
+      );
+      await this.enqueueThumbnailCleanup(cvId, requestId);
+      return;
+    }
+
+    const isDev = this.config.get<string>('NODE_ENV') !== 'production';
+    if (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true') {
+      this.logger.log(
+        `Skipping thumbnail queue for CV ${cvId} due to SKIP_THUMBNAIL_QUEUE=true`,
       );
       return;
     }
 
     this.logger.log(
-      `Enqueuing thumbnail generation for CV ${cvId} (Version: ${version})`,
+      `Enqueuing thumbnail generation for CV ${cvId} (Version: ${version}) [requestId: ${requestId || 'none'}]`,
     );
+
+    await this.prisma.cv.update({
+      where: { id: cvId },
+      data: { thumbnailStatus: 'PENDING' },
+    });
 
     const debounceMs = this.config.get<number>('THUMBNAIL_DEBOUNCE_MS', 30000);
 
-    await this.thumbnailQueue
-      .add(
-        'generate-thumbnail',
-        { cvId, version },
-        {
-          jobId: cvId, // Deduplication logic: gộp các save trùng lặp
-          delay: debounceMs, // Debounce trì hoãn hàng đợi
-          removeOnComplete: true,
-          removeOnFail: true,
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
+    await addJobWithTrace(
+      this.thumbnailQueue,
+      'generate-thumbnail',
+      {
+        cvId,
+        version,
+        meta: {
+          requestId,
         },
-      )
-      .catch((err) => {
-        this.logger.error(
-          `Failed to add thumbnail job to queue: ${err.message}`,
-        );
-      });
+      },
+      {
+        jobId: cvId, // Deduplication logic: gộp các save trùng lặp
+        delay: debounceMs, // Debounce trì hoãn hàng đợi
+        removeOnComplete: true,
+        removeOnFail: true,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      },
+    ).catch((err) => {
+      this.logger.error(`Failed to add thumbnail job to queue: ${err.message}`);
+    });
   }
 
   async generateThumbnail(cvId: string, targetVersion?: number): Promise<void> {
@@ -137,6 +165,11 @@ export class ThumbnailService {
       await this.redisService.hincrby(METRICS_KEY, 'failedJobs', 1);
       throw new NotFoundException(`CV with ID ${cvId} not found`);
     }
+
+    await this.prisma.cv.update({
+      where: { id: cvId },
+      data: { thumbnailStatus: 'PROCESSING' },
+    });
 
     // Race condition prevention: check target version
     if (targetVersion !== undefined && targetVersion < cv.version) {
@@ -205,23 +238,47 @@ export class ThumbnailService {
         String(renderMs),
       );
 
-      const key = `thumbnails/${cvId}.webp`;
+      // Always save locally to keep local cache and support custom endpoint fallback/serving
+      const storageDir = path.join(process.cwd(), 'storage', 'thumbnails');
+      const filePath = path.join(storageDir, `${cvId}.webp`);
+      fs.writeFileSync(filePath, webpBuffer);
 
-      const startUpload = performance.now();
-      const url = await this.uploadToStorage(key, webpBuffer, 'image/webp');
-      const endUpload = performance.now();
-      const uploadMs = Math.round(endUpload - startUpload);
-      await this.redisService.hset(
-        METRICS_KEY,
-        'lastUploadMs',
-        String(uploadMs),
-      );
+      const key = `thumbnails/${cvId}.webp`;
+      let url = '';
+
+      if (this.supabase) {
+        try {
+          const startUpload = performance.now();
+          url = await this.uploadToStorage(key, webpBuffer, 'image/webp');
+          const endUpload = performance.now();
+          const uploadMs = Math.round(endUpload - startUpload);
+          await this.redisService.hset(
+            METRICS_KEY,
+            'lastUploadMs',
+            String(uploadMs),
+          );
+        } catch (uploadErr: any) {
+          this.logger.warn(
+            `Supabase upload failed for CV ${cvId}, falling back to local serving URL: ${uploadErr.message}`,
+          );
+        }
+      }
+
+      // If Supabase is unconfigured or upload failed, use local endpoint URL
+      if (!url) {
+        const port = this.config.get<number>('PORT', 4000);
+        const apiPublicUrl =
+          this.config.get<string>('API_PUBLIC_URL') ||
+          `http://localhost:${port}`;
+        url = `${apiPublicUrl}/api/cvs/thumbnails/${cvId}.webp`;
+      }
 
       await this.prisma.cv.update({
         where: { id: cvId },
         data: {
           thumbnailUrl: url,
           thumbnailGeneratedAt: new Date(),
+          thumbnailStatus: 'READY',
         },
       });
 
@@ -230,6 +287,12 @@ export class ThumbnailService {
         `Thumbnail successfully generated and updated for CV: ${cvId}`,
       );
     } catch (err: any) {
+      await this.prisma.cv
+        .update({
+          where: { id: cvId },
+          data: { thumbnailStatus: 'FAILED' },
+        })
+        .catch(() => {});
       await this.redisService.hincrby(METRICS_KEY, 'failedJobs', 1);
       throw err;
     }
@@ -389,5 +452,97 @@ export class ThumbnailService {
 
     const { data } = this.supabase.storage.from(this.bucket).getPublicUrl(key);
     return data.publicUrl;
+  }
+
+  /**
+   * Enqueues a thumbnail cleanup job.
+   */
+  async enqueueThumbnailCleanup(
+    cvId: string,
+    requestId?: string,
+  ): Promise<void> {
+    this.logger.log(
+      `Enqueuing thumbnail cleanup for CV ${cvId} [requestId: ${requestId || 'none'}]`,
+    );
+    await addJobWithTrace(
+      this.cleanupQueue,
+      'cleanup-thumbnail',
+      { cvId, meta: { requestId } },
+      {
+        removeOnComplete: true,
+        removeOnFail: true,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      },
+    ).catch((err) => {
+      this.logger.error(
+        `Failed to add thumbnail cleanup job to queue: ${err.message}`,
+      );
+    });
+  }
+
+  /**
+   * Physically deletes the local and remote thumbnail files for a CV.
+   */
+  async deleteThumbnail(cvId: string): Promise<void> {
+    this.logger.log(`Deleting thumbnail assets for CV: ${cvId}`);
+
+    // 1. Delete local file
+    try {
+      const localPath = path.join(
+        process.cwd(),
+        'storage',
+        'thumbnails',
+        `${cvId}.webp`,
+      );
+      if (fs.existsSync(localPath)) {
+        fs.unlinkSync(localPath);
+        this.logger.log(`Deleted local thumbnail file for CV: ${cvId}`);
+      }
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to delete local thumbnail for CV ${cvId}: ${err.message}`,
+      );
+    }
+
+    // 2. Delete Supabase Storage file
+    if (this.supabase) {
+      try {
+        const key = `thumbnails/${cvId}.webp`;
+        const { error } = await this.supabase.storage
+          .from(this.bucket)
+          .remove([key]);
+        if (error) {
+          this.logger.error(
+            `Failed to delete Supabase storage thumbnail for CV ${cvId}: ${error.message}`,
+          );
+        } else {
+          this.logger.log(`Deleted Supabase storage thumbnail for CV: ${cvId}`);
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to delete Supabase storage thumbnail for CV ${cvId}: ${err.message}`,
+        );
+      }
+    }
+
+    // 3. Clear fields in the DB
+    try {
+      await this.prisma.cv.update({
+        where: { id: cvId },
+        data: {
+          thumbnailUrl: null,
+          thumbnailGeneratedAt: null,
+          thumbnailStatus: 'PENDING',
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to clear DB fields on delete for CV ${cvId}: ${err.message}`,
+      );
+    }
   }
 }

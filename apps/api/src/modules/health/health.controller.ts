@@ -3,15 +3,18 @@ import {
   Get,
   HttpStatus,
   Res,
+  Req,
   InternalServerErrorException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../database/redis/redis.service';
 import { BypassTransform } from '../../core/decorators/bypass-transform.decorator';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 /**
  * Creates a timeout promise that rejects after the specified duration.
@@ -26,6 +29,8 @@ function timeout(ms: number): Promise<never> {
   );
 }
 
+import { addJobWithTrace } from '../../core/utils/queue.util';
+
 /** Maximum time (ms) to wait for each downstream dependency */
 const DEPENDENCY_TIMEOUT_MS = 1000;
 
@@ -38,6 +43,7 @@ export class HealthController {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    @InjectQueue('thumbnail-queue') private thumbnailQueue: Queue,
   ) {}
 
   /**
@@ -102,12 +108,17 @@ export class HealthController {
    * Throws a real 500 error that triggers:
    * - SentryExceptionFilter → Sentry event with requestId tag
    * - Pino error log with the same requestId
-   * Blocked in production (returns 404).
+   * Blocked in production unless ALLOW_TEST_ENDPOINTS=true.
    */
   @Get('_test-error')
   testError() {
     const nodeEnv = this.config.get<string>('NODE_ENV', 'development');
-    if (nodeEnv === 'production') {
+    const allowTest =
+      this.config.get<string>('ALLOW_TEST_ENDPOINTS') === 'true';
+    if (
+      (nodeEnv === 'production' || process.env.NODE_ENV === 'production') &&
+      !allowTest
+    ) {
       throw new NotFoundException();
     }
 
@@ -117,5 +128,51 @@ export class HealthController {
     throw new InternalServerErrorException(
       'Sprint 5E.1 verification: intentional test error',
     );
+  }
+
+  @Get('_test-queue-error')
+  async testQueueError(@Req() req: Request) {
+    const nodeEnv = this.config.get<string>('NODE_ENV', 'development');
+    const allowTest =
+      this.config.get<string>('ALLOW_TEST_ENDPOINTS') === 'true';
+    if (
+      (nodeEnv === 'production' || process.env.NODE_ENV === 'production') &&
+      !allowTest
+    ) {
+      throw new NotFoundException();
+    }
+
+    const requestId =
+      (req as any).id ||
+      req.headers['x-request-id'] ||
+      'test-queue-failure-xyz';
+
+    // Use dynamic jobId to prevent BullMQ duplicate rejection from previous runs
+    const dynamicJobId = `force-fail-${requestId}-${Date.now()}`;
+
+    await addJobWithTrace(
+      this.thumbnailQueue,
+      'generate-thumbnail',
+      {
+        cvId: 'force-fail-cv',
+        version: 1,
+        meta: {
+          requestId,
+        },
+      },
+      {
+        jobId: dynamicJobId,
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
+
+    return {
+      success: true,
+      message: 'Intentional queue failure job enqueued',
+      meta: {
+        requestId,
+      },
+    };
   }
 }

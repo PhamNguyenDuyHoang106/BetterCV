@@ -6,6 +6,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  Req,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -19,8 +20,13 @@ export class OcrController {
 
   @Post('upload-cv')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadCv(@CurrentUser() user: JwtPayload, @UploadedFile() file: any) {
-    return this.ocrService.createJob(user.sub, file);
+  async uploadCv(
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile() file: any,
+    @Req() req: any,
+  ) {
+    const requestId = req.id || req.headers['x-request-id'];
+    return this.ocrService.createJob(user.sub, file, requestId);
   }
 
   @Get('ocr/status/:jobId')
