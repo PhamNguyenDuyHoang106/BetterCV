@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
+import { useLanguageStore } from "../../lib/store/language";
 
 type TargetType = {
   type: "summary" | "experience";
@@ -137,7 +138,12 @@ export function useAiRewrite({
             : result.text || result.description || result.raw || JSON.stringify(result);
         setAiStreamingOutput(outputText);
       } catch (postErr) {
-        alert("Trợ lý AI đang bận hoặc tài khoản của bạn đã hết lượt dùng AI. Vui lòng thử lại sau.");
+        const lang = useLanguageStore.getState().language;
+        alert(
+          lang === "vi"
+            ? "Trợ lý AI đang bận hoặc tài khoản của bạn đã hết lượt dùng AI. Vui lòng thử lại sau."
+            : "AI Assistant is busy or your account has run out of AI credits. Please try again later."
+        );
       }
     } finally {
       setIsAiGenerating(false);

@@ -1,0 +1,218 @@
+import { DeepNormalize } from "../types";
+import { landing as enLanding } from "../en/landing";
+
+export const landing: DeepNormalize<typeof enLanding> = {
+  nav: {
+    why: "Vì sao?",
+    demo: "ATS Demo",
+    pricing: "Bảng giá",
+    faq: "FAQ",
+    login: "Đăng nhập",
+    register: "Đăng ký",
+    logout: "Đăng xuất",
+    dashboard: "Dashboard",
+    myAccount: "Tài khoản",
+    close: "Đóng",
+  },
+  hero: {
+    badge: "Công cụ tối ưu CV #1 Việt Nam",
+    titleLine1: "Tạo CV chuẩn ATS.",
+    titleLine2: "Tăng cơ hội gọi phỏng vấn.",
+    desc: "BetterCV giúp bạn phân tích, chấm điểm và tối ưu hóa nội dung CV bằng công nghệ AI tiên tiến nhất hiện nay, tăng cơ hội lọt qua vòng hồ sơ lên đến 87%.",
+    ctaFree: "Bắt đầu miễn phí",
+    ctaImport: "Quét CV cũ bằng AI",
+    ctaDemo: "Xem cách chấm điểm ATS",
+    statsCvCreated: "CV đã được tạo",
+    statsAtsImprove: "Cải thiện điểm ATS",
+    statsRating: "Đánh giá người dùng",
+    welcomeBack: "Chào mừng trở lại, {name}! 👋",
+    welcomeCvs: "Bạn đang có {count} bản CV trong hệ thống.",
+    welcomeCvsEmpty: "Bắt đầu tối ưu CV chuẩn ATS của bạn ngay.",
+    dashboardBtn: "Truy cập Dashboard",
+    newCvBtn: "Tạo CV mới",
+    accountType: "Tài khoản: {role}",
+    mockup: {
+      atsScore: "Điểm ATS",
+      excellentMatch: "Độ tương thích cao",
+      aiSuggestion: "AI gợi ý",
+      aiSuggestionDesc: 'Thêm số liệu: "Tăng throughput 40%" thay vì "Cải thiện hiệu suất".',
+    },
+  },
+  painPoints: {
+    badge: "Vấn đề",
+    title: "Tại sao 75% CV bị loại trước khi nhà tuyển dụng đọc?",
+    subtitle: "Hệ thống sàng lọc tự động (ATS) thường từ chối hồ sơ vì những lý do rất nhỏ.",
+    items: [
+      {
+        title: "Hệ thống ATS không đọc được CV",
+        description: "Định dạng bảng biểu phức tạp hoặc icon lạ khiến phần mềm lọc hồ sơ đọc sai hoặc bỏ qua thông tin của bạn.",
+      },
+      {
+        title: "Không khớp từ khóa mô tả công việc",
+        description: "Gửi cùng một CV cho mọi nơi — thiếu hụt từ khóa chuyên ngành mà nhà tuyển dụng yêu cầu trong JD.",
+      },
+      {
+        title: "Nội dung chung chung, sáo rỗng",
+        description: "Những câu như 'chăm chỉ, trách nhiệm' không có số liệu cụ thể khiến CV của bạn chìm nghỉm giữa hàng trăm hồ sơ.",
+      },
+    ],
+  },
+  steps: {
+    badge: "Giải pháp",
+    title: "Quy trình tối ưu CV chuẩn ATS bằng AI",
+    subtitle: "Chỉ với 4 bước đơn giản để sở hữu CV chuyên nghiệp vượt qua mọi rào cản ATS.",
+    desc: "4 bước đơn giản để biến CV thường thành CV chuẩn ATS — chỉ mất 15 phút.",
+    cta: "Bắt đầu miễn phí",
+    items: [
+      {
+        title: "Tải CV của bạn lên",
+        desc: "Tải lên CV hiện tại hoặc chọn từ kho mẫu CV chuẩn hóa sẵn có.",
+      },
+      {
+        title: "Quét và phân tích ATS",
+        desc: "AI phân tích điểm số ATS, chỉ ra từ khóa còn thiếu và lỗi định dạng.",
+      },
+      {
+        title: "Tối ưu hóa bằng AI",
+        desc: "AI viết lại từng mục, gợi ý động từ hành động mạnh và chèn từ khóa.",
+      },
+      {
+        title: "Xuất PDF chuẩn chỉ",
+        desc: "Tải xuống file PDF sắc nét, chuẩn cấu trúc định dạng đọc của ATS.",
+      },
+    ],
+  },
+  atsDemo: {
+    badge: "ATS Demo",
+    title: "Thử nghiệm Quét Điểm ATS bằng AI",
+    desc: "Trực quan hóa cách hệ thống AI phân tích lỗi và đề xuất từ khóa tối ưu để nâng điểm CV của bạn vượt trội.",
+    scanning: "AI đang quét cấu trúc CV...",
+    completed: "Tối ưu ATS hoàn tất!",
+    beforeScore: "Điểm ban đầu",
+    afterScore: "Điểm tối ưu",
+    beforeLabel: "Trước khi tối ưu",
+    afterLabel: "Sau khi tối ưu",
+    scoreWeak: "Điểm ATS: Yếu",
+    scoreExcellent: "Điểm ATS: Xuất sắc",
+    warningKeywords: "Thiếu 12 từ khóa quan trọng",
+    warningFormat: "Định dạng không chuẩn ATS",
+    warningGeneric: "Nội dung chung chung",
+    ctaBtn: "Tối ưu CV của tôi ngay",
+    improvements: [
+      "Thêm 12 từ khóa chuyên ngành còn thiếu",
+      "Cải thiện cấu trúc bullet points (Động từ + Kết quả)",
+      "Chuẩn hóa font chữ và định dạng cột đơn cho ATS",
+    ],
+    optimizedLabel: "ĐÃ TỐI ƯU ATS",
+    originalLabel: "CV CHƯA TỐI ƯU",
+    btnStart: "Chạy mô phỏng AI",
+    btnReset: "Đặt lại",
+  },
+  pricing: {
+    badge: "Bảng giá",
+    title: "Bảng giá phù hợp với mọi mục tiêu nghề nghiệp",
+    subtitle: "Bắt đầu miễn phí hoặc nâng cấp gói để mở khóa toàn bộ sức mạnh tối ưu hóa từ AI.",
+    plans: [
+      {
+        name: "Free",
+        price: "0đ",
+        period: "",
+        features: [
+          "Tối đa 3 bản CV nháp",
+          "3 lượt chấm điểm ATS / ngày",
+          "Xuất tệp PDF cơ bản",
+          "Mẫu CV chuẩn ATS mặc định",
+        ],
+        cta: "Bắt đầu miễn phí",
+      },
+      {
+        name: "Pro",
+        price: "50.000đ",
+        period: "/tháng",
+        ribbon: "PHỔ BIẾN",
+        features: [
+          "Tạo CV không giới hạn",
+          "Chấm điểm ATS không giới hạn",
+          "AI Rewrite & Gợi ý nâng cấp từ vựng",
+          "Kho mẫu CV cao cấp (Harvard, McKinsey...)",
+          "Xuất tệp PDF sắc nét, độ phân giải cao",
+        ],
+        cta: "Nâng cấp Pro",
+      },
+      {
+        name: "Ultra",
+        price: "120.000đ",
+        period: "/tháng",
+        ribbon: "GIẠ TRỊ TỐT NHẤT",
+        features: [
+          "Mọi tính năng của gói Pro",
+          "AI tự động điều chỉnh nội dung theo JD",
+          "AI viết Thư xin việc (Cover Letter)",
+          "Mô phỏng phỏng vấn thử bằng AI (Mock Interview)",
+          "Tư vấn lộ trình sự nghiệp thông minh",
+          "Kênh hỗ trợ ưu tiên 24/7",
+        ],
+        cta: "Dùng thử Ultra",
+      },
+    ],
+  },
+  testimonials: {
+    title: "Ứng viên nói gì về BetterCV?",
+    subtitle: "Hơn 2.000 ứng viên đã vượt qua vòng hồ sơ thành công và nhận lời mời phỏng vấn.",
+    items: [
+      {
+        quote: "Từ chỗ 2 tuần liền không có phản hồi, mình nhận được 5 lời mời phỏng vấn chỉ trong một tháng sau khi nâng điểm ATS lên 94% nhờ BetterCV.",
+        name: "Minh Anh",
+        role: "Software Engineer · Fintech",
+      },
+      {
+        quote: "Giao diện tinh tế, AI rewrite gợi ý từ vựng hành động cực kỳ chuẩn chỉ. Tiết kiệm cả buổi tối viết đi viết lại CV. Rất đáng đồng tiền bát gạo.",
+        name: "Hoàng Long",
+        role: "Product Manager · Startup",
+      },
+      {
+        quote: "Tôi đã nộp đơn cho 10 công ty và nhận được cuộc gọi từ 7 nơi. Trước đây gửi CV cũ tự thiết kế Canva thì hầu như toàn bị gửi thư từ chối tự động.",
+        name: "Thu Hà",
+        role: "Marketing Executive · Agency",
+      },
+    ],
+  },
+  faq: {
+    title: "Câu hỏi thường gặp",
+    subtitle: "Mọi điều bạn cần biết về tối ưu hóa CV và hệ thống ATS.",
+    items: [
+      {
+        question: "ATS là gì và tại sao nó lại quan trọng?",
+        answer: "ATS (Applicant Tracking System) là phần mềm lọc hồ sơ tự động được 98% doanh nghiệp lớn sử dụng để quét CV trước khi đưa tới nhà tuyển dụng. Nếu CV của bạn không tương thích về mặt từ khóa hoặc cấu trúc định dạng với ATS, bạn sẽ bị loại ngay từ đầu.",
+      },
+      {
+        question: "BetterCV giúp cải thiện điểm ATS như thế nào?",
+        answer: "BetterCV quét CV của bạn và đối chiếu với mô tả công việc (JD) mục tiêu, tự động phát hiện và chèn thêm các từ khóa chuyên môn còn thiếu, định dạng lại cấu trúc chuẩn cột đơn và gợi ý cải thiện câu chữ để phần mềm ATS dễ dàng đọc hiểu.",
+      },
+      {
+        question: "Dữ liệu thông tin cá nhân của tôi có được bảo mật không?",
+        answer: "Có, toàn bộ dữ liệu CV của bạn được mã hóa an toàn qua dịch vụ đám mây của Supabase. Chúng tôi cam kết không bán dữ liệu hay chia sẻ hồ sơ của bạn cho bất kỳ bên thứ ba nào khi chưa có sự đồng ý.",
+      },
+      {
+        question: "Tôi có thể sử dụng BetterCV miễn phí không?",
+        answer: "Hoàn toàn có thể. Gói Free cho phép bạn tạo tối đa 3 CV nháp, chấm điểm ATS 3 lần mỗi ngày và tải xuống PDF. Khi cần sử dụng các tính năng nâng cao của AI rewrite, bạn có thể cân nhắc nâng cấp lên gói Pro chỉ từ 50.000đ/tháng.",
+      },
+    ],
+  },
+  finalCta: {
+    title: "Sẵn sàng tăng cơ hội được gọi phỏng vấn?",
+    desc: "Tạo CV chuẩn ATS miễn phí ngay hôm nay. Nâng cấp Pro khi cần AI không giới hạn và template premium.",
+    cta: "Tạo CV miễn phí",
+  },
+  footer: {
+    desc: "Nền tảng tối ưu hóa CV chuẩn ATS bằng công nghệ AI hàng đầu Việt Nam. Tăng cơ hội nhận cuộc gọi phỏng vấn của bạn lên 87%.",
+    terms: "Điều khoản dịch vụ",
+    privacy: "Chính sách bảo mật",
+    rights: "© 2026 BetterCV — Công cụ tối ưu CV chuẩn ATS dành cho người Việt.",
+    product: "Sản phẩm",
+    why: "Vì sao BetterCV?",
+    account: "Tài khoản",
+    loginRegister: "Đăng nhập / Đăng ký",
+    support: "Hỗ trợ",
+  },
+};

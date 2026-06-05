@@ -1,0 +1,26 @@
+import { TranslationSchema } from "../types";
+
+export const onboarding: TranslationSchema["onboarding"] = {
+  student: "Sinh viên",
+  studentDesc: "Đang học hoặc sắp tốt nghiệp",
+  freshGrad: "Mới ra trường",
+  freshGradDesc: "0–2 năm kinh nghiệm",
+  experienced: "Đã có kinh nghiệm",
+  experiencedDesc: "3+ năm kinh nghiệm",
+  careerChange: "Chuyển ngành",
+  careerChangeDesc: "Muốn thay đổi lĩnh vực",
+  industryIt: "IT / Phần mềm",
+  industryMarketing: "Marketing",
+  industryBusiness: "Kinh doanh",
+  industryFinance: "Tài chính",
+  industryDesign: "Thiết kế",
+  industryOther: "Khác",
+  step1Title: "Chào {name}! 👋",
+  step1Desc: "Cho BetterCV biết giai đoạn nghề nghiệp của bạn để đề xuất template phù hợp.",
+  step2Title: "Bạn quan tâm lĩnh vực nào?",
+  step2Desc: "Chúng tôi sẽ gợi ý mẫu CV và từ khóa ATS phù hợp nhất.",
+  skip: "Bỏ qua",
+  continue: "Tiếp tục",
+  back: "Quay lại",
+  startCreating: "Bắt đầu tạo CV",
+};

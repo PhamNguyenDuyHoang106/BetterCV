@@ -113,10 +113,23 @@ export class ThumbnailService {
     }
 
     const isDev = this.config.get<string>('NODE_ENV') !== 'production';
-    if (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true') {
+    const redisEnabled = this.config.get<string>('REDIS_ENABLED') !== 'false';
+    if (!redisEnabled || (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true')) {
       this.logger.log(
-        `Skipping thumbnail queue for CV ${cvId} due to SKIP_THUMBNAIL_QUEUE=true`,
+        `Skipping thumbnail queue for CV ${cvId} due to Redis disabled or SKIP_THUMBNAIL_QUEUE=true. Clearing pending/processing status.`,
       );
+      try {
+        await this.prisma.cv.update({
+          where: { id: cvId },
+          data: {
+            thumbnailStatus: 'READY',
+          },
+        });
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to reset thumbnail status to READY when queue is skipped: ${err.message}`,
+        );
+      }
       return;
     }
 
@@ -244,6 +257,7 @@ export class ThumbnailService {
     const html = renderHtml({
       template: templateSchema || {},
       data: flattenedData,
+      locale: cv.locale || 'vi',
     });
 
     try {
@@ -489,6 +503,16 @@ export class ThumbnailService {
     cvId: string,
     requestId?: string,
   ): Promise<void> {
+    const isDev = this.config.get<string>('NODE_ENV') !== 'production';
+    const redisEnabled = this.config.get<string>('REDIS_ENABLED') !== 'false';
+    if (!redisEnabled || (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true')) {
+      this.logger.log(
+        `Skipping thumbnail cleanup queue for CV ${cvId} (Redis disabled or queue skipped). Executing cleanup synchronously.`,
+      );
+      await this.deleteThumbnail(cvId).catch(() => {});
+      return;
+    }
+
     this.logger.log(
       `Enqueuing thumbnail cleanup for CV ${cvId} [requestId: ${requestId || 'none'}]`,
     );

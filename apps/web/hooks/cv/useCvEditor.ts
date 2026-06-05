@@ -228,13 +228,13 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   const addExperienceItem = () => {
     const newItem = {
       id: `exp_${Date.now()}`,
-      company: "Tên công ty mới",
-      position: "Chức vụ mới",
+      company: "",
+      position: "",
       location: "",
-      startDate: "2025-01",
-      endDate: "2025-12",
+      startDate: "",
+      endDate: "",
       current: false,
-      description: "- Đóng góp xây dựng...",
+      description: "",
     };
     const updated = [...experiences, newItem];
     setExperiences(updated);
@@ -256,12 +256,12 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   const addEducationItem = () => {
     const newItem = {
       id: `edu_${Date.now()}`,
-      institution: "Trường đại học mới",
-      degree: "Cử nhân",
-      fieldOfStudy: "Công nghệ thông tin",
-      startDate: "2020-09",
-      endDate: "2024-06",
-      gpa: "3.2/4.0",
+      institution: "",
+      degree: "",
+      fieldOfStudy: "",
+      startDate: "",
+      endDate: "",
+      gpa: "",
       current: false,
     };
     const updated = [...educations, newItem];
@@ -284,8 +284,8 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   const addSkillItem = () => {
     const newItem = {
       id: `skill_${Date.now()}`,
-      name: "Tên kỹ năng",
-      level: "Advanced",
+      name: "",
+      level: "",
     };
     const updated = [...skills, newItem];
     setSkills(updated);
@@ -312,11 +312,11 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   const addProjectItem = () => {
     const newItem = {
       id: `proj_${Date.now()}`,
-      name: "Tên dự án mới",
-      description: "- Xây dựng hệ thống...",
-      role: "Fullstack Developer",
+      name: "",
+      description: "",
+      role: "",
       url: "",
-      technologies: ["React", "NestJS", "PostgreSQL"],
+      technologies: [],
     };
     const updated = [...projects, newItem];
     setProjects(updated);

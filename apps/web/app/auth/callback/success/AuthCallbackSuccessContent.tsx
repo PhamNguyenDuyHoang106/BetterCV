@@ -18,12 +18,12 @@ export default function AuthCallbackSuccessContent() {
           router.replace(next);
         } else {
           setMessage("Không lấy được phiên đăng nhập.");
-          setTimeout(() => router.replace("/login"), 2000);
+          setTimeout(() => router.replace("/"), 2000);
         }
       })
       .catch((err) => {
         setMessage(err instanceof Error ? err.message : "Đăng nhập thất bại");
-        setTimeout(() => router.replace("/login"), 2500);
+        setTimeout(() => router.replace("/"), 2500);
       });
   }, [router, searchParams]);
 

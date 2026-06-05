@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 type SkillsPanelProps = {
   skills: any[];
@@ -26,6 +27,7 @@ export function SkillsPanel({
   profileTitle,
   cvLocale,
 }: SkillsPanelProps) {
+  const { t, language } = useTranslation();
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
   const [isSuggestingSkills, setIsSuggestingSkills] = useState<boolean>(false);
   const [suggestCount, setSuggestCount] = useState<number>(0);
@@ -57,7 +59,11 @@ export function SkillsPanel({
   const handleRegenerateSkills = async () => {
     const jobTitle = profileTitle || "";
     if (!jobTitle.trim()) {
-      alert("Vui lòng nhập Chức danh tại trang Thông tin cá nhân trước.");
+      alert(
+        language === "vi"
+          ? "Vui lòng nhập Chức danh tại trang Thông tin cá nhân trước."
+          : "Please enter your Professional Title in Personal Info first."
+      );
       return;
     }
     setSuggestCount((prev) => {
@@ -112,7 +118,7 @@ export function SkillsPanel({
             }`}
           />
         </button>
-        <span className="text-sm font-medium text-slate-300">Show experience level</span>
+        <span className="text-sm font-medium text-slate-300">{t.editor.skills.showLevel}</span>
       </div>
 
       <div className="h-[1px] bg-slate-800/80 my-2" />
@@ -137,12 +143,9 @@ export function SkillsPanel({
             </span>
             <h4 className="text-sm font-semibold text-slate-200">
               {profileTitle ? (
-                <>
-                  Suggested skills for{" "}
-                  <span className="text-sky-400 font-bold">{profileTitle}</span>
-                </>
+                t.editor.skills.suggestTitle.replace("{industry}", profileTitle)
               ) : (
-                "Suggested skills from AI"
+                language === "vi" ? "Kỹ năng gợi ý từ AI" : "Suggested skills from AI"
               )}
             </h4>
           </div>
@@ -168,7 +171,9 @@ export function SkillsPanel({
                 />
               </svg>
             )}
-            <span>Regenerate ({suggestCount}/5)</span>
+            <span>
+              {language === "vi" ? "Tạo lại" : "Regenerate"} ({suggestCount}/5)
+            </span>
           </button>
         </div>
 
@@ -183,7 +188,7 @@ export function SkillsPanel({
                   onClick={() => {
                     if (isAdded) {
                       const matched = skills.find(
-                        (s) => s.name.toLowerCase() === skName.toLowerCase(),
+                        (s) => s.name.toLowerCase() === skName.toLowerCase()
                       );
                       if (matched) {
                         const updated = skills.filter((s) => s.id !== matched.id);
@@ -215,8 +220,12 @@ export function SkillsPanel({
         ) : (
           <p className="text-xs text-slate-500 leading-relaxed">
             {profileTitle
-              ? "Đang chuẩn bị danh sách kỹ năng gợi ý..."
-              : "Vui lòng nhập Chức danh tại Thông tin cá nhân để AI phân tích và đề xuất kỹ năng phù hợp."}
+              ? language === "vi"
+                ? "Đang chuẩn bị danh sách kỹ năng gợi ý..."
+                : "Preparing suggested skills..."
+              : language === "vi"
+              ? "Vui lòng nhập Chức danh tại Thông tin cá nhân để AI phân tích và đề xuất kỹ năng phù hợp."
+              : "Please enter your Professional Title in Personal Info to let AI analyze and suggest relevant skills."}
           </p>
         )}
       </div>
@@ -224,14 +233,14 @@ export function SkillsPanel({
       {/* MANUAL SKILLS LIST */}
       <div className="flex items-center justify-between mt-6">
         <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Danh sách kỹ năng tự chọn
+          {language === "vi" ? "Danh sách kỹ năng tự chọn" : "Manual Skills List"}
         </h3>
         <button
           type="button"
           onClick={addSkillItem}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
         >
-          + Thêm kỹ năng
+          {t.editor.skills.addBtn}
         </button>
       </div>
 
@@ -245,7 +254,7 @@ export function SkillsPanel({
               type="button"
               onClick={() => removeSkillItem(sk.id)}
               className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800/60 hover:bg-rose-950 text-slate-400 hover:text-rose-450 border border-slate-750/50 hover:border-rose-900/60 transition-all opacity-0 group-hover:opacity-100"
-              title="Xóa kỹ năng"
+              title={t.editor.delete}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -265,14 +274,14 @@ export function SkillsPanel({
 
             <div>
               <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider">
-                Tên kỹ năng
+                {t.editor.skills.skillName}
               </label>
               <input
                 type="text"
                 value={sk.name}
                 onChange={(e) => updateSkillItem(sk.id, "name", e.target.value)}
                 onBlur={() => saveSkills(skills)}
-                placeholder="Ví dụ: React"
+                placeholder={t.editor.skills.skillPlaceholder}
                 className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
@@ -280,7 +289,7 @@ export function SkillsPanel({
             {showLevel && (
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[10px] font-medium text-slate-500">
-                  <span>Trình độ:</span>
+                  <span>{t.editor.skills.skillLevel}:</span>
                   <span className="text-sky-400 font-bold">{getLevelLabel(sk.level)}</span>
                 </div>
                 <div className="relative pt-1">
@@ -313,7 +322,7 @@ export function SkillsPanel({
                       const targetLevel = levelMap[val] || "Advanced";
                       updateSkillItem(sk.id, "level", targetLevel);
                       saveSkills(
-                        skills.map((s) => (s.id === sk.id ? { ...s, level: targetLevel } : s)),
+                        skills.map((s) => (s.id === sk.id ? { ...s, level: targetLevel } : s))
                       );
                     }}
                     className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signInWithGoogle } from "../../lib/auth-session";
+import { useLanguageStore } from "../../lib/store/language";
+import { translations } from "../../lib/translations";
 
 function GoogleIcon() {
   return (
@@ -34,6 +36,15 @@ type Props = {
 export function GoogleAuthButton({ label, redirectPath }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { language } = useLanguageStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeLang = mounted ? language : "vi";
+  const t = translations[activeLang];
 
   const handleClick = async () => {
     setLoading(true);
@@ -41,7 +52,7 @@ export function GoogleAuthButton({ label, redirectPath }: Props) {
     try {
       await signInWithGoogle(redirectPath);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể đăng nhập Google");
+      setError(err instanceof Error ? err.message : t.auth.googleError);
       setLoading(false);
     }
   };
@@ -52,12 +63,12 @@ export function GoogleAuthButton({ label, redirectPath }: Props) {
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="auth-social-btn w-full flex items-center justify-center gap-3 disabled:opacity-60"
+        className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-slate-200 hover:border-slate-350 text-slate-800 font-semibold text-sm rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] disabled:opacity-60"
       >
         <GoogleIcon />
-        <span>{loading ? "Đang chuyển hướng..." : label}</span>
+        <span>{loading ? t.auth.googleLoading : label}</span>
       </button>
-      {error && <p className="text-xs text-red-600 mt-2 text-center">{error}</p>}
+      {error && <p className="text-xs text-red-600 mt-2 text-center font-medium">{error}</p>}
     </div>
   );
 }

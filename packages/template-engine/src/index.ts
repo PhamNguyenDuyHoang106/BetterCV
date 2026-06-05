@@ -165,6 +165,7 @@ export type RenderInput = {
   template: TemplateSchema;
   data: Record<string, unknown>;
   localFontsDir?: string;
+  locale?: string;
 };
 
 // ─── Whitelist Entry-point Sanitizer ──────────────────────────────────────────
@@ -732,13 +733,14 @@ const renderSummary = (data: any, variant = "classic"): string => {
   return `<div class="summary-text">${compileMarkdown(data.text)}</div>`;
 };
 
-const renderExperience = (data: any, variant = "classic"): string => {
+const renderExperience = (data: any, variant = "classic", locale = "vi"): string => {
   if (!Array.isArray(data) || data.length === 0) return "";
+  const presentLabel = locale === "en" ? "Present" : "Hiện tại";
   return data.map((item: any) => `
     <div class="experience-item variant-${variant}">
       <div class="item-header">
         <span class="item-title">${escapeHtml(item.position || '')}</span>
-        <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? 'Hiện tại' : escapeHtml(item.endDate || '')}</span>
+        <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? presentLabel : escapeHtml(item.endDate || '')}</span>
       </div>
       <div class="item-subtitle">
         <span>${escapeHtml(item.company || '')} ${item.location ? `| ${escapeHtml(item.location)}` : ''}</span>
@@ -748,16 +750,18 @@ const renderExperience = (data: any, variant = "classic"): string => {
   `).join("");
 };
 
-const renderEducation = (data: any, variant = "classic"): string => {
+const renderEducation = (data: any, variant = "classic", locale = "vi"): string => {
   if (!Array.isArray(data) || data.length === 0) return "";
+  const presentLabel = locale === "en" ? "Present" : "Hiện tại";
+  const fieldLabel = locale === "en" ? "Major" : "Chuyên ngành";
   return data.map((item: any) => `
     <div class="education-item variant-${variant}">
       <div class="item-header">
         <span class="item-title">${escapeHtml(item.institution || '')}</span>
-        <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? 'Hiện tại' : escapeHtml(item.endDate || '')}</span>
+        <span class="item-date">${escapeHtml(item.startDate || '')} - ${item.current ? presentLabel : escapeHtml(item.endDate || '')}</span>
       </div>
       <div class="item-subtitle">
-        <span>${escapeHtml(item.degree || '')} ${item.fieldOfStudy ? `| Chuyên ngành: ${escapeHtml(item.fieldOfStudy)}` : ''}</span>
+        <span>${escapeHtml(item.degree || '')} ${item.fieldOfStudy ? `| ${fieldLabel}: ${escapeHtml(item.fieldOfStudy)}` : ''}</span>
         ${item.gpa ? `<span style="font-weight: 500; color: var(--accent-color);">GPA: ${escapeHtml(item.gpa)}</span>` : ''}
       </div>
     </div>
@@ -835,7 +839,7 @@ const renderProjects = (data: any, variant = "classic"): string => {
     <div class="project-item variant-classic">
       <div class="item-header">
         <span class="item-title">${escapeHtml(item.name || '')} ${item.role ? `(${escapeHtml(item.role)})` : ''}</span>
-        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="project-link">Link dự án</a>` : ''}
+        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" class="project-link">Link</a>` : ''}
       </div>
       <div class="project-description">${compileMarkdown(item.description || '')}</div>
       ${item.technologies && item.technologies.length > 0 ? `
@@ -847,7 +851,7 @@ const renderProjects = (data: any, variant = "classic"): string => {
   `).join("");
 };
 
-const SECTION_RENDERERS: Record<string, (data: any, variant?: string) => string> = {
+const SECTION_RENDERERS: Record<string, (data: any, variant?: string, locale?: string) => string> = {
   SUMMARY: renderSummary,
   EXPERIENCE: renderExperience,
   EDUCATION: renderEducation,
@@ -956,6 +960,7 @@ export const renderHtml = (input: RenderInput): string => {
     templateSchema: validatedTemplate,
     data: input.data,
     localFontsDir: input.localFontsDir,
+    locale: input.locale,
   }));
 
   if (renderCache.has(hashKey)) {
@@ -977,7 +982,8 @@ export const renderHtml = (input: RenderInput): string => {
 
 // ─── Core Compilation Pipeline ─────────────────────────────────────────────
 
-const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): string => {
+const renderHtmlDirect = ({ template, data, localFontsDir, locale }: RenderInput): string => {
+  const activeLocale = locale || "vi";
   // 1. Stage 1: Data Validation & Normalization
   const validatedTemplate = TemplateSchemaZod.parse(template);
   const normalized = normalizeData(data);
@@ -1052,7 +1058,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
     <header class="profile-header">
       <div style="display: flex; justify-content: space-between; align-items: center; gap: 24px;">
         <div style="flex: 1;">
-          <h1 class="profile-name">${escapeHtml(fullName || "Họ tên ứng viên")}</h1>
+          <h1 class="profile-name">${escapeHtml(fullName || (activeLocale === "en" ? "Candidate Name" : "Họ tên ứng viên"))}</h1>
           ${title ? `<h2 class="profile-title">${escapeHtml(title)}</h2>` : ""}
           ${contactBar}
         </div>
@@ -1066,7 +1072,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
   const profileHeaderSidebar = `
     <div class="profile-header-sidebar">
       ${avatarHtml}
-      <h1 class="profile-name" style="margin-top: 0;">${escapeHtml(fullName || "Họ tên ứng viên")}</h1>
+      <h1 class="profile-name" style="margin-top: 0;">${escapeHtml(fullName || (activeLocale === "en" ? "Candidate Name" : "Họ tên ứng viên"))}</h1>
       ${title ? `<h2 class="profile-title">${escapeHtml(title)}</h2>` : ""}
       <div class="contact-bar-sidebar" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
         ${contacts.map(c => `<div>${c}</div>`).join("")}
@@ -1076,13 +1082,21 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
 
   // Helper mapping system sections to dynamic registry
   const getSectionTitle = (type: string): string => {
-    const titleMap: Record<string, string> = {
+    const viTitles: Record<string, string> = {
       SUMMARY: "Giới thiệu",
       EXPERIENCE: "Kinh nghiệm làm việc",
       EDUCATION: "Học vấn & Bằng cấp",
       SKILLS: "Kỹ năng chuyên môn",
-      PROJECTS: "Dự án tiêu biểu"
+      PROJECTS: "Dự án tiêu biểu",
     };
+    const enTitles: Record<string, string> = {
+      SUMMARY: "Summary",
+      EXPERIENCE: "Work Experience",
+      EDUCATION: "Education",
+      SKILLS: "Skills",
+      PROJECTS: "Projects",
+    };
+    const titleMap = activeLocale === "en" ? enTitles : viTitles;
     return titleMap[type] || type;
   };
 
@@ -1097,7 +1111,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir }: RenderInput): strin
     if (type === "SKILLS" && sectionStyles.skills?.variant) variant = sectionStyles.skills.variant;
     if (type === "PROJECTS" && sectionStyles.projects?.variant) variant = sectionStyles.projects.variant;
 
-    const contentHtml = renderer(normalized[type.toLowerCase()], variant);
+    const contentHtml = renderer(normalized[type.toLowerCase()], variant, activeLocale);
     if (!contentHtml) return "";
 
     return `

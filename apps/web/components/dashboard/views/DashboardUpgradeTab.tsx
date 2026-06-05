@@ -1,29 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { DashPageHero } from "../dashboard-ui";
 import { apiFetch } from "../../../lib/api";
 import { useAuthStore } from "../../../lib/store/auth";
-
-const FREE_FEATURES = [
-  "Tạo CV không giới hạn",
-  "Template cơ bản + ATS scan",
-  "Xuất PDF chuẩn ATS",
-];
-
-const PRO_FEATURES = [
-  "AI rewrite không giới hạn",
-  "Template Premium + tối ưu nội dung",
-  "Xuất PDF không giới hạn",
-  "Ưu tiên hàng đợi xử lý",
-];
+import { useLanguageStore } from "../../../lib/store/language";
+import { translations } from "../../../lib/translations";
 
 export function DashboardUpgradeTab() {
   const { user } = useAuthStore();
+  const { language } = useLanguageStore();
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState<"PRO" | "PREMIUM" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeLang = mounted ? language : "vi";
+  const t = translations[activeLang];
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const successUrl = useMemo(() => `${origin}/dashboard?paid=1`, [origin]);
@@ -50,12 +48,12 @@ export function DashboardUpgradeTab() {
 
       const payload = res?.data ?? res;
       const url = payload?.checkoutUrl ?? payload?.url;
-      if (!url) throw new Error("Không tạo được link thanh toán PayOS.");
+      if (!url) throw new Error(t.upgrade.errPay);
       setCheckoutUrl(url);
       if (payload?.qrCode) setCheckoutQr(payload.qrCode);
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Thanh toán thất bại");
+      setError(e instanceof Error ? e.message : t.upgrade.errGeneric);
     } finally {
       setLoading(null);
     }
@@ -72,8 +70,8 @@ export function DashboardUpgradeTab() {
   return (
     <div className="max-w-4xl mx-auto w-full py-4">
       <DashPageHero
-        title="Gói phù hợp nhất để cạnh tranh"
-        subtitle="Giá cực rẻ để bạn tập trung đi phỏng vấn: Free 0đ, Pro 50.000đ/tháng, Annual 120.000đ trả 1 lần."
+        title={t.upgrade.title}
+        subtitle={t.upgrade.subtitle}
         accent="amber"
       />
 
@@ -89,14 +87,14 @@ export function DashboardUpgradeTab() {
             <span className="material-symbols-outlined text-slate-500">
               layers
             </span>
-            <h3 className="text-lg font-bold text-slate-900">Free Canvas</h3>
-            <p className="text-xs text-slate-500 mt-1">Miễn phí trọn đời.</p>
+            <h3 className="text-lg font-bold text-slate-900">{t.upgrade.freePlan}</h3>
+            <p className="text-xs text-slate-500 mt-1">{t.upgrade.freeSub}</p>
           </div>
           <p className="dash-pricing-price mt-6">
-            0đ <span className="text-sm font-semibold text-slate-500"></span>
+            {t.upgrade.priceFree} <span className="text-sm font-semibold text-slate-500"></span>
           </p>
           <ul className="dash-feature-list mt-8">
-            {FREE_FEATURES.map((f) => (
+            {t.upgrade.freeFeatures.map((f) => (
               <li key={f}>
                 <span className="material-symbols-outlined text-emerald-500 text-lg">
                   check_circle
@@ -106,12 +104,12 @@ export function DashboardUpgradeTab() {
             ))}
           </ul>
           <button type="button" className="dash-btn-ghost w-full mt-8" disabled>
-            Active Plan
+            {t.upgrade.activePlan}
           </button>
         </div>
 
         <div className="dash-pricing-card dash-pricing-card-pro">
-          <span className="dash-pricing-ribbon">Recommended</span>
+          <span className="dash-pricing-ribbon">{t.upgrade.recommended}</span>
           <div className="dash-pricing-header">
             <span
               className="material-symbols-outlined text-amber-500"
@@ -119,16 +117,16 @@ export function DashboardUpgradeTab() {
             >
               workspace_premium
             </span>
-            <h3 className="text-lg font-bold text-slate-900">Pro Builder</h3>
+            <h3 className="text-lg font-bold text-slate-900">{t.upgrade.proPlan}</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Rẻ nhất để dùng AI + template premium.
+              {t.upgrade.proSub}
             </p>
           </div>
           <p className="dash-pricing-price mt-6">
-            50.000đ <span className="text-sm font-semibold text-slate-500">/ tháng</span>
+            {t.upgrade.pricePro} <span className="text-sm font-semibold text-slate-500">{t.upgrade.periodMonth}</span>
           </p>
           <ul className="dash-feature-list mt-8">
-            {PRO_FEATURES.map((f) => (
+            {t.upgrade.proFeatures.map((f) => (
               <li key={f}>
                 <span
                   className="material-symbols-outlined text-primary text-lg"
@@ -142,11 +140,11 @@ export function DashboardUpgradeTab() {
           </ul>
           {user?.role === "PRO" ? (
             <button type="button" className="dash-btn-ghost w-full mt-8" disabled>
-              Gói hiện tại (Pro)
+              {t.upgrade.currentPro}
             </button>
           ) : user?.role === "PREMIUM" ? (
             <button type="button" className="dash-btn-ghost w-full mt-8" disabled>
-              Không khả dụng (Đã là Premium)
+              {t.upgrade.currentPremium}
             </button>
           ) : (
             <button
@@ -155,7 +153,7 @@ export function DashboardUpgradeTab() {
               className="dash-btn-primary w-full mt-8"
               disabled={loading !== null}
             >
-              {loading === "PRO" ? "Đang tạo thanh toán..." : "Nâng cấp Pro"}
+              {loading === "PRO" ? t.upgrade.upgrading : t.upgrade.upgradeBtnPro}
             </button>
           )}
         </div>
@@ -168,44 +166,28 @@ export function DashboardUpgradeTab() {
             >
               verified
             </span>
-            <h3 className="text-lg font-bold text-slate-900">Annual</h3>
-            <p className="text-xs text-slate-500 mt-1">Trả 1 lần (không subscription).</p>
+            <h3 className="text-lg font-bold text-slate-900">{t.upgrade.annualPlan}</h3>
+            <p className="text-xs text-slate-500 mt-1">{t.upgrade.annualSub}</p>
           </div>
           <p className="dash-pricing-price mt-6">
-            120.000đ <span className="text-sm font-semibold text-slate-500">/ lần</span>
+            {t.upgrade.priceAnnual} <span className="text-sm font-semibold text-slate-500">{t.upgrade.periodOnce}</span>
           </p>
           <ul className="dash-feature-list mt-8">
-            <li>
-              <span
-                className="material-symbols-outlined text-primary text-lg"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                check_circle
-              </span>
-              Mở khóa Premium (1 lần)
-            </li>
-            <li>
-              <span
-                className="material-symbols-outlined text-primary text-lg"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                check_circle
-              </span>
-              AI + export như Pro
-            </li>
-            <li>
-              <span
-                className="material-symbols-outlined text-primary text-lg"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                check_circle
-              </span>
-              Không cần quản lý hủy gia hạn
-            </li>
+            {t.upgrade.annualFeatures.map((f) => (
+              <li key={f}>
+                <span
+                  className="material-symbols-outlined text-primary text-lg"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  check_circle
+                </span>
+                {f}
+              </li>
+            ))}
           </ul>
           {user?.role === "PREMIUM" ? (
             <button type="button" className="dash-btn-ghost w-full mt-8" disabled>
-              Gói hiện tại (Premium)
+              {t.upgrade.currentAnnual}
             </button>
           ) : (
             <button
@@ -214,7 +196,7 @@ export function DashboardUpgradeTab() {
               className="dash-btn-primary w-full mt-8"
               disabled={loading !== null}
             >
-              {loading === "PREMIUM" ? "Đang tạo thanh toán..." : "Thanh toán 1 lần"}
+              {loading === "PREMIUM" ? t.upgrade.upgrading : t.upgrade.upgradeBtnAnnual}
             </button>
           )}
         </div>
@@ -225,7 +207,7 @@ export function DashboardUpgradeTab() {
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            aria-label="Đóng"
+            aria-label={t.nav.close}
             onClick={() => {
               setCheckoutUrl(null);
               setCheckoutQr(null);
@@ -234,9 +216,9 @@ export function DashboardUpgradeTab() {
           <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200/70 p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-slate-900">Quét QR để thanh toán</p>
+                <p className="text-sm font-bold text-slate-900">{t.upgrade.qrTitle}</p>
                 <p className="text-xs text-slate-500 mt-1">
-                  Hoặc đã mở tab mới. Nếu bị chặn popup, bấm “Mở trang thanh toán”.
+                  {t.upgrade.qrSub}
                 </p>
               </div>
               <button
@@ -268,7 +250,7 @@ export function DashboardUpgradeTab() {
                 rel="noreferrer"
                 className="dash-btn-primary w-full"
               >
-                Mở trang thanh toán
+                {t.upgrade.openPayBtn}
               </a>
               <button
                 type="button"
@@ -279,7 +261,7 @@ export function DashboardUpgradeTab() {
                   } catch { }
                 }}
               >
-                Copy link
+                {t.upgrade.copyLinkBtn}
               </button>
             </div>
           </div>

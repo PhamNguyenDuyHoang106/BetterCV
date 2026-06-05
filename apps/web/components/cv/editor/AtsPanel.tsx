@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { apiFetch } from "../../../lib/api";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 type Recommendation = {
   id: string;
@@ -27,13 +28,18 @@ type AtsPanelProps = {
 };
 
 export function AtsPanel({ cvId }: AtsPanelProps) {
+  const { t, language } = useTranslation();
   const [jobDescription, setJobDescription] = useState<string>("");
   const [atsReport, setAtsReport] = useState<AtsReport | null>(null);
   const [isAnalyzingAts, setIsAnalyzingAts] = useState<boolean>(false);
 
   const runAtsAnalysis = async () => {
     if (!jobDescription.trim()) {
-      alert("Vui lòng nhập mô tả công việc (JD) trước.");
+      alert(
+        language === "vi"
+          ? "Vui lòng nhập mô tả công việc (JD) trước."
+          : "Please enter the job description (JD) first."
+      );
       return;
     }
     setIsAnalyzingAts(true);
@@ -49,7 +55,7 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
       setAtsReport(report);
     } catch (err) {
       console.error("ATS Error:", err);
-      alert("Lỗi khi chấm điểm ATS. Vui lòng kiểm tra lại kết nối.");
+      alert(t.editor.ats.scanFailed);
     } finally {
       setIsAnalyzingAts(false);
     }
@@ -60,10 +66,10 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
         <div>
           <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-            Chấm Điểm & Tối ưu hóa ATS
+            {t.editor.ats.scanTitle}
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            Dán mô tả công việc (Job Description) mục tiêu vào đây để hệ thống tự động quét từ khóa và đo lường độ trùng khớp.
+            {t.editor.ats.emptyJD}
           </p>
         </div>
 
@@ -71,7 +77,7 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
           rows={6}
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
-          placeholder="Ví dụ: Yêu cầu ứng viên có kinh nghiệm lập trình React, Node.js và TypeScript. Hiểu biết sâu về cơ sở dữ liệu PostgreSQL..."
+          placeholder={t.editor.ats.jdPlaceholder}
           className="w-full rounded-lg bg-slate-900 border border-slate-800 px-4 py-3 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
         />
 
@@ -83,10 +89,10 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
           {isAnalyzingAts ? (
             <>
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-              Đang phân tích CV theo chuẩn ATS...
+              {t.editor.ats.scanning}
             </>
           ) : (
-            "Bắt đầu chấm điểm ATS 🎯"
+            t.editor.ats.runScanBtn
           )}
         </button>
       </div>
@@ -97,25 +103,35 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
             <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl text-xs flex gap-2">
               <span className="material-symbols-outlined shrink-0 text-lg">error</span>
               <div>
-                <p className="font-bold">Phân tích AI tạm thời gián đoạn</p>
-                <p className="text-slate-400 mt-0.5">Hệ thống AI không phản hồi. Các tiêu chuẩn trình bày (Formatting) vẫn được kiểm tra bình thường.</p>
+                <p className="font-bold">
+                  {language === "vi" ? "Phân tích AI tạm thời gián đoạn" : "AI Analysis Temporarily Interrupted"}
+                </p>
+                <p className="text-slate-400 mt-0.5">
+                  {language === "vi"
+                    ? "Hệ thống AI không phản hồi. Các tiêu chuẩn trình bày (Formatting) vẫn được kiểm tra bình thường."
+                    : "AI system did not respond. Formatting standards are still evaluated normally."}
+                </p>
               </div>
             </div>
           )}
 
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-bold text-slate-200">Kết quả phân tích tổng quan</h4>
+              <h4 className="text-sm font-bold text-slate-200">{t.editor.ats.matchingDetails}</h4>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {atsReport.score === null
-                  ? "Dịch vụ AI phân tích CV tạm thời không khả dụng"
-                  : "Dựa trên thuật toán so khớp trọng số thông minh"}
+                  ? language === "vi"
+                    ? "Dịch vụ AI phân tích CV tạm thời không khả dụng"
+                    : "AI resume analysis service is temporarily unavailable"
+                  : language === "vi"
+                  ? "Dựa trên thuật toán so khớp trọng số thông minh"
+                  : "Based on smart weighted match algorithms"}
               </p>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <span className="text-[10px] text-slate-400 uppercase block tracking-wider font-semibold">
-                  Điểm ATS
+                  {language === "vi" ? "Điểm ATS" : "ATS Score"}
                 </span>
                 <span
                   className={`text-2xl font-black ${
@@ -162,7 +178,7 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
 
           <div className="space-y-3 border-t border-slate-800 pt-4">
             <h5 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-              Phát hiện của hệ thống
+              {language === "vi" ? "Phát hiện của hệ thống" : "System Findings"}
             </h5>
             <ul className="space-y-1.5">
               {atsReport.findings.map((finding, idx) => (
@@ -179,10 +195,10 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
 
           <div className="space-y-3 border-t border-slate-800 pt-4">
             <h5 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
-              Hành động khắc phục đề xuất
+              {t.editor.ats.recommendations}
             </h5>
             <div className="space-y-3">
-               {atsReport.recommendations.map((rec) => {
+              {atsReport.recommendations.map((rec) => {
                 let sevColor = "bg-emerald-500/10 border-emerald-500/20 text-emerald-300";
                 let iconColor = "text-emerald-400";
                 let icon = "check_circle";
@@ -215,7 +231,7 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
                         </span>
                         {rec.actionable && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-600 text-white shrink-0 leading-none">
-                            Có thể sửa ngay
+                            {t.resumes.actionableTag}
                           </span>
                         )}
                       </div>

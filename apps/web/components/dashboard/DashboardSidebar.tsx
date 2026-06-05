@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLanguageStore } from "../../lib/store/language";
+import { translations } from "../../lib/translations";
+
+import { LanguageDropdown } from "../LanguageDropdown";
 
 export type DashboardTab =
   | "dashboard"
@@ -45,6 +49,15 @@ export function DashboardSidebar({
   onProfile,
 }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { language } = useLanguageStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeLang = mounted ? language : "vi";
+  const t = translations[activeLang];
 
   const initials =
     userName
@@ -54,9 +67,19 @@ export function DashboardSidebar({
       .slice(0, 2)
       .toUpperCase() || "ME";
 
+  const navLabelMap: Record<DashboardTab, string> = {
+    dashboard: t.dashboard.title,
+    resumes: t.dashboard.tabMyCvs,
+    templates: t.dashboard.tabTemplates,
+    upgrade: t.dashboard.tabUpgrade,
+    settings: t.dashboard.tabSettings,
+    profile: t.dashboard.tabProfile,
+  };
+
   const navButtons = (compact?: boolean) =>
     NAV.map((item) => {
       const active = activeTab === item.id;
+      const label = navLabelMap[item.id] || item.label;
       return (
         <button
           key={item.id}
@@ -66,7 +89,7 @@ export function DashboardSidebar({
             setMobileOpen(false);
           }}
           className={`dash-nav-item ${compact ? "px-3 py-2" : ""} ${active ? `dash-nav-item-active ${item.accent}` : ""}`}
-          title={item.label}
+          title={label}
         >
           <span className={`dash-nav-icon bg-gradient-to-br ${item.iconBg}`}>
             <span
@@ -76,7 +99,7 @@ export function DashboardSidebar({
               {item.icon}
             </span>
           </span>
-          {!compact && <span className="truncate">{item.label}</span>}
+          {!compact && <span className="truncate">{label}</span>}
         </button>
       );
     });
@@ -102,22 +125,14 @@ export function DashboardSidebar({
           </nav>
 
           <div className="flex items-center gap-2 ml-auto shrink-0">
-            <button
-              type="button"
-              onClick={onUpgrade}
-              className="dash-pro-cta hidden sm:flex items-center gap-1.5 text-white text-xs font-bold"
-            >
-              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>
-                auto_awesome
-              </span>
-              Pro
-            </button>
+            {/* Language Selector Dropdown */}
+            <LanguageDropdown />
 
             <button
               type="button"
               onClick={onProfile}
               className={`dash-profile-card !p-1.5 !gap-2 ${activeTab === "profile" ? "dash-profile-card-active" : ""}`}
-              title={userName || "Hồ sơ"}
+              title={userName || t.dashboard.tabProfile}
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-dark to-primary-darker flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
                 {initials}
@@ -153,7 +168,7 @@ export function DashboardSidebar({
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                 auto_awesome
               </span>
-              Nâng cấp Pro
+              {t.dashboard.tabUpgrade}
             </button>
           </div>
         )}
@@ -163,7 +178,7 @@ export function DashboardSidebar({
         <button
           type="button"
           className="lg:hidden fixed inset-0 top-topnav-height z-40 bg-black/20"
-          aria-label="Đóng menu"
+          aria-label={t.nav.close}
           onClick={() => setMobileOpen(false)}
         />
       )}

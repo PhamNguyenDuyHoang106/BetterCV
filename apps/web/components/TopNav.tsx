@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "../lib/store/auth";
 import { createSupabaseClient } from "../lib/supabase";
+import { LanguageDropdown } from "./LanguageDropdown";
 
 export const TopNav = () => {
   const pathname = usePathname();
@@ -18,6 +19,7 @@ export const TopNav = () => {
     pathname === "/" ||
     pathname?.startsWith("/dashboard") ||
     pathname?.startsWith("/cv") ||
+    pathname?.startsWith("/auth") ||
     pathname === "/login" ||
     pathname === "/register"
   ) {
@@ -40,6 +42,7 @@ export const TopNav = () => {
         BetterCV
       </Link>
       <div className="flex items-center gap-4 text-sm">
+        <LanguageDropdown />
         <Link href="/dashboard">Dashboard</Link>
         {accessToken ? (
           <>

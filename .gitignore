@@ -34,3 +34,6 @@ apps/api/prisma/migrations/**/migration_lock.toml
 
 # Supabase
 .supabase/
+
+# Local storage and generated assets
+apps/api/storage/

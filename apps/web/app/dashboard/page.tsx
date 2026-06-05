@@ -19,6 +19,9 @@ import { DashboardSettingsTab } from "../../components/dashboard/views/Dashboard
 import { DashboardProfileTab } from "../../components/dashboard/views/DashboardProfileTab";
 import { FALLBACK_TEMPLATES, getTemplateDisplayMeta } from "../../lib/dashboard-templates";
 import { syncSessionToApp } from "../../lib/auth-session";
+import { useLanguageStore } from "../../lib/store/language";
+import { translations } from "../../lib/translations";
+import { isRenderableCv } from "../../lib/cv-health";
 
 type Template = {
   id: string;
@@ -26,7 +29,6 @@ type Template = {
   schema?: any;
   category?: { name: string };
 };
-
 
 type CvSection = {
   id: string;
@@ -69,6 +71,8 @@ function DashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accessToken, user, clear, hydrate, setAuth } = useAuthStore();
+  const { language } = useLanguageStore();
+
   const [templates, setTemplates] = useState<Template[]>([]);
   const [cvs, setCvs] = useState<Cv[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,6 +87,7 @@ function DashboardPageContent() {
 
   // Workflow states
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CreateForm>({
     defaultValues: { locale: "vi" }
@@ -94,7 +99,14 @@ function DashboardPageContent() {
     hydrate();
     // Always sync session on mount to ensure we refresh any expired tokens hydrated from localStorage
     syncSessionToApp().catch(() => {});
+    setMounted(true);
   }, [hydrate]);
+
+  useEffect(() => {
+    if (mounted && !accessToken) {
+      router.replace("/");
+    }
+  }, [mounted, accessToken, router]);
 
   useEffect(() => {
     const paid = searchParams.get("paid");
@@ -104,13 +116,18 @@ function DashboardPageContent() {
     const finish = async () => {
       try {
         if (orderCode) {
-          await apiFetch(`/billing/payos/confirm/${orderCode}`, { method: "POST" });
+          try {
+            await apiFetch(`/billing/payos/confirm/${orderCode}`, { method: "POST" });
+          } catch (e) {
+            console.warn("PayOS confirm API error (payment might be processed via webhook):", e);
+          }
         }
-      } catch {
-        /* webhook có thể đã xử lý */
+        await syncSessionToApp();
+      } catch (err) {
+        console.error("Failed to confirm payment and sync session:", err);
+      } finally {
+        router.replace("/dashboard");
       }
-      await syncSessionToApp();
-      router.replace("/dashboard");
     };
     finish();
   }, [searchParams, router]);
@@ -166,7 +183,7 @@ function DashboardPageContent() {
     if (!accessToken || cvs.length === 0) return;
 
     const hasProcessing = cvs.some(
-      (cv) => cv.thumbnailStatus === "PENDING" || cv.thumbnailStatus === "PROCESSING"
+      (cv) => (cv.thumbnailStatus === "PENDING" || cv.thumbnailStatus === "PROCESSING") && isRenderableCv(cv)
     );
 
     if (!hasProcessing) return;
@@ -179,32 +196,17 @@ function DashboardPageContent() {
   }, [accessToken, cvs, fetchCvs]);
 
   // Log in check
-  if (!accessToken) {
+  if (!mounted || !accessToken) {
     return (
-      <main className="min-h-screen auth-page-bg flex items-center justify-center p-6">
-        <div className="auth-card max-w-md w-full p-10 text-center">
-          <div className="mx-auto w-14 h-14 bg-gradient-to-br from-primary via-primary-dark to-primary-darker rounded-2xl flex items-center justify-center text-on-primary font-bold text-xl shadow-lg mb-5">
-            BC
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Welcome to BetterCV</h1>
-          <p className="mt-3 text-slate-500 text-sm leading-relaxed">
-            Please log in or register a new account to start building and managing your professional CVs.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/login" className="auth-primary-btn inline-flex items-center justify-center">
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex items-center justify-center px-6 py-3.5 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all"
-            >
-              Register
-            </Link>
-          </div>
-        </div>
-      </main>
+      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
     );
   }
+
+  // Safe translations lookup
+  const activeLang = mounted ? language : "vi";
+  const t = translations[activeLang];
 
   // Handle Create CV
   const onCreate = async (values: CreateForm) => {
@@ -228,7 +230,7 @@ function DashboardPageContent() {
       // Redirect to builder
       router.push(`/cv/${cv.id}`);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to create CV");
+      setErrorMsg(err instanceof Error ? err.message : t.dashboard.errInit);
     } finally {
       setLoading(false);
     }
@@ -237,7 +239,7 @@ function DashboardPageContent() {
   const handleUseTemplate = (templateId: string) => {
     const meta = getTemplateDisplayMeta(templateId);
     if (meta.tag === "Premium" && user?.role === "FREE") {
-      alert(`Mẫu thiết kế này là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng!`);
+      alert(t.dashboard.quickCreateAlert);
       setActiveTab("upgrade");
       return;
     }
@@ -249,7 +251,7 @@ function DashboardPageContent() {
   const handleQuickCreateFromTemplate = async (templateId: string, templateName: string) => {
     const meta = getTemplateDisplayMeta(templateId);
     if (meta.tag === "Premium" && user?.role === "FREE") {
-      alert(`Mẫu "${templateName}" là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng!`);
+      alert(t.dashboard.quickCreateAlertName.replace("{name}", templateName));
       setActiveTab("upgrade");
       return;
     }
@@ -267,7 +269,7 @@ function DashboardPageContent() {
         method: "POST",
         body: JSON.stringify({
           title: `CV — ${templateName}`,
-          locale: "vi",
+          locale: activeLang,
           templateId,
         }),
       });
@@ -276,7 +278,7 @@ function DashboardPageContent() {
       setIsWorkflowModalOpen(false);
       router.push(`/cv/${cv.id}`);
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : "Không thể khởi tạo mẫu CV mới.");
+      throw new Error(err instanceof Error ? err.message : t.dashboard.errInit);
     } finally {
       setLoading(false);
     }
@@ -290,7 +292,7 @@ function DashboardPageContent() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      onProgress("Đang tải tệp lên máy chủ AI...");
+      onProgress(activeLang === "vi" ? "Đang tải tệp lên máy chủ AI..." : "Uploading file to AI server...");
       
       const formData = new FormData();
       formData.append("file", file);
@@ -304,7 +306,7 @@ function DashboardPageContent() {
       let status = job.status;
       let currentJob = job;
 
-      onProgress("Đang đưa CV vào hàng đợi xử lý AI...");
+      onProgress(activeLang === "vi" ? "Đang đưa CV vào hàng đợi xử lý AI..." : "Queuing resume for AI processing...");
 
       while (status === "uploaded" || status === "queued" || status === "processing") {
         await new Promise((r) => setTimeout(r, 2000));
@@ -313,12 +315,12 @@ function DashboardPageContent() {
         status = currentJob.status;
 
         if (status === "processing") {
-          onProgress("AI đang tiến hành quét OCR và phân tích cấu trúc CV...");
+          onProgress(activeLang === "vi" ? "AI đang tiến hành quét OCR và phân tích cấu trúc CV..." : "AI is performing OCR and structural resume analysis...");
         }
       }
 
       if (status === "completed" && currentJob.extractedCvId) {
-        onProgress("Trích xuất hoàn tất! Đang áp dụng thiết kế giao diện...");
+        onProgress(activeLang === "vi" ? "Trích xuất hoàn tất! Đang áp dụng thiết kế giao diện..." : "Extraction complete! Applying design template...");
         
         // Save the chosen templateId onto the extracted CV
         if (templateId) {
@@ -326,7 +328,7 @@ function DashboardPageContent() {
             method: "PUT",
             body: JSON.stringify({
               title: `Imported - ${file.name.replace(/\.[^/.]+$/, "")}`,
-              locale: "vi",
+              locale: activeLang,
               templateId,
               version: 1, // Start with version 1
             }),
@@ -338,10 +340,10 @@ function DashboardPageContent() {
         setIsWorkflowModalOpen(false);
         router.push(`/cv/${currentJob.extractedCvId}`);
       } else {
-        throw new Error(currentJob.error || "Quá trình trích xuất CV bằng AI gặp lỗi.");
+        throw new Error(currentJob.error || t.dashboard.errParse);
       }
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : "Có lỗi xảy ra khi phân tích tệp CV cũ.");
+      throw new Error(err instanceof Error ? err.message : t.dashboard.errParse);
     } finally {
       setLoading(false);
     }
@@ -351,28 +353,28 @@ function DashboardPageContent() {
 
   const tabMeta: Record<DashboardTab, { title: string; subtitle: string }> = {
     dashboard: {
-      title: "Tổng quan",
-      subtitle: `Chào ${user?.fullName?.split(" ")[0] || "bạn"}! Bắt đầu tạo hoặc hoàn thiện CV ngay hôm nay.`,
+      title: t.dashboard.overviewTitle,
+      subtitle: t.dashboard.welcomeMsg.replace("{name}", user?.fullName?.split(" ")[0] || (activeLang === "vi" ? "bạn" : "there")),
     },
     resumes: {
-      title: "CV của tôi",
-      subtitle: "Quản lý, chỉnh sửa và sao chép các bản CV đã tạo.",
+      title: t.dashboard.tabMyCvs,
+      subtitle: t.dashboard.myCvsSub,
     },
     templates: {
-      title: "Mẫu CV",
-      subtitle: "Chọn mẫu chuẩn ATS — nhấn Dùng ngay để tạo CV và chỉnh sửa luôn.",
+      title: t.dashboard.tabTemplates,
+      subtitle: t.dashboard.templatesSub,
     },
     upgrade: {
-      title: "Nâng cấp gói",
-      subtitle: "Mở khóa AI rewrite, mẫu Premium và xuất file không giới hạn.",
+      title: t.dashboard.tabUpgrade,
+      subtitle: t.dashboard.upgradeSub,
     },
     settings: {
-      title: "Cài đặt",
-      subtitle: "Tùy chỉnh ngôn ngữ và thông báo workspace.",
+      title: t.dashboard.tabSettings,
+      subtitle: t.dashboard.settingsSub,
     },
     profile: {
-      title: "Hồ sơ cá nhân",
-      subtitle: "Cập nhật họ tên và quản lý phiên đăng nhập.",
+      title: t.profile.title,
+      subtitle: t.profile.subtitle,
     },
   };
 
@@ -380,7 +382,7 @@ function DashboardPageContent() {
   const onDelete = async (cvId: string, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!confirm("Are you sure you want to delete this CV?")) {
+    if (!confirm(t.dashboard.deleteConfirm)) {
       return;
     }
     try {
@@ -389,7 +391,7 @@ function DashboardPageContent() {
       });
       setCvs((prev) => prev.filter((cv) => cv.id !== cvId));
     } catch (err) {
-      alert("Failed to delete CV: " + (err instanceof Error ? err.message : "Unknown error"));
+      alert(t.dashboard.deleteFailed + (err instanceof Error ? err.message : "Unknown error"));
     }
   };
 
@@ -404,7 +406,7 @@ function DashboardPageContent() {
       const sourceCv = sourceCvRes?.data || sourceCvRes;
       // 2. Create the copied CV
       const payload = {
-        title: `${sourceCv.title} (Copy)`,
+        title: `${sourceCv.title} (${activeLang === "vi" ? "Bản sao" : "Copy"})`,
         locale: sourceCv.locale as "en" | "vi",
         templateId: sourceCv.templateId || undefined,
       };
@@ -432,7 +434,7 @@ function DashboardPageContent() {
       // 4. Refresh CV list
       fetchCvs();
     } catch (err) {
-      alert("Failed to duplicate CV: " + (err instanceof Error ? err.message : "Unknown error"));
+      alert(t.dashboard.duplicateFailed + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -450,9 +452,9 @@ function DashboardPageContent() {
       const profile = profileRes?.data || profileRes;
       
       setAuth(accessToken, profile);
-      alert("Họ tên đã được cập nhật thành công!");
+      alert(t.dashboard.profileSuccess);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Không thể cập nhật hồ sơ");
+      setErrorMsg(err instanceof Error ? err.message : t.dashboard.profileFailed);
     } finally {
       setLoading(false);
     }
@@ -477,9 +479,9 @@ function DashboardPageContent() {
 
   // Format date nicely
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "Just now";
+    if (!dateStr) return activeLang === "vi" ? "Vừa xong" : "Just now";
     const date = new Date(dateStr);
-    return date.toLocaleDateString("vi-VN", {
+    return date.toLocaleDateString(activeLang === "vi" ? "vi-VN" : "en-US", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric"
@@ -517,7 +519,7 @@ function DashboardPageContent() {
             className="dash-btn-primary flex items-center gap-2 shrink-0"
           >
             <span className="material-symbols-outlined text-xl">add</span>
-            Tạo CV mới
+            {t.dashboard.createBtn}
           </button>
         </header>
 

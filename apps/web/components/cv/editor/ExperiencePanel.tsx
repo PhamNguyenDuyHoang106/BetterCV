@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 type ExperiencePanelProps = {
   experiences: any[];
@@ -17,17 +18,19 @@ export function ExperiencePanel({
   saveExperiences,
   openAiRewrite,
 }: ExperiencePanelProps) {
+  const { t, language } = useTranslation();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Lịch sử làm việc
+          {t.editor.experience.title}
         </h3>
         <button
           onClick={addExperienceItem}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
         >
-          + Thêm công ty
+          {t.editor.experience.addBtn}
         </button>
       </div>
 
@@ -40,14 +43,14 @@ export function ExperiencePanel({
             <button
               onClick={() => openAiRewrite("experience", exp.id)}
               className="flex h-8 px-2.5 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700/80 text-indigo-400 hover:text-indigo-300 border border-slate-700/60 transition-all text-xs font-bold"
-              title="Tối ưu mô tả bằng AI"
+              title={language === "vi" ? "Tối ưu mô tả bằng AI" : "Optimize description with AI"}
             >
-              ✨ AI Rewrite
+              {t.editor.summary.aiWriteBtn}
             </button>
             <button
               onClick={() => removeExperienceItem(exp.id)}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-900/60 transition-all"
-              title="Xóa công ty"
+              title={t.editor.delete}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -68,26 +71,28 @@ export function ExperiencePanel({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400">Tên công ty *</label>
+              <label className="block text-xs font-medium text-slate-400">
+                {language === "vi" ? "Tên công ty *" : "Company Name *"}
+              </label>
               <input
                 type="text"
                 value={exp.company}
                 onChange={(e) => updateExperienceItem(exp.id, "company", e.target.value)}
                 onBlur={() => saveExperiences()}
-                placeholder="Ví dụ: Google LLC"
+                placeholder={t.editor.experience.companyPlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-400">
-                Vị trí chức danh *
+                {language === "vi" ? "Vị trí chức danh *" : "Role / Position *"}
               </label>
               <input
                 type="text"
                 value={exp.position}
                 onChange={(e) => updateExperienceItem(exp.id, "position", e.target.value)}
                 onBlur={() => saveExperiences()}
-                placeholder="Ví dụ: Senior Developer"
+                placeholder={t.editor.experience.rolePlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
@@ -96,26 +101,28 @@ export function ExperiencePanel({
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-400">
-                Bắt đầu (YYYY-MM) *
+                {language === "vi" ? "Bắt đầu (YYYY-MM) *" : "Start (YYYY-MM) *"}
               </label>
               <input
                 type="text"
                 value={exp.startDate}
                 onChange={(e) => updateExperienceItem(exp.id, "startDate", e.target.value)}
                 onBlur={() => saveExperiences()}
-                placeholder="2022-01"
+                placeholder={t.editor.experience.startMonthPlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400">Kết thúc (YYYY-MM)</label>
+              <label className="block text-xs font-medium text-slate-400">
+                {language === "vi" ? "Kết thúc (YYYY-MM)" : "End (YYYY-MM)"}
+              </label>
               <input
                 type="text"
                 value={exp.endDate || ""}
                 disabled={exp.current}
                 onChange={(e) => updateExperienceItem(exp.id, "endDate", e.target.value)}
                 onBlur={() => saveExperiences()}
-                placeholder="2024-05"
+                placeholder={t.editor.experience.endMonthPlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none disabled:opacity-40"
               />
             </div>
@@ -128,27 +135,27 @@ export function ExperiencePanel({
                     updateExperienceItem(exp.id, "current", e.target.checked);
                     saveExperiences(
                       experiences.map((ex) =>
-                        ex.id === exp.id ? { ...ex, current: e.target.checked } : ex,
-                      ),
+                        ex.id === exp.id ? { ...ex, current: e.target.checked } : ex
+                      )
                     );
                   }}
                   className="rounded bg-slate-900 border-slate-800 text-indigo-600 focus:ring-indigo-500"
                 />
-                <span>Hiện đang làm ở đây</span>
+                <span>{t.editor.experience.currentJob}</span>
               </label>
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-slate-400">
-              Mô tả công việc (Markdown)
+              {t.editor.experience.workDesc}
             </label>
             <textarea
               rows={4}
               value={exp.description}
               onChange={(e) => updateExperienceItem(exp.id, "description", e.target.value)}
               onBlur={() => saveExperiences()}
-              placeholder="- Lập trình backend bằng Node.js và NestJS..."
+              placeholder={t.editor.experience.workDescPlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
             />
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import { useTranslation } from "../../hooks/useTranslation";
 
 type Props = {
   open: boolean;
@@ -14,15 +15,6 @@ type Props = {
   onUploadAndParse: (templateId: string, file: File, onProgress: (msg: string) => void) => Promise<void>;
 };
 
-const PARSE_STEPS = [
-  "Đang tải tệp lên máy chủ bảo mật...",
-  "AI đang phân tích bố cục tài liệu...",
-  "Đang trích xuất thông tin cá nhân...",
-  "Đang nhận diện lịch sử học vấn...",
-  "Đang phân tích kỹ năng & chứng chỉ...",
-  "Đang định dạng dữ liệu vào mẫu CV mới...",
-];
-
 export function InitializeCvWorkflowModal({
   open,
   loading,
@@ -32,12 +24,16 @@ export function InitializeCvWorkflowModal({
   onStartFromScratch,
   onUploadAndParse,
 }: Props) {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [progressMsg, setProgressMsg] = useState(PARSE_STEPS[0]);
+  const [customProgressMsg, setCustomProgressMsg] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
+
+  const PARSE_STEPS = t.initializeCvModal.parseSteps;
+  const progressMsg = customProgressMsg || PARSE_STEPS[stepIndex] || "";
 
   // Rotate parsing steps messages during AI analysis
   useEffect(() => {
@@ -47,7 +43,6 @@ export function InitializeCvWorkflowModal({
       setStepIndex((prev) => {
         const next = prev + 1;
         if (next < PARSE_STEPS.length) {
-          setProgressMsg(PARSE_STEPS[next]);
           return next;
         }
         return prev;
@@ -55,7 +50,7 @@ export function InitializeCvWorkflowModal({
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [isUploading]);
+  }, [isUploading, PARSE_STEPS.length]);
 
   if (!open) return null;
 
@@ -70,7 +65,7 @@ export function InitializeCvWorkflowModal({
     // Validate file extensions (.pdf, .docx, .doc)
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!ext || !["pdf", "docx", "doc"].includes(ext)) {
-      setUploadError("Chỉ hỗ trợ tải lên các tệp .pdf, .docx, .doc.");
+      setUploadError(t.initializeCvModal.errFileType);
       return;
     }
 
@@ -78,14 +73,14 @@ export function InitializeCvWorkflowModal({
     setIsUploading(true);
     setUploadError(null);
     setStepIndex(0);
-    setProgressMsg(PARSE_STEPS[0]);
+    setCustomProgressMsg(null);
 
     try {
       await onUploadAndParse(selectedTemplateId, file, (msg) => {
-        setProgressMsg(msg);
+        setCustomProgressMsg(msg);
       });
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Có lỗi xảy ra trong quá trình AI phân tích tệp.");
+      setUploadError(err instanceof Error ? err.message : t.initializeCvModal.errParseGeneric);
       setIsUploading(false);
       setSelectedFile(null);
     }
@@ -95,7 +90,7 @@ export function InitializeCvWorkflowModal({
     try {
       await onStartFromScratch(selectedTemplateId);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Không thể khởi tạo mẫu CV.");
+      setUploadError(err instanceof Error ? err.message : t.initializeCvModal.errScratchGeneric);
     }
   };
 
@@ -119,10 +114,10 @@ export function InitializeCvWorkflowModal({
             <span className="material-symbols-outlined text-sky-500 text-3xl font-light">auto_stories</span>
             <div>
               <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
-                How will you make your resume?
+                {t.initializeCvModal.title}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Khởi tạo CV của bạn bằng Trợ lý AI
+                {t.initializeCvModal.subtitle}
               </p>
             </div>
           </div>
@@ -131,7 +126,7 @@ export function InitializeCvWorkflowModal({
               type="button"
               className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
               onClick={onClose}
-              title="Đóng"
+              title={t.initializeCvModal.closeTooltip}
             >
               <span className="material-symbols-outlined">close</span>
             </button>
@@ -142,7 +137,7 @@ export function InitializeCvWorkflowModal({
         {selectedTemplateName && (
           <div className="mb-6 flex items-center gap-2.5 rounded-2xl bg-sky-50/80 border border-sky-100 px-4 py-3 text-xs text-sky-700 font-bold shadow-sm">
             <span className="material-symbols-outlined text-base">palette</span>
-            Mẫu CV đang chọn: <span className="underline">{selectedTemplateName}</span>
+            {t.initializeCvModal.selectedTemplate.replace("{name}", selectedTemplateName)}
           </div>
         )}
 
@@ -167,7 +162,9 @@ export function InitializeCvWorkflowModal({
             </div>
 
             <h4 className="text-md font-bold text-slate-900 mb-2">
-              {selectedFile ? `Đang phân tích tệp: ${selectedFile.name}` : "Đang thiết lập CV mới..."}
+              {selectedFile 
+                ? t.initializeCvModal.parsingTitle.replace("{name}", selectedFile.name) 
+                : t.initializeCvModal.settingUpTitle}
             </h4>
             
             {/* Realtime revolving action log */}
@@ -195,14 +192,14 @@ export function InitializeCvWorkflowModal({
                   <span className="material-symbols-outlined text-2xl font-light">cloud_upload</span>
                 </div>
                 <h4 className="text-[15px] font-bold text-slate-900 group-hover:text-sky-600 transition-colors">
-                  I already have a resume
+                  {t.initializeCvModal.cardUploadTitle}
                 </h4>
                 <p className="text-[11px] font-medium text-slate-400 leading-relaxed mt-2.5">
-                  Tải lên tệp PDF hoặc Word cũ của bạn. AI sẽ quét và tự động trích xuất lịch sử làm việc, kỹ năng, học vấn điền thẳng vào mẫu CV mới.
+                  {t.initializeCvModal.cardUploadDesc}
                 </p>
               </div>
               <div className="mt-4 flex items-center text-[10px] font-extrabold text-sky-500 uppercase tracking-wider gap-1">
-                AI Auto-fill
+                {t.initializeCvModal.cardUploadBadge}
                 <span className="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
               </div>
             </button>
@@ -218,14 +215,14 @@ export function InitializeCvWorkflowModal({
                   <span className="material-symbols-outlined text-2xl font-light">edit_note</span>
                 </div>
                 <h4 className="text-[15px] font-bold text-slate-900 group-hover:text-violet-600 transition-colors">
-                  Start from scratch
+                  {t.initializeCvModal.cardScratchTitle}
                 </h4>
                 <p className="text-[11px] font-medium text-slate-400 leading-relaxed mt-2.5">
-                  Bắt đầu viết CV từ đầu trên mẫu đã chọn. Nhập liệu thủ công với gợi ý chuẩn ATS và các câu viết được tối ưu bằng Trợ lý AI.
+                  {t.initializeCvModal.cardScratchDesc}
                 </p>
               </div>
               <div className="mt-4 flex items-center text-[10px] font-extrabold text-violet-500 uppercase tracking-wider gap-1">
-                Start fresh
+                {t.initializeCvModal.cardScratchBadge}
                 <span className="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
               </div>
             </button>

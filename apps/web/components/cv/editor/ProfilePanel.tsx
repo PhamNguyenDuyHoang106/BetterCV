@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ProfileForm } from "../../../hooks/cv/useCvEditor";
 import { apiFetch } from "../../../lib/api";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 type ProfilePanelProps = {
   profileForm: ProfileForm;
@@ -17,6 +18,7 @@ export function ProfilePanel({
   setProfileForm,
   saveProfile,
 }: ProfilePanelProps) {
+  const { t, language } = useTranslation();
   const [isUploadingAvatar, setIsUploadingAvatar] = useState<boolean>(false);
   const [isDragActive, setIsDragActive] = useState<boolean>(false);
 
@@ -36,11 +38,11 @@ export function ProfilePanel({
         setProfileForm(newForm);
         saveProfile(newForm);
       } else {
-        alert("Upload thất bại. Không nhận được URL ảnh từ server.");
+        alert(t.editor.profile.uploadFailed);
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi khi tải ảnh lên. Vui lòng thử lại.");
+      alert(t.editor.profile.uploadError);
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -69,26 +71,26 @@ export function ProfilePanel({
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
         <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Thông tin liên hệ cơ bản
+          {t.editor.profile.title}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-400">Họ và tên *</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.fullName}</label>
             <input
               type="text"
               value={profileForm.fullName}
               onChange={(e) => handleProfileChange("fullName", e.target.value)}
-              placeholder="Nguyễn Văn A"
+              placeholder={t.editor.profile.fullNamePlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400">Chức danh</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.jobTitle}</label>
             <input
               type="text"
               value={profileForm.title}
               onChange={(e) => handleProfileChange("title", e.target.value)}
-              placeholder="Software Engineer"
+              placeholder={t.editor.profile.jobTitlePlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
@@ -96,22 +98,22 @@ export function ProfilePanel({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-400">Email</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.email}</label>
             <input
               type="email"
               value={profileForm.email}
               onChange={(e) => handleProfileChange("email", e.target.value)}
-              placeholder="name@domain.com"
+              placeholder={t.editor.profile.emailPlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400">Số điện thoại</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.phone}</label>
             <input
               type="text"
               value={profileForm.phone}
               onChange={(e) => handleProfileChange("phone", e.target.value)}
-              placeholder="+84 987 654 321"
+              placeholder={t.editor.profile.phonePlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
@@ -119,22 +121,22 @@ export function ProfilePanel({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-400">Địa chỉ</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.address}</label>
             <input
               type="text"
               value={profileForm.address || ""}
               onChange={(e) => handleProfileChange("address", e.target.value)}
-              placeholder="Số 12, Ngõ 34, Đường Láng"
+              placeholder={t.editor.profile.addressPlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400">Thành phố / Tỉnh</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.city}</label>
             <input
               type="text"
               value={profileForm.city || ""}
               onChange={(e) => handleProfileChange("city", e.target.value)}
-              placeholder="Hà Nội"
+              placeholder={t.editor.profile.cityPlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
@@ -143,26 +145,26 @@ export function ProfilePanel({
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
         <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Mạng xã hội & Portfolio
+          {t.editor.profile.socialsTitle}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-400">LinkedIn URL</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.linkedin}</label>
             <input
               type="text"
               value={profileForm.linkedin}
               onChange={(e) => handleProfileChange("linkedin", e.target.value)}
-              placeholder="https://linkedin.com/in/username"
+              placeholder={t.editor.profile.linkedinPlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400">GitHub URL</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.github}</label>
             <input
               type="text"
               value={profileForm.github}
               onChange={(e) => handleProfileChange("github", e.target.value)}
-              placeholder="https://github.com/username"
+              placeholder={t.editor.profile.githubPlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
@@ -170,19 +172,19 @@ export function ProfilePanel({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-slate-400">Website khác</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.website}</label>
             <input
               type="text"
               value={profileForm.website}
               onChange={(e) => handleProfileChange("website", e.target.value)}
-              placeholder="https://myportfolio.dev"
+              placeholder={t.editor.profile.websitePlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
 
           <div className="col-span-2 mt-2">
             <label className="block text-xs font-medium text-slate-400 mb-2">
-              Ảnh đại diện (Avatar)
+              {t.editor.profile.avatarLabel}
             </label>
             <div
               onDragEnter={handleDrag}
@@ -215,7 +217,7 @@ export function ProfilePanel({
                 <div className="flex flex-col items-center gap-2 py-2">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
                   <span className="text-xs font-medium text-indigo-400">
-                    Đang tải ảnh lên Supabase Cloud...
+                    {t.editor.profile.avatarUploading}
                   </span>
                 </div>
               ) : profileForm.avatarUrl ? (
@@ -227,7 +229,7 @@ export function ProfilePanel({
                   />
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-semibold text-slate-200 truncate">
-                      Đã có ảnh đại diện
+                      {t.editor.profile.avatarUploaded}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5 truncate">
                       {profileForm.avatarUrl}
@@ -242,7 +244,7 @@ export function ProfilePanel({
                         }}
                         className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 border border-slate-700/60 transition-colors"
                       >
-                        Thay ảnh mới
+                        {t.editor.profile.avatarChangeBtn}
                       </button>
                       <button
                         type="button"
@@ -254,7 +256,7 @@ export function ProfilePanel({
                         }}
                         className="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-950/80 text-xs font-semibold text-rose-400 border border-rose-900/60 transition-colors"
                       >
-                        Xóa ảnh
+                        {t.editor.profile.avatarDeleteBtn}
                       </button>
                     </div>
                   </div>
@@ -279,10 +281,10 @@ export function ProfilePanel({
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-slate-300">
-                      Kéo thả ảnh hoặc click để chọn
+                      {isDragActive ? t.editor.profile.avatarDragActive : t.editor.profile.avatarDragInactive}
                     </p>
                     <p className="text-[10px] text-slate-500 mt-0.5">
-                      Hỗ trợ PNG, JPG, GIF (Tải trực tiếp lên Supabase Storage)
+                      {t.editor.profile.avatarFormats}
                     </p>
                   </div>
                 </div>

@@ -1,10 +1,12 @@
 import React from "react";
 import { useCvStore } from "../../lib/store/cv";
+import { useTranslation } from "../../hooks/useTranslation";
 
 export default function ConflictDialog() {
   const saveStatus = useCvStore((state) => state.saveStatus);
   const conflictInfo = useCvStore((state) => state.conflictInfo);
   const resolveConflict = useCvStore((state) => state.resolveConflict);
+  const { t } = useTranslation();
 
   if (saveStatus !== "conflict") return null;
 
@@ -28,19 +30,25 @@ export default function ConflictDialog() {
           </svg>
         </div>
         <h3 className="mt-4 text-lg font-semibold text-slate-900">
-          Xung đột chỉnh sửa dữ liệu
+          {t.editor.conflict.title}
         </h3>
         <p className="mt-2 text-sm text-slate-500 leading-relaxed">
-          CV này vừa được lưu từ một cửa sổ trình duyệt khác hoặc thiết bị khác. Để tránh mất mát dữ liệu, vui lòng chọn hướng giải quyết:
+          {t.editor.conflict.desc}
         </p>
 
         <div className="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-600 border border-slate-100">
-          <div className="font-semibold text-slate-800">Thông tin cập nhật máy chủ:</div>
+          <div className="font-semibold text-slate-800">
+            {t.editor.conflict.serverInfoTitle}
+          </div>
           <div className="mt-1">
-            • Thiết bị: <span className="font-medium text-slate-700">{conflictInfo?.lastEditedDevice || "Tab hoặc trình duyệt khác"}</span>
+            • {t.editor.conflict.deviceLabel}{" "}
+            <span className="font-medium text-slate-700">
+              {conflictInfo?.lastEditedDevice || t.editor.conflict.otherDevice}
+            </span>
           </div>
           <div className="mt-0.5">
-            • Phiên bản mới: <span className="font-medium text-slate-700">v{conflictInfo?.latestVersion || 2}</span>
+            • {t.editor.conflict.newVersionLabel}{" "}
+            <span className="font-medium text-slate-700">v{conflictInfo?.latestVersion || 2}</span>
           </div>
         </div>
 
@@ -49,13 +57,13 @@ export default function ConflictDialog() {
             onClick={() => resolveConflict("reload")}
             className="w-full rounded-xl bg-slate-900 py-3 text-sm font-medium text-white shadow-sm hover:bg-slate-800 transition-colors"
           >
-            Tải lại bản mới nhất từ máy chủ
+            {t.editor.conflict.reloadBtn}
           </button>
           <button
             onClick={() => resolveConflict("overwrite")}
             className="w-full rounded-xl border border-slate-200 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
-            Ghi đè bằng dữ liệu trên tab hiện tại
+            {t.editor.conflict.overwriteBtn}
           </button>
         </div>
       </div>

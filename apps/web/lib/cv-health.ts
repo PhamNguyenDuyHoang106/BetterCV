@@ -1,3 +1,6 @@
+import { useLanguageStore } from "./store/language";
+import { translations } from "./translations";
+
 export type CvHealthStatus = "Draft" | "Improve" | "Ready";
 
 export type CvForHealth = {
@@ -40,27 +43,30 @@ export function getCvHealth(cv: CvForHealth): CvHealthStatus {
 }
 
 export function getCvHealthDetails(status: CvHealthStatus) {
+  const lang = useLanguageStore.getState().language || "vi";
+  const t = translations[lang];
+
   switch (status) {
     case "Draft":
       return {
-        label: "Bản nháp",
+        label: t.cvHealth.draft,
         colorClass: "bg-rose-50 text-rose-700 border-rose-200",
         dotClass: "bg-rose-500",
-        description: "Cần bổ sung Thông tin cá nhân & Kinh nghiệm làm việc để sẵn sàng.",
+        description: t.cvHealth.draftDesc,
       };
     case "Improve":
       return {
-        label: "Cần cải thiện",
+        label: t.cvHealth.improve,
         colorClass: "bg-amber-50 text-amber-700 border-amber-200",
         dotClass: "bg-amber-500",
-        description: "Điểm hoàn thiện tốt nhưng hãy nâng cấp thêm thông tin để tối ưu ATS.",
+        description: t.cvHealth.improveDesc,
       };
     case "Ready":
       return {
-        label: "Sẵn sàng ứng tuyển",
+        label: t.cvHealth.ready,
         colorClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
         dotClass: "bg-emerald-500",
-        description: "CV đã đầy đủ các phần cốt lõi và sẵn sàng xuất bản gửi nhà tuyển dụng.",
+        description: t.cvHealth.readyDesc,
       };
   }
 }
@@ -116,4 +122,3 @@ export function isRenderableCv(cv: CvForHealth): boolean {
 
   return nonEmptySectionCount >= 3 && (hasExperience || hasEducation);
 }
-

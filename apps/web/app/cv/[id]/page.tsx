@@ -8,6 +8,7 @@ import { apiFetch } from "../../../lib/api";
 import { syncSessionToApp } from "../../../lib/auth-session";
 import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 // Import renderHtml from template-engine
 import { renderHtml } from "@acv/template-engine";
@@ -30,6 +31,7 @@ import { AiAssistantModal } from "../../../components/cv/editor/AiAssistantModal
 import { HistorySidebar } from "../../../components/cv/editor/HistorySidebar";
 
 export default function CvEditorPage() {
+  const { t, language } = useTranslation();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const cvId = params?.id as string;
@@ -45,6 +47,7 @@ export default function CvEditorPage() {
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [previewScale, setPreviewScale] = useState<number>(100);
   const [exporting, setExporting] = useState<boolean>(false);
+  const [mounted, setMounted] = useState(false);
 
   // 1. Hook quản lý Autosave
   const { triggerAutosave } = useAutosave();
@@ -76,18 +79,26 @@ export default function CvEditorPage() {
       return renderHtml({
         template: editor.selectedTemplate.schema,
         data: resumeData,
+        locale: editor.cv?.locale || "vi",
       });
     } catch (err) {
       console.error("Template rendering error:", err);
-      return `<p style="padding: 20px; color: red;">Lỗi biên dịch giao diện CV: ${(err as Error).message}</p>`;
+      return `<p style="padding: 20px; color: red;">${t.editor.renderError} ${(err as Error).message}</p>`;
     }
-  }, [editor]);
+  }, [editor, t.editor.renderError]);
 
   // Load Auth Session
   useEffect(() => {
     hydrate();
     syncSessionToApp().catch(() => {});
+    setMounted(true);
   }, [hydrate]);
+
+  useEffect(() => {
+    if (mounted && !accessToken) {
+      router.replace("/");
+    }
+  }, [mounted, accessToken, router]);
 
   // Sync iframe qua postMessage để giảm giật lag và flicker
   useEffect(() => {
@@ -133,27 +144,20 @@ export default function CvEditorPage() {
       if (result && result.url) {
         window.open(result.url, "_blank");
       } else {
-        alert("Xuất PDF thất bại. Vui lòng thử lại.");
+        alert(language === "vi" ? "Xuất PDF thất bại. Vui lòng thử lại." : "Exporting PDF failed. Please try again.");
       }
     } catch (err) {
-      alert("Lỗi khi xuất PDF. Hãy chắc chắn rằng API Server đang chạy.");
+      alert(language === "vi" ? "Lỗi khi xuất PDF. Hãy chắc chắn rằng API Server đang chạy." : "Error exporting PDF. Make sure the API server is running.");
     } finally {
       setExporting(false);
     }
   };
 
-  if (!accessToken) {
+  if (!mounted || !accessToken) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-20 text-center">
-        <h2 className="text-2xl font-bold text-slate-800">Vui lòng đăng nhập</h2>
-        <p className="mt-2 text-slate-500">Bạn cần đăng nhập để truy cập trình soạn thảo BetterCV.</p>
-        <button
-          onClick={() => router.push("/login")}
-          className="mt-6 rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-indigo-500 transition-all"
-        >
-          Đăng nhập ngay
-        </button>
-      </main>
+      <div className="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+      </div>
     );
   }
 
@@ -162,7 +166,7 @@ export default function CvEditorPage() {
       <main className="flex h-screen items-center justify-center bg-slate-50/50">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
-          <p className="text-sm font-medium text-slate-500">Đang đồng bộ cấu trúc CV từ Cloud...</p>
+          <p className="text-sm font-medium text-slate-500">{t.editor.syncingCloud}</p>
         </div>
       </main>
     );
@@ -176,7 +180,7 @@ export default function CvEditorPage() {
           <button
             onClick={() => router.push("/dashboard")}
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition-all text-slate-300"
-            title="Quay lại Dashboard"
+            title={t.editor.backToDashboard}
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -189,7 +193,7 @@ export default function CvEditorPage() {
                 value={editor.cv.title}
                 onChange={(e) => editor.saveMetadata({ title: e.target.value })}
                 className="bg-transparent hover:bg-slate-800/50 focus:bg-slate-800 border-none rounded px-2 py-0.5 font-semibold text-lg text-white max-w-[240px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                title="Click để đổi tên CV"
+                title={t.editor.changeCvTitle}
               />
               <span className="text-xs text-slate-500">v{editor.cv.version}</span>
             </div>
@@ -209,7 +213,7 @@ export default function CvEditorPage() {
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Phiên bản
+            {t.editor.versionTitle}
           </button>
 
           <button
@@ -220,14 +224,14 @@ export default function CvEditorPage() {
             {exporting ? (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                Đang in PDF...
+                {t.editor.exportingPdf}
               </>
             ) : (
               <>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                 </svg>
-                Xuất PDF
+                {t.editor.exportPdfBtn}
               </>
             )}
           </button>
@@ -241,14 +245,14 @@ export default function CvEditorPage() {
           {/* Section Navigation Tabs */}
           <div className="flex overflow-x-auto border-b border-slate-800 p-2 bg-slate-950/60 sticky top-0 z-10 scrollbar-none gap-1">
             {[
-              { id: "profile", label: "Thông tin cá nhân" },
-              { id: "experience", label: "Kinh nghiệm" },
-              { id: "education", label: "Học vấn" },
-              { id: "skills", label: "Kỹ năng" },
-              { id: "projects", label: "Dự án" },
-              { id: "summary", label: "Giới thiệu" },
-              { id: "ats", label: "Phân tích ATS 🎯" },
-              { id: "settings", label: "Thiết kế & Layout" },
+              { id: "profile", label: t.editor.tabs.profile },
+              { id: "experience", label: t.editor.tabs.experience },
+              { id: "education", label: t.editor.tabs.education },
+              { id: "skills", label: t.editor.tabs.skills },
+              { id: "projects", label: t.editor.tabs.projects },
+              { id: "summary", label: t.editor.tabs.summary },
+              { id: "ats", label: t.editor.tabs.ats },
+              { id: "settings", label: t.editor.tabs.settings },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -358,14 +362,14 @@ export default function CvEditorPage() {
           <div className="border-b border-slate-800 px-5 py-3 bg-slate-950/40 backdrop-blur-md flex items-center justify-between z-10">
             <span className="text-xs font-semibold text-slate-400 flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live Preview (Single Rendering Contract WYSIWYG)
+              {t.editor.livePreview}
             </span>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPreviewScale(Math.max(50, previewScale - 10))}
                 className="flex h-7 w-7 items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
-                title="Thu nhỏ"
+                title={t.editor.scaleOut}
               >
                 -
               </button>
@@ -373,7 +377,7 @@ export default function CvEditorPage() {
               <button
                 onClick={() => setPreviewScale(Math.min(150, previewScale + 10))}
                 className="flex h-7 w-7 items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
-                title="Phóng to"
+                title={t.editor.scaleIn}
               >
                 +
               </button>

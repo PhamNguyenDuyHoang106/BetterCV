@@ -278,9 +278,6 @@ export function TemplateGallery({
           <h2 className="text-3xl md:text-5xl font-bold text-slate-900 tracking-tight leading-tight mb-4">
             Resume templates
           </h2>
-          <p className="text-sm md:text-base text-slate-500 max-w-xl leading-relaxed">
-            {templates.length} mẫu chuẩn ATS — nhấn vào thẻ để chọn và bắt đầu tạo CV.
-          </p>
         </div>
 
         {error && (

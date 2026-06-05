@@ -46,6 +46,7 @@ export class ExportService {
     const html = renderHtml({
       template: templateSchema as any,
       data: this.flatten(cv),
+      locale: cv.locale || 'vi',
     });
     const buffer = await this.renderPdf(html);
     const key = `exports/${cvId}/${Date.now()}.pdf`;

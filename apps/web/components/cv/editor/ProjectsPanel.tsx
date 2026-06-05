@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 type ProjectsPanelProps = {
   projects: any[];
@@ -15,17 +16,19 @@ export function ProjectsPanel({
   removeProjectItem,
   saveProjects,
 }: ProjectsPanelProps) {
+  const { t, language } = useTranslation();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Các dự án tham gia
+          {t.editor.projects.title}
         </h3>
         <button
           onClick={addProjectItem}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
         >
-          + Thêm dự án
+          {t.editor.projects.addBtn}
         </button>
       </div>
 
@@ -37,7 +40,7 @@ export function ProjectsPanel({
           <button
             onClick={() => removeProjectItem(proj.id)}
             className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-900/60 transition-all"
-            title="Xóa dự án"
+            title={t.editor.delete}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -57,24 +60,24 @@ export function ProjectsPanel({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400">Tên dự án *</label>
+              <label className="block text-xs font-medium text-slate-400">{t.editor.projects.name}</label>
               <input
                 type="text"
                 value={proj.name}
                 onChange={(e) => updateProjectItem(proj.id, "name", e.target.value)}
                 onBlur={() => saveProjects()}
-                placeholder="Ví dụ: E-commerce Website"
+                placeholder={t.editor.projects.namePlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400">Vai trò chính</label>
+              <label className="block text-xs font-medium text-slate-400">{t.editor.projects.role}</label>
               <input
                 type="text"
                 value={proj.role || ""}
                 onChange={(e) => updateProjectItem(proj.id, "role", e.target.value)}
                 onBlur={() => saveProjects()}
-                placeholder="Ví dụ: Lead Developer"
+                placeholder={t.editor.projects.rolePlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
@@ -82,19 +85,19 @@ export function ProjectsPanel({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400">Đường dẫn dự án</label>
+              <label className="block text-xs font-medium text-slate-400">{t.editor.projects.link}</label>
               <input
                 type="text"
                 value={proj.url || ""}
                 onChange={(e) => updateProjectItem(proj.id, "url", e.target.value)}
                 onBlur={() => saveProjects()}
-                placeholder="Ví dụ: https://github.com/my-project"
+                placeholder={t.editor.projects.linkPlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-400">
-                Công nghệ sử dụng (Cách nhau bằng dấu phẩy)
+                {t.editor.projects.technologies}
               </label>
               <input
                 type="text"
@@ -107,20 +110,20 @@ export function ProjectsPanel({
                   updateProjectItem(proj.id, "technologies", arr);
                 }}
                 onBlur={() => saveProjects()}
-                placeholder="Ví dụ: React, NestJS, Postgres"
+                placeholder={t.editor.projects.technologiesPlaceholder}
                 className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400">Mô tả dự án</label>
+            <label className="block text-xs font-medium text-slate-400">{t.editor.projects.description}</label>
             <textarea
               rows={3}
               value={proj.description}
               onChange={(e) => updateProjectItem(proj.id, "description", e.target.value)}
               onBlur={() => saveProjects()}
-              placeholder="- Phát triển hệ thống đề xuất..."
+              placeholder={t.editor.projects.descriptionPlaceholder}
               className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none font-mono"
             />
           </div>

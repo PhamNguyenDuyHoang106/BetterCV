@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DashEmptyState } from "../dashboard-ui";
 import { renderHtml } from "@acv/template-engine";
 import { apiFetch } from "../../../lib/api";
+import { useTranslation } from "../../../hooks/useTranslation";
 import {
   getCvHealth,
   getCvHealthDetails,
@@ -47,6 +48,7 @@ type Cv = {
   updatedAt?: string;
   createdAt?: string;
   sections?: any[];
+  locale?: string;
 };
 
 type Props = {
@@ -68,8 +70,9 @@ function scoreBadgeClass(score: number | null | undefined) {
 }
 
 function Sparkline({ data }: { data: number[] }) {
+  const { t, language } = useTranslation();
   if (data.length === 0) {
-    return <div className="text-slate-400 italic text-xs text-center">Chưa có dữ liệu xu hướng</div>;
+    return <div className="text-slate-400 italic text-xs text-center">{t.resumes.noTrendData}</div>;
   }
   const width = 240;
   const height = 50;
@@ -86,8 +89,8 @@ function Sparkline({ data }: { data: number[] }) {
   return (
     <div className="flex flex-col gap-1.5 w-full">
       <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold mb-1">
-        <span>LỊCH SỬ ATS SCORE (XU HƯỚNG)</span>
-        <span className="text-violet-600 font-bold">{data[data.length - 1]}% (Mới nhất)</span>
+        <span>{t.resumes.trendTitle}</span>
+        <span className="text-violet-600 font-bold">{data[data.length - 1]}% {t.resumes.latestTag}</span>
       </div>
       <div className="bg-slate-50 rounded-xl p-3 border border-slate-100/60 flex items-center justify-center w-full">
         <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
@@ -116,7 +119,7 @@ function Sparkline({ data }: { data: number[] }) {
                 r="3.5"
                 className="fill-white stroke-indigo-600 stroke-[2] cursor-pointer"
               >
-                <title>{`Lần ${idx + 1}: ${val}%`}</title>
+                <title>{`${language === "vi" ? "Lần" : "Scan"} ${idx + 1}: ${val}%`}</title>
               </circle>
             );
           })}
@@ -137,12 +140,12 @@ function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
     if (!schema) return null;
     try {
       const cvData = assembleResumeDataFromSections(cv.sections || []);
-      return renderHtml({ template: schema, data: cvData });
+      return renderHtml({ template: schema, data: cvData, locale: cv.locale || "vi" });
     } catch (err) {
       console.error("Failed to render quick preview:", err);
       return null;
     }
-  }, [schema, cv.sections]);
+  }, [schema, cv.sections, cv.locale]);
 
   useIsomorphicLayoutEffect(() => {
     if (!html) return;
@@ -234,12 +237,12 @@ function CvCardHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
     if (!schema) return null;
     try {
       const cvData = assembleResumeDataFromSections(cv.sections || []);
-      return renderHtml({ template: schema, data: cvData });
+      return renderHtml({ template: schema, data: cvData, locale: cv.locale || "vi" });
     } catch (err) {
       console.error("Failed to render card preview:", err);
       return null;
     }
-  }, [schema, cv.sections]);
+  }, [schema, cv.sections, cv.locale]);
 
   useIsomorphicLayoutEffect(() => {
     if (!html) return;
@@ -327,6 +330,7 @@ export function DashboardResumesTab({
   onDelete,
   templates,
 }: Props) {
+  const { t, language } = useTranslation();
   const [previewCv, setPreviewCv] = useState<Cv | null>(null);
   const [activeTab, setActiveTab] = useState<"preview" | "analytics">("preview");
   const [historyScans, setHistoryScans] = useState<AtsScan[]>([]);
@@ -358,7 +362,7 @@ export function DashboardResumesTab({
           <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
             <span className="material-symbols-outlined">folder_open</span>
           </span>
-          <h2 className="text-xl font-bold text-slate-900">Danh sách CV</h2>
+          <h2 className="text-xl font-bold text-slate-900">{t.resumes.cvListHeader}</h2>
         </div>
         <div className="relative w-full sm:w-72">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
@@ -368,7 +372,7 @@ export function DashboardResumesTab({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="dash-search-input"
-            placeholder="Search resumes..."
+            placeholder={t.resumes.searchPlaceholder}
             type="text"
           />
         </div>
@@ -377,15 +381,11 @@ export function DashboardResumesTab({
       {filteredCvs.length === 0 ? (
         <DashEmptyState
           icon="description"
-          title="Chưa có CV nào"
-          description={
-            <>
-              Tạo CV đầu tiên hoặc chọn mẫu có sẵn tại tab <strong>Mẫu CV</strong>.
-            </>
-          }
+          title={t.resumes.emptyTitle}
+          description={t.resumes.emptyDesc}
           action={
             <button type="button" onClick={onGoTemplates} className="dash-btn-primary">
-              Chọn mẫu CV
+              {t.resumes.chooseTemplateBtn}
             </button>
           }
         />
@@ -424,14 +424,14 @@ export function DashboardResumesTab({
                       {(cv.thumbnailStatus === "PROCESSING" || cv.thumbnailStatus === "PENDING") && isRenderableCv(cv) ? (
                         <div
                           className="absolute top-2 right-2 z-20 bg-white/90 backdrop-blur-sm rounded-full p-1 shadow-md border border-slate-200 flex items-center justify-center"
-                          title="Đang cập nhật ảnh xem trước..."
+                          title={language === "vi" ? "Đang cập nhật ảnh xem trước..." : "Updating preview thumbnail..."}
                         >
                           <span className="w-3.5 h-3.5 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
                         </div>
                       ) : cv.thumbnailStatus === "FAILED" ? (
                         <div
                           className="absolute top-2 right-2 z-20 bg-rose-50/90 backdrop-blur-sm rounded-full p-1 shadow-md border border-rose-200 flex items-center justify-center"
-                          title="Lỗi chụp ảnh xem trước. Bạn vẫn có thể xem trước động."
+                          title={language === "vi" ? "Lỗi chụp ảnh xem trước. Bạn vẫn có thể xem trước động." : "Thumbnail generation failed. Live preview is still available."}
                         >
                           <span className="material-symbols-outlined text-rose-500 text-[14px] font-bold">warning</span>
                         </div>
@@ -449,11 +449,11 @@ export function DashboardResumesTab({
                         className="dash-btn-primary !bg-white hover:!bg-slate-100 !text-slate-900 !py-2 !px-4 !text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition-all"
                       >
                         <span className="material-symbols-outlined text-base">visibility</span>
-                        Xem nhanh
+                        {t.resumes.quickPreview}
                       </button>
                       <span className="dash-btn-primary !py-2 !px-4 !text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition-all">
                         <span className="material-symbols-outlined text-base">edit</span>
-                        Sửa CV
+                        {t.resumes.editCvBtn}
                       </span>
                     </div>
                   </Link>
@@ -465,7 +465,7 @@ export function DashboardResumesTab({
                       </h3>
                       <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                         <span className="material-symbols-outlined text-sm">schedule</span>
-                        Updated: {formatDate(cv.updatedAt || cv.createdAt)}
+                        {t.resumes.lastUpdated.replace("{date}", formatDate(cv.updatedAt || cv.createdAt))}
                       </p>
                     </div>
                     <span className={`dash-ats-pill shrink-0 ${scoreBadgeClass(cv.completenessScore ?? 0)}`}>
@@ -475,7 +475,7 @@ export function DashboardResumesTab({
 
                   {/* ATS scan history display */}
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[11px]">
-                    <span className="text-slate-500 font-medium">ATS Match:</span>
+                    <span className="text-slate-500 font-medium">{t.resumes.atsMatchLabel}</span>
                     {cv.atsScans && cv.atsScans.length > 0 ? (
                       cv.atsScannedAt ? (
                         <div className="flex items-center gap-1.5">
@@ -492,7 +492,7 @@ export function DashboardResumesTab({
                           <span className={`font-bold px-2 py-0.5 rounded ${scoreBadgeClass(cv.atsScore)}`}>
                             {cv.atsScore === null || cv.atsScore === undefined ? "N/A" : `${cv.atsScore}%`}
                           </span>
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-amber-100 text-amber-700 font-medium scale-95">Stale</span>
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-amber-100 text-amber-700 font-medium scale-95">{t.resumes.staleBadge}</span>
                         </div>
                       )
                     ) : (
@@ -513,7 +513,7 @@ export function DashboardResumesTab({
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 flex justify-around">
-                  <Link href={`/cv/${cv.id}`} className="dash-icon-action" title="Edit CV">
+                  <Link href={`/cv/${cv.id}`} className="dash-icon-action" title={t.resumes.editBtn}>
                     <span className="material-symbols-outlined">edit</span>
                   </Link>
                   <button
@@ -524,14 +524,14 @@ export function DashboardResumesTab({
                       setPreviewCv(cv);
                     }}
                     className="dash-icon-action"
-                    title="Quick Preview"
+                    title={t.resumes.quickPreview}
                   >
                     <span className="material-symbols-outlined">visibility</span>
                   </button>
-                  <button type="button" onClick={(e) => onDuplicate(cv.id, e)} className="dash-icon-action" title="Duplicate">
+                  <button type="button" onClick={(e) => onDuplicate(cv.id, e)} className="dash-icon-action" title={t.resumes.duplicateBtn}>
                     <span className="material-symbols-outlined">content_copy</span>
                   </button>
-                  <button type="button" onClick={(e) => onDelete(cv.id, e)} className="dash-icon-action dash-icon-action-danger" title="Delete">
+                  <button type="button" onClick={(e) => onDelete(cv.id, e)} className="dash-icon-action dash-icon-action-danger" title={t.resumes.deleteBtn}>
                     <span className="material-symbols-outlined">delete</span>
                   </button>
                 </div>
@@ -549,7 +549,7 @@ export function DashboardResumesTab({
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-lg text-slate-900">{previewCv.title}</h3>
-                <p className="text-xs text-slate-500">Xem trước bản thiết kế thực tế & phân tích chuyên sâu</p>
+                <p className="text-xs text-slate-500">{t.resumes.previewModalTitle}</p>
               </div>
               <button
                 type="button"
@@ -579,7 +579,7 @@ export function DashboardResumesTab({
                     }`}
                   >
                     <span className="material-symbols-outlined text-base">pageview</span>
-                    Bản CV thiết kế
+                    {t.resumes.previewTabDesign}
                   </button>
                   <button
                     type="button"
@@ -591,7 +591,7 @@ export function DashboardResumesTab({
                     }`}
                   >
                     <span className="material-symbols-outlined text-base">insights</span>
-                    Phân tích ATS & AI gợi ý
+                    {t.resumes.previewTabAnalytics}
                   </button>
                 </div>
 
@@ -607,20 +607,20 @@ export function DashboardResumesTab({
                         {loadingHistory ? (
                           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100/60 text-center text-slate-400 text-xs py-8 animate-pulse">
                             <span className="material-symbols-outlined text-3xl mb-1 block animate-spin">sync</span>
-                            Đang tải lịch sử xu hướng ATS...
+                            {t.resumes.loadingTrend}
                           </div>
                         ) : historyScans && historyScans.length > 0 ? (
                           <Sparkline data={historyScans.map((s) => s.overallScore)} />
                         ) : (
                           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-center text-slate-400 text-xs py-8">
                             <span className="material-symbols-outlined text-3xl mb-1 block">query_stats</span>
-                            Chưa có dữ liệu xu hướng ATS. Hãy quét thử CV lần đầu!
+                            {t.resumes.noTrendData}
                           </div>
                         )}
 
                         {/* Keyword list */}
                         <div className="flex flex-col gap-2">
-                          <h5 className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Từ khóa còn thiếu (Keywords)</h5>
+                          <h5 className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{t.resumes.missingKeywordsTitle}</h5>
                           {(() => {
                             const latestScan =
                               historyScans && historyScans.length > 0
@@ -637,7 +637,7 @@ export function DashboardResumesTab({
                                 </div>
                               );
                             }
-                            return <p className="text-xs text-slate-400 italic">Không có từ khóa bị thiếu nào được ghi nhận.</p>;
+                            return <p className="text-xs text-slate-400 italic">{t.resumes.noMissingKeywords}</p>;
                           })()}
                         </div>
                       </div>
@@ -646,7 +646,7 @@ export function DashboardResumesTab({
                       <div className="space-y-3">
                         <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1">
                           <span className="material-symbols-outlined text-base text-violet-600">checklist</span>
-                          Đề xuất cải thiện chi tiết từ AI
+                          {t.resumes.aiRecsTitle}
                         </h4>
                         
                         {(() => {
@@ -687,7 +687,7 @@ export function DashboardResumesTab({
                                           </span>
                                           {rec.actionable && (
                                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-violet-600 text-white shrink-0">
-                                              Có thể sửa ngay
+                                              {t.resumes.actionableTag}
                                             </span>
                                           )}
                                         </div>
@@ -704,7 +704,7 @@ export function DashboardResumesTab({
                           return (
                             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 text-center text-slate-400 text-xs py-8">
                               <span className="material-symbols-outlined text-3xl mb-1 block">checklist</span>
-                              Chưa có đề xuất nào được phân tích. Vui lòng chạy tính năng đánh giá ATS trong Editor để nhận chỉ dẫn AI.
+                              {t.resumes.noRecsMsg}
                             </div>
                           );
                         })()}
@@ -718,7 +718,7 @@ export function DashboardResumesTab({
               <div className="w-full md:w-72 shrink-0 flex flex-col justify-between h-full">
                 <div className="flex flex-col gap-4">
                   <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-2">Độ hoàn thiện CV</h4>
+                    <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-2">{t.resumes.cvCompleteness}</h4>
                     <div className="flex items-baseline gap-1">
                       <span className="text-3xl font-black text-slate-900">
                         {previewCv.completenessScore ?? previewCv.atsScore ?? 0}
@@ -734,7 +734,7 @@ export function DashboardResumesTab({
                   </div>
 
                   <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-1">Đánh giá sức khỏe CV</h4>
+                    <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-1">{t.resumes.cvHealthRating}</h4>
                     <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm mt-1.5">
                       <span className={`w-2 h-2 rounded-full ${getCvHealthDetails(getCvHealth(previewCv)).dotClass}`} />
                       {getCvHealthDetails(getCvHealth(previewCv)).label}
@@ -745,7 +745,7 @@ export function DashboardResumesTab({
                   </div>
 
                   <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-2">Mẫu đang chọn</h4>
+                    <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-2">{t.resumes.selectedTemplate}</h4>
                     <p className="font-bold text-slate-800 text-sm">
                       {templates.find((t) => t.id === previewCv.templateId)?.name || "Standard ATS"}
                     </p>
@@ -759,7 +759,7 @@ export function DashboardResumesTab({
                     className="dash-btn-primary w-full py-3 flex items-center justify-center gap-2 text-sm shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-95 transition-all"
                   >
                     <span className="material-symbols-outlined text-lg">edit</span>
-                    Mở Trình Biên Soạn
+                    {t.resumes.openEditorBtn}
                   </Link>
                 </div>
               </div>

@@ -54,7 +54,9 @@ import { RequestContextMiddleware } from './core/middleware/request-context.midd
             limit: 5,
           },
         ],
-        storage: new ThrottlerStorageRedisService(redisService.getClient()),
+        storage: redisService.getClient()
+          ? new ThrottlerStorageRedisService(redisService.getClient()!)
+          : undefined,
       }),
     }),
     BullModule.forRootAsync({

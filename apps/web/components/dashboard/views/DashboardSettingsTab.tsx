@@ -1,43 +1,45 @@
 "use client";
 
-import { DashPageHero, DashPanel, DashToggleRow, dashSelectClass } from "../dashboard-ui";
+import { useState, useEffect } from "react";
+import { useLanguageStore } from "../../../lib/store/language";
+import { translations } from "../../../lib/translations";
+import { DashPanel, DashToggleRow } from "../dashboard-ui";
 
 export function DashboardSettingsTab() {
+  const { language } = useLanguageStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeLang = mounted ? language : "vi";
+  const t = translations[activeLang];
+
+  const handleSave = () => {
+    alert(t.settings.savedAlert);
+  };
+
   return (
     <div className="max-w-2xl mx-auto w-full py-4">
-      {/* <DashPageHero
-        title="Cài đặt"
-        subtitle="Tùy chỉnh ngôn ngữ, thông báo và trải nghiệm làm việc trên workspace."
-        accent="teal"
-      /> */}
-
-      <DashPanel title="System Settings" icon="settings" iconAccent="teal">
+      <DashPanel title={t.settings.title} icon="settings" iconAccent="teal">
         <div className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Language preferences
-            </label>
-            <select className={dashSelectClass} defaultValue="vi">
-              <option value="vi">Tiếng Việt (Vietnamese)</option>
-              <option value="en">English (US)</option>
-            </select>
-          </div>
 
           <DashToggleRow
-            title="Email Notifications"
-            description="Receive weekly resume tips and career match scoring reports."
+            title={t.settings.emailNotif}
+            description={t.settings.emailNotifDesc}
           />
           <DashToggleRow
-            title="Auto-save Document State"
-            description="Saves work in background database every 30 seconds."
+            title={t.settings.autoSave}
+            description={t.settings.autoSaveDesc}
           />
 
           <button
             type="button"
-            onClick={() => alert("Thiết lập hệ thống đã lưu!")}
+            onClick={handleSave}
             className="dash-btn-primary mt-2"
           >
-            Save Settings
+            {t.settings.saveBtn}
           </button>
         </div>
       </DashPanel>

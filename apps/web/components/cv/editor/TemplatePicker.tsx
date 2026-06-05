@@ -1,6 +1,7 @@
 import React from "react";
 import { getTemplateStyles } from "@acv/template-engine";
 import { getTemplateDisplayMeta } from "../../../lib/dashboard-templates";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 type TemplatePickerProps = {
   cv: any;
@@ -27,15 +28,17 @@ export function TemplatePicker({
   loadCv,
   userRole,
 }: TemplatePickerProps) {
+  const { t, language } = useTranslation();
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
         <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Mẫu giao diện (Template)
+          {t.editor.templatePicker.title}
         </h3>
         <div>
           <label className="block text-xs font-medium text-slate-400">
-            Chọn mẫu thiết kế phù hợp
+            {t.editor.templatePicker.templatesHeader}
           </label>
           <select
             value={cv.templateId || ""}
@@ -45,7 +48,11 @@ export function TemplatePicker({
               if (matched) {
                 const meta = getTemplateDisplayMeta(newTplId);
                 if (meta.tag === "Premium" && userRole === "FREE") {
-                  alert(`Mẫu "${matched.name}" là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng mẫu thiết kế này!`);
+                  alert(
+                    t.dashboard.quickCreateAlertName
+                      ? t.dashboard.quickCreateAlertName.replace("{name}", matched.name)
+                      : `Mẫu "${matched.name}" là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng!`
+                  );
                   return;
                 }
                 setSelectedTemplate(matched);
@@ -55,7 +62,7 @@ export function TemplatePicker({
             className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-850 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
           >
             <option value="" disabled>
-              -- Chọn mẫu giao diện --
+              {language === "vi" ? "-- Chọn mẫu giao diện --" : "-- Select layout template --"}
             </option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
@@ -68,38 +75,17 @@ export function TemplatePicker({
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
         <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Cài đặt ngôn ngữ
-        </h3>
-        <div>
-          <label className="block text-xs font-medium text-slate-400">
-            Ngôn ngữ hiển thị chính
-          </label>
-          <select
-            value={cv.locale}
-            onChange={(e) => {
-              saveMetadata({ locale: e.target.value as "en" | "vi" });
-              setTimeout(() => loadCv(cv.id), 200);
-            }}
-            className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-850 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
-          >
-            <option value="vi">Tiếng Việt (vi)</option>
-            <option value="en">Tiếng Anh (en)</option>
-            <option value="ja">Tiếng Nhật (ja)</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          Tùy biến dải màu CV
+          {language === "vi" ? "Tùy biến dải màu CV" : "Customize CV Palette"}
         </h3>
         <p className="text-xs text-slate-500">
-          Tự do tinh chỉnh màu sắc chủ đạo và điểm nhấn để phù hợp với thương hiệu cá nhân của bạn.
+          {language === "vi"
+            ? "Tự do tinh chỉnh màu sắc chủ đạo và điểm nhấn để phù hợp với thương hiệu cá nhân của bạn."
+            : "Freely adjust primary and accent colors to match your personal brand."}
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-400">
-              Màu chủ đạo (Primary Color)
+              {language === "vi" ? "Màu chủ đạo (Primary Color)" : "Primary Color"}
             </label>
             <div className="flex gap-2 mt-2">
               <input
@@ -135,7 +121,7 @@ export function TemplatePicker({
 
           <div>
             <label className="block text-xs font-medium text-slate-400">
-              Màu điểm nhấn (Accent Color)
+              {language === "vi" ? "Màu điểm nhấn (Accent Color)" : "Accent Color"}
             </label>
             <div className="flex gap-2 mt-2">
               <input

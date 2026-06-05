@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "../../../hooks/useTranslation";
 
 type TargetType = {
   type: "summary" | "experience";
@@ -32,14 +33,18 @@ export function AiAssistantModal({
   summaryText,
   experiences,
 }: AiAssistantModalProps) {
+  const { t, language } = useTranslation();
+
   if (!showAiModal) return null;
+
+  const emptyText = language === "vi" ? "(Văn bản trống)" : "(Empty text)";
 
   const getOriginalText = () => {
     if (aiTarget.type === "summary") {
-      return summaryText || "(Văn bản trống)";
+      return summaryText || emptyText;
     }
     const exp = experiences.find((e) => e.id === aiTarget.id);
-    return exp ? exp.description : "(Văn bản trống)";
+    return exp ? exp.description : emptyText;
   };
 
   return (
@@ -50,7 +55,7 @@ export function AiAssistantModal({
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse"></span>
             <span className="text-sm font-bold text-white">
-              ✨ Trợ lý AI Viết CV (Smart Assistant Suite)
+              {t.editor.aiAssistant.title}
             </span>
           </div>
           <button onClick={() => setShowAiModal(false)} className="text-slate-400 hover:text-white">
@@ -73,16 +78,26 @@ export function AiAssistantModal({
           <div className="w-[45%] border-r border-slate-800 p-5 flex flex-col gap-4 overflow-y-auto bg-slate-950/20">
             <div>
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Định dạng & Phong cách Rewrite
+                {language === "vi" ? "Định dạng & Phong cách Rewrite" : "Format & Rewrite Style"}
               </h4>
               <div className="grid grid-cols-3 gap-2 mt-2">
                 {[
-                  { id: "professional", label: "Chuyên nghiệp" },
-                  { id: "concise", label: "Ngắn gọn" },
-                  { id: "ats", label: "Chuẩn ATS" },
+                  {
+                    id: "professional",
+                    label: language === "vi" ? "Chuyên nghiệp" : "Professional",
+                  },
+                  {
+                    id: "concise",
+                    label: language === "vi" ? "Ngắn gọn" : "Concise",
+                  },
+                  {
+                    id: "ats",
+                    label: language === "vi" ? "Chuẩn ATS" : "ATS-Optimized",
+                  },
                 ].map((style) => (
                   <button
                     key={style.id}
+                    type="button"
                     onClick={() => setAiStyle(style.id as any)}
                     className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all ${
                       aiStyle === style.id
@@ -98,7 +113,7 @@ export function AiAssistantModal({
 
             <div className="flex-1 flex flex-col">
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Văn bản gốc trong CV
+                {t.editor.aiAssistant.originalText}
               </h4>
               <div className="flex-1 bg-slate-950 rounded-xl p-4 border border-slate-850 text-xs text-slate-300 overflow-y-auto leading-relaxed">
                 {getOriginalText()}
@@ -113,10 +128,10 @@ export function AiAssistantModal({
               {isAiGenerating ? (
                 <div className="flex items-center justify-center gap-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  AI Đang viết trực tiếp (SSE)...
+                  {t.editor.aiAssistant.generating}
                 </div>
               ) : (
-                "✨ Khởi tạo đề xuất AI"
+                t.editor.aiAssistant.generateBtn
               )}
             </button>
           </div>
@@ -126,35 +141,41 @@ export function AiAssistantModal({
             <div className="flex-1 flex flex-col">
               <div className="flex justify-between items-center mb-2">
                 <h4 className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
-                  Đề xuất tối ưu từ AI
+                  {t.editor.aiAssistant.aiSuggestion}
                 </h4>
                 {isAiGenerating && (
                   <span className="text-[10px] text-indigo-400 animate-pulse">
-                    Streaming từ OpenAI...
+                    {language === "vi" ? "Streaming từ OpenAI..." : "Streaming from OpenAI..."}
                   </span>
                 )}
               </div>
               <textarea
                 readOnly={isAiGenerating}
                 value={aiStreamingOutput}
-                placeholder="Đề xuất của AI sẽ xuất hiện tại đây..."
+                placeholder={
+                  language === "vi"
+                    ? "Đề xuất của AI sẽ xuất hiện tại đây..."
+                    : "AI suggestion will appear here..."
+                }
                 className="flex-1 bg-slate-950 rounded-xl p-4 border border-slate-850 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 overflow-y-auto leading-relaxed font-sans"
               />
             </div>
 
             <div className="flex justify-end gap-3 border-t border-slate-800 pt-4">
               <button
+                type="button"
                 onClick={() => setShowAiModal(false)}
                 className="px-5 py-2.5 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors"
               >
-                Hủy bỏ
+                {t.editor.cancel}
               </button>
               <button
+                type="button"
                 onClick={acceptAiSuggestion}
                 disabled={!aiStreamingOutput || isAiGenerating}
                 className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow transition-all border-none disabled:opacity-40"
               >
-                Chấp nhận & Thay thế
+                {t.editor.aiAssistant.acceptBtn}
               </button>
             </div>
           </div>

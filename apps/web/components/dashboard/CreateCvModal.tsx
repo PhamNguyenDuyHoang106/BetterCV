@@ -2,6 +2,7 @@
 
 import type { UseFormRegister, FieldErrors, UseFormHandleSubmit } from "react-hook-form";
 import { dashInputClass, dashSelectClass } from "./dashboard-ui";
+import { useTranslation } from "../../hooks/useTranslation";
 
 export type CreateForm = {
   title: string;
@@ -44,6 +45,8 @@ export function CreateCvModal({
   onClose,
   onTemplateChange,
 }: Props) {
+  const { t } = useTranslation();
+
   if (!open) return null;
 
   return (
@@ -55,7 +58,9 @@ export function CreateCvModal({
             <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-primary-dark to-primary-darker flex items-center justify-center text-on-primary shadow-md">
               <span className="material-symbols-outlined">post_add</span>
             </span>
-            <h3 className="text-lg font-bold text-slate-900">Tạo CV mới</h3>
+            <h3 className="text-lg font-bold text-slate-900">
+              {t.createCvModal.title}
+            </h3>
           </div>
           <button
             type="button"
@@ -69,39 +74,49 @@ export function CreateCvModal({
         {selectedTemplateName && (
           <div className="mb-4 flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary/10 to-indigo-500/10 border border-primary/20 px-3 py-2.5 text-xs text-primary font-semibold">
             <span className="material-symbols-outlined text-base">palette</span>
-            Mẫu: {selectedTemplateName}
+            {t.createCvModal.selectedTemplate.replace("{name}", selectedTemplateName)}
           </div>
         )}
 
         <form onSubmit={onSubmit(onCreate)} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tiêu đề CV</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              {t.createCvModal.cvTitleLabel}
+            </label>
             <input
               type="text"
-              placeholder="VD: CV Frontend Developer 2026"
+              placeholder={t.createCvModal.cvTitlePlaceholder}
               className={dashInputClass}
-              {...register("title", { required: "Vui lòng nhập tiêu đề CV." })}
+              {...register("title", {
+                required: t.createCvModal.cvTitleRequired,
+              })}
             />
             {errors.title && <p className="text-xs text-red-600 mt-1">{errors.title.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Ngôn ngữ</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              {t.createCvModal.languageLabel}
+            </label>
             <select className={dashSelectClass} {...register("locale")}>
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
+              <option value="vi">{t.createCvModal.langVietnamese}</option>
+              <option value="en">{t.createCvModal.langEnglish}</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Mẫu CV</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              {t.createCvModal.templateLabel}
+            </label>
             <select
               className={dashSelectClass}
               {...register("templateId")}
               value={selectedTemplateId}
               onChange={(e) => onTemplateChange(e.target.value)}
             >
-              <option value="">Trống (không chọn mẫu)</option>
+              <option value="">
+                {t.createCvModal.templateBlank}
+              </option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -117,10 +132,10 @@ export function CreateCvModal({
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="dash-btn-ghost flex-1">
-              Hủy
+              {t.createCvModal.cancelBtn}
             </button>
             <button type="submit" disabled={loading} className="dash-btn-primary flex-1">
-              {loading ? "Đang tạo..." : "Tạo CV"}
+              {loading ? t.createCvModal.creatingBtn : t.createCvModal.createBtn}
             </button>
           </div>
         </form>
