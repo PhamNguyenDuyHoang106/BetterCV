@@ -1,6 +1,20 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 
+# Cài đặt Chromium và fonts hệ thống cần thiết để Puppeteer xuất PDF không bị lỗi
+RUN apk add --no-cache \
+      chromium \
+      nss \
+      freetype \
+      harfbuzz \
+      ca-certificates \
+      ttf-freefont
+
+# Cấu hình Puppeteer bỏ qua tải Chrome mặc định và sử dụng Chromium của hệ thống
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
@@ -10,7 +24,6 @@ RUN npm ci --workspace=apps/api
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
 RUN npx --workspace=apps/api prisma generate
 RUN npm --workspace=apps/api run build
@@ -20,6 +33,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/prisma ./prisma
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/package.json ./
 
 EXPOSE 4000

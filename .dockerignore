@@ -1,0 +1,34 @@
+# Dependency directories
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+.next/
+**/.next/
+out/
+build/
+
+# Version control and config
+.git
+.github
+.env
+.env.*
+.dockerignore
+.vscode/
+.idea/
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+*.err
+
+# Temp/Cache directories
+.npm
+.eslintcache
+.parcel-cache
+.turbo
+apps/api/storage/
