@@ -5,11 +5,14 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
+COPY packages/template-engine/package.json packages/template-engine/
 RUN npm ci --workspace=apps/web
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN npm --workspace=packages/shared run build || true
+RUN npm --workspace=packages/template-engine run build
 RUN npm --workspace=apps/web run build
 
 FROM base AS runner
