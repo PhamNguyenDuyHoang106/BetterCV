@@ -11,6 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -18,7 +19,7 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
-    restart: always
+    restart: unless-stopped
 
   api:
     build:
@@ -33,6 +34,7 @@ services:
     depends_on:
       - db
       - redis
+    restart: unless-stopped
 
   web:
     build:
@@ -46,6 +48,7 @@ services:
       - PORT=3000
     depends_on:
       - api
+    restart: unless-stopped
 
   loki:
     image: grafana/loki:3.0.0
@@ -54,7 +57,7 @@ services:
     volumes:
       - ./loki-config.yml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
-    restart: always
+    restart: unless-stopped
 
   alloy:
     image: grafana/alloy:v1.1.0
@@ -66,7 +69,7 @@ services:
     command: run --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
     depends_on:
       - loki
-    restart: always
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:10.4.1
@@ -79,7 +82,7 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     depends_on:
       - loki
-    restart: always
+    restart: unless-stopped
 
 volumes:
   pgdata:
