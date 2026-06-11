@@ -14,10 +14,13 @@ export type AiResponseEnvelope = {
 export interface AiProvider {
   /**
    * Generates a structured response based on the system and user instructions.
+   * @param forceJsonOutput - When true, adds response_format: json_object to the request
+   *   to guarantee a well-formed JSON response. Use for OCR / CV-extraction pipelines.
    */
   generate(
     payload: PromptPayload,
     temperature?: number,
+    forceJsonOutput?: boolean,
   ): Promise<AiResponseEnvelope>;
 
   /**

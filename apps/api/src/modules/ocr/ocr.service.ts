@@ -5,13 +5,9 @@ import { PrismaService } from '../../database/prisma.service';
 import { CvService } from '../cv/cv.service';
 import sharp from 'sharp';
 import { PDFParse } from 'pdf-parse';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue, UnrecoverableError } from 'bullmq';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-
-import { addJobWithTrace } from '../../core/utils/queue.util';
 
 export type OcrJobStatus =
   | 'UPLOADED'
@@ -32,7 +28,6 @@ export class OcrService {
     private cvService: CvService,
     private config: ConfigService,
     @Inject('AiProvider') private aiProvider: AiProvider,
-    @InjectQueue('ocr-queue') private ocrQueue: Queue,
   ) {
     const supabaseUrl = this.config.get<string>('SUPABASE_URL');
     const supabaseKey = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY');
@@ -57,18 +52,18 @@ export class OcrService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    // 1. Phân loại lỗi hàng đợi: Từ chối ngay lập tức định dạng không hỗ trợ để tránh đẩy vào DB/Queue
+    // 1. Từ chối ngay lập tức định dạng không hỗ trợ
     const fileExtension =
       file.originalname?.split('.').pop()?.toLowerCase() || '';
     if (!['pdf', 'jpg', 'jpeg', 'png'].includes(fileExtension)) {
-      throw new UnrecoverableError(
+      throw new Error(
         'Unsupported file format. Only PDF, JPG, JPEG, and PNG are allowed.',
       );
     }
 
     const jobId = crypto.randomUUID();
 
-    // 2. Lưu OCR Job vào database dưới dạng UPLOADED
+    // 2. Lưu OCR Job vào database
     await this.prisma.ocrJob.create({
       data: {
         id: jobId,
@@ -82,80 +77,28 @@ export class OcrService {
       `OCR Job ${jobId} initialized in Database for user ${user.id}`,
     );
 
-    // 3. Upload file trực tiếp lên Supabase Storage thay vì lưu cục bộ để hỗ trợ scale ngang
-    const storageKey = `ocr-temp/${jobId}.${fileExtension}`;
-    if (!this.supabase) {
-      throw new Error('Supabase Storage is not configured on this server');
-    }
-
-    // Cập nhật status sang QUEUED trước khi đưa vào hàng đợi
-    await this.updateJobStatus(jobId, 'QUEUED');
-
-    try {
-      const { error: uploadError } = await this.supabase.storage
-        .from(this.bucket)
-        .upload(storageKey, file.buffer, {
-          contentType: file.mimetype,
-          upsert: true,
-        });
-
-      if (uploadError) {
-        throw new Error(
-          `Failed to upload OCR file to storage: ${uploadError.message}`,
+    // 3. Xử lý OCR trực tiếp (inline) — file buffer đã có sẵn trong request,
+    //    không cần upload lên Supabase rồi Worker download lại qua BullMQ.
+    //    setImmediate trả response ngay cho frontend, xử lý tiếp ở background
+    //    của Node.js event loop trong cùng process.
+    const fileBuffer = Buffer.from(file.buffer);
+    setImmediate(() => {
+      this.processJobInline(
+        jobId,
+        fileBuffer,
+        file.originalname,
+        file.mimetype,
+      ).catch((err) => {
+        this.logger.error(
+          `OCR inline job ${jobId} background error: ${err.message}`,
         );
-      }
-      this.logger.log(
-        `Temporary OCR file successfully uploaded to storage: ${storageKey}`,
-      );
-
-      // 4. Đẩy storageKey vào BullMQ ocr-queue
-      await addJobWithTrace(
-        this.ocrQueue,
-        'ocr-task',
-        {
-          jobId,
-          storageKey,
-          filename: file.originalname,
-          mimetype: file.mimetype,
-          meta: {
-            requestId,
-          },
-        },
-        {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 5000,
-          },
-          removeOnComplete: {
-            count: 100, // Chỉ giữ tối đa 100 jobs hoàn tất gần nhất trong Redis để tối ưu dung lượng
-          },
-          removeOnFail: {
-            count: 500, // Chỉ giữ tối đa 500 jobs thất bại gần nhất
-          },
-        },
-      );
-      this.logger.log(`OCR Job ${jobId} pushed to BullMQ ocr-queue`);
-    } catch (err: any) {
-      this.logger.error(
-        `Failed to execute queue submission for job ${jobId}: ${err.message}`,
-      );
-
-      // Zombie Job prevention: Chuyển DB sang FAILED và dọn dẹp file tạm trên Cloud nếu đã upload
-      await this.updateJobStatus(jobId, 'FAILED', {
-        error: `Queue submission failed: ${err.message}`.slice(0, 2000),
       });
+    });
 
-      try {
-        await this.deleteStorageFile(storageKey);
-      } catch (cleanupErr) {
-        // Bỏ qua lỗi dọn dẹp phụ trợ
-      }
-      throw err;
-    }
-
+    await this.updateJobStatus(jobId, 'QUEUED');
     return this.getJobStatus(jobId);
   }
+
 
   async getJobStatus(jobId: string): Promise<any> {
     const job = await this.prisma.ocrJob.findUnique({
@@ -365,8 +308,97 @@ export class OcrService {
   }
 
   /**
-   * Extract embedded JPEGs from scanned PDF files cleanly
+   * Xử lý OCR trực tiếp từ buffer trong bộ nhớ (không qua Supabase / BullMQ).
+   * Được gọi bởi createJob() theo mô hình setImmediate background.
    */
+  async processJobInline(
+    jobId: string,
+    buffer: Buffer,
+    filename: string,
+    mimetype: string,
+  ): Promise<void> {
+    await this.updateJobStatus(jobId, 'PROCESSING');
+
+    try {
+      let extractedData: any;
+
+      // PDF Hybrid Classifier & Parser
+      if (mimetype === 'application/pdf') {
+        this.logger.log(
+          `Job ${jobId}: PDF file received. Extracting text using pdf-parse...`,
+        );
+        let pdfText = '';
+        try {
+          const parser = new PDFParse({ data: buffer });
+          const pdfData = await parser.getText();
+          pdfText = pdfData.text || '';
+        } catch (pdfErr) {
+          this.logger.error(
+            `Job ${jobId}: pdf-parse failed: ${(pdfErr as Error).message}`,
+          );
+        }
+
+        const cleanText = pdfText.replace(/\s+/g, ' ').trim();
+
+        if (cleanText.length > 150) {
+          this.logger.log(
+            `Job ${jobId}: Native PDF detected (${cleanText.length} chars). Running AI text extraction...`,
+          );
+          extractedData = await this.parseTextDeterministically(cleanText);
+        } else {
+          this.logger.log(
+            `Job ${jobId}: Scanned PDF detected (minimal text). Running Vision OCR...`,
+          );
+          const extractedImage = await this.extractImageFromPdf(buffer);
+          extractedData = await this.processVisionOCR(extractedImage);
+        }
+      } else {
+        extractedData = await this.processVisionOCR(buffer);
+      }
+
+      // Save extracted CV to database
+      const job = await this.getJobStatus(jobId);
+      const cv = await this.prisma.cv.create({
+        data: {
+          userId: job.userId,
+          title: `Imported - ${filename.replace(/\.[^/.]+$/, '')}`,
+          locale: 'vi',
+        },
+      });
+
+      const sectionTypes = [
+        'PROFILE',
+        'SUMMARY',
+        'EXPERIENCE',
+        'EDUCATION',
+        'SKILLS',
+        'PROJECTS',
+      ];
+      for (const type of sectionTypes) {
+        const lowerType = type.toLowerCase();
+        const content = extractedData[lowerType] || {};
+        await this.prisma.cvSection.create({
+          data: {
+            cvId: cv.id,
+            type: type as any,
+            content: content,
+            order: sectionTypes.indexOf(type) + 1,
+          },
+        });
+      }
+
+      await this.updateJobStatus(jobId, 'COMPLETED', { extractedCvId: cv.id });
+      this.logger.log(`OCR Job ${jobId} completed inline. CV ID: ${cv.id}`);
+    } catch (err: any) {
+      this.logger.error(`OCR Job ${jobId} inline processing failed: ${err.message}`);
+      await this.updateJobStatus(jobId, 'FAILED', {
+        error: err.message?.slice(0, 2000),
+      });
+      throw err;
+    }
+  }
+
+
   private async extractImageFromPdf(buffer: Buffer): Promise<Buffer> {
     try {
       const soi = Buffer.from([0xff, 0xd8]);
@@ -463,6 +495,8 @@ Extract all details from the raw CV text into this JSON format:
 }
 Return ONLY valid JSON. Never fabricate content.`;
 
+    // forceJsonOutput=true: bắt buộc model phải trả về JSON hợp lệ,
+    // tránh trường hợp model bọc output trong markdown code block.
     const envelope = await this.aiProvider.generate(
       {
         system: systemPrompt,
@@ -470,7 +504,14 @@ Return ONLY valid JSON. Never fabricate content.`;
         input: { text },
       },
       0.0,
+      true, // forceJsonOutput
     );
+
+    if (!envelope.output || typeof envelope.output !== 'object') {
+      throw new Error(
+        `AI returned unexpected output type: ${typeof envelope.output}`,
+      );
+    }
 
     return envelope.output;
   }

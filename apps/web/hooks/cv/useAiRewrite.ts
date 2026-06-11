@@ -53,17 +53,24 @@ export function useAiRewrite({
     setAiStreamingOutput("");
 
     let originalText = "";
+    let company = "";
+    let position = "";
     if (aiTarget.type === "summary") {
       originalText = summaryText;
     } else {
       const exp = experiences.find((e) => e.id === aiTarget.id);
       originalText = exp ? exp.description : "";
+      company = exp ? exp.company : "";
+      position = exp ? exp.position : "";
     }
 
     const payload = {
       locale: cv?.locale || "vi",
       sectionType: aiTarget.type === "summary" ? "SUMMARY" : "EXPERIENCE",
-      content: aiTarget.type === "summary" ? { text: originalText } : { description: originalText },
+      content:
+        aiTarget.type === "summary"
+          ? { text: originalText }
+          : { description: originalText, company, position },
       style: aiStyle,
       resumeContext: aiTarget.type === "summary" ? {
         jobTitle: profileForm.title || "",
@@ -109,11 +116,17 @@ export function useAiRewrite({
             if (line.startsWith("data: ")) {
               try {
                 const data = JSON.parse(line.substring(6));
+                if (data.error) {
+                  throw new Error(`STREAM_ERROR: ${data.error}`);
+                }
                 if (data.text) {
                   accumulated += data.text;
                   setAiStreamingOutput(accumulated);
                 }
-              } catch {
+              } catch (e: any) {
+                if (e.message?.startsWith("STREAM_ERROR:")) {
+                  throw new Error(e.message.replace("STREAM_ERROR: ", ""));
+                }
                 const rawContent = line.substring(6);
                 if (rawContent && !rawContent.includes("done")) {
                   accumulated += rawContent;

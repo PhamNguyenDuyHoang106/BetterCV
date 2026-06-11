@@ -52,7 +52,8 @@ export const useCvStore = create<CvState>((set, get) => {
     dirtyChanges: {},
 
     loadCv: async (cvId) => {
-      set({ isLoading: true, conflictInfo: null, isDirty: false, dirtyChanges: {} });
+      // Clear cv ngay lập tức để tránh dữ liệu CV cũ leak sang CV mới trong lúc fetch
+      set({ isLoading: true, cv: null, conflictInfo: null, isDirty: false, dirtyChanges: {} });
       try {
         const res = await apiFetch<any>(`/cvs/${cvId}`);
         const cv = res?.data || res;

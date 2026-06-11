@@ -2,7 +2,12 @@ import { Body, Controller, Post, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
 import { AiService } from './ai.service';
-import { AiGenerateDto, AiRewriteDto, AiScoreDto } from './dto/ai.dto';
+import {
+  AiGenerateDto,
+  AiRewriteDto,
+  AiScoreDto,
+  AiGithubAnalyzeDto,
+} from './dto/ai.dto';
 import { CurrentUser, JwtPayload } from '../../core/decorators';
 
 @UseGuards(AuthGuard('jwt'))
@@ -63,5 +68,13 @@ export class AiController {
     @Body('jobDescription') jobDescription: string,
   ) {
     return this.aiService.analyzeJobDescription(user.sub, jobDescription);
+  }
+
+  @Post('github/analyze')
+  async analyzeGithub(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: AiGithubAnalyzeDto,
+  ) {
+    return this.aiService.analyzeGithubRepo(user.sub, dto.url, dto.locale);
   }
 }

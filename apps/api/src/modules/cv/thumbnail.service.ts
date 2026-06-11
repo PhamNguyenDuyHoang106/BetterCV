@@ -114,7 +114,10 @@ export class ThumbnailService {
 
     const isDev = this.config.get<string>('NODE_ENV') !== 'production';
     const redisEnabled = this.config.get<string>('REDIS_ENABLED') !== 'false';
-    if (!redisEnabled || (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true')) {
+    if (
+      !redisEnabled ||
+      (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true')
+    ) {
       this.logger.log(
         `Skipping thumbnail queue for CV ${cvId} due to Redis disabled or SKIP_THUMBNAIL_QUEUE=true. Clearing pending/processing status.`,
       );
@@ -505,7 +508,10 @@ export class ThumbnailService {
   ): Promise<void> {
     const isDev = this.config.get<string>('NODE_ENV') !== 'production';
     const redisEnabled = this.config.get<string>('REDIS_ENABLED') !== 'false';
-    if (!redisEnabled || (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true')) {
+    if (
+      !redisEnabled ||
+      (isDev && process.env.SKIP_THUMBNAIL_QUEUE === 'true')
+    ) {
       this.logger.log(
         `Skipping thumbnail cleanup queue for CV ${cvId} (Redis disabled or queue skipped). Executing cleanup synchronously.`,
       );

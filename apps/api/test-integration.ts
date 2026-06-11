@@ -31,6 +31,20 @@ const mockAiService = {
         }
       ]
     });
+  },
+  generateDirect: async (
+    supabaseId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    inputData: any,
+    temperature?: number,
+  ) => {
+    return mockAiService.runPrompt(
+      supabaseId,
+      'cv_ats_analyze_direct',
+      { system: systemPrompt, user: userPrompt, input: inputData },
+      temperature || 0.2,
+    );
   }
 };
 

@@ -79,6 +79,8 @@ export function InitializeCvWorkflowModal({
       await onUploadAndParse(selectedTemplateId, file, (msg) => {
         setCustomProgressMsg(msg);
       });
+      // Reset uploading state on success (navigation may have a brief delay)
+      setIsUploading(false);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : t.initializeCvModal.errParseGeneric);
       setIsUploading(false);

@@ -44,7 +44,12 @@ export class AtsService {
     private aiService: AiService,
   ) {}
 
-  async evaluateCv(supabaseId: string, cvId: string, jobDescription: string) {
+  async evaluateCv(
+    supabaseId: string,
+    cvId: string,
+    jobDescription: string,
+    preferredLocale?: string,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { supabaseId },
       select: { id: true },
@@ -60,14 +65,24 @@ export class AtsService {
     // 1. Token Optimization: Serialize CV text representation
     const cvText = this.serializeCvForAi(cv);
     const cleanedJd = (jobDescription || '').trim();
+    // preferredLocale from frontend takes priority over the stored cv.locale
+    const locale = preferredLocale || cv.locale || 'vi';
 
     const aiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-    // 2. Caching check: Hash CV content + JD content + version + model
+    // 2. Caching check: Hash CV content + JD content + version + model + locale
     const contentHash = crypto
       .createHash('sha256')
       .update(
-        cvText + '\n' + cleanedJd + '\n' + ATS_ENGINE_VERSION + '\n' + aiModel,
+        cvText +
+          '\n' +
+          cleanedJd +
+          '\n' +
+          ATS_ENGINE_VERSION +
+          '\n' +
+          aiModel +
+          '\n' +
+          locale,
       )
       .digest('hex');
 
@@ -89,6 +104,7 @@ export class AtsService {
       contentHash,
       aiModel,
       jobDescription,
+      locale,
     );
     this.activeScans.set(contentHash, scanPromise);
     try {
@@ -107,7 +123,24 @@ export class AtsService {
     contentHash: string,
     aiModel: string,
     jobDescription: string,
+    locale: string,
   ) {
+    const isVi = locale === 'vi';
+
+    const ruleNames = {
+      semantic: isVi
+        ? 'Sự phù hợp ngữ nghĩa (Semantic Match)'
+        : 'Semantic Match',
+      keyword: isVi ? 'Độ phủ từ khóa (Keyword Match)' : 'Keyword Match',
+      experience: isVi
+        ? 'Mức độ tương thích kinh nghiệm (Experience Relevance)'
+        : 'Experience Relevance',
+      skills: isVi ? 'Độ bao phủ kỹ năng (Skills Coverage)' : 'Skills Coverage',
+      formatting: isVi
+        ? 'Tiêu chuẩn trình bày (Formatting & Presentation)'
+        : 'Formatting & Presentation',
+    };
+
     // 1. Indefinite Caching check (no TTL since hash uniquely identifies content, version, and model)
     const existingScan = await this.prisma.atsScan.findFirst({
       where: {
@@ -126,38 +159,40 @@ export class AtsService {
           score: existingScan.overallScore,
           rulesEvaluated: [
             {
-              ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)',
+              ruleName: ruleNames.semantic,
               score: existingScan.semanticScore,
               weight: 0.4,
               findings: [],
             },
             {
-              ruleName: 'Độ phủ từ khóa (Keyword Match)',
+              ruleName: ruleNames.keyword,
               score: existingScan.keywordScore,
               weight: 0.2,
               findings: [],
             },
             {
-              ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)',
+              ruleName: ruleNames.experience,
               score: existingScan.experienceScore,
               weight: 0.2,
               findings: [],
             },
             {
-              ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)',
+              ruleName: ruleNames.skills,
               score: existingScan.skillsScore,
               weight: 0.1,
               findings: [],
             },
             {
-              ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)',
+              ruleName: ruleNames.formatting,
               score: existingScan.formatScore,
               weight: 0.1,
               findings: [],
             },
           ],
           findings: [
-            'Kết quả phân tích được tải từ cache của lượt quét trước đó.',
+            isVi
+              ? 'Kết quả phân tích được tải từ cache của lượt quét trước đó.'
+              : 'Analysis results loaded from the previous scan cache.',
           ],
           recommendations: existingScan.recommendations as any,
           evaluatedAt: existingScan.createdAt.toISOString(),
@@ -166,7 +201,7 @@ export class AtsService {
     }
 
     // 2. Rule-based formatting evaluation
-    const formatRuleResult = this.evaluateFormattingRule(cv);
+    const formatRuleResult = this.evaluateFormattingRule(cv, locale);
 
     // 3. OpenAI prompt and execution
     const systemPrompt = `You are an expert ATS (Applicant Tracking System) Resume Analyzer.
@@ -182,8 +217,11 @@ RULES:
 1. Return ONLY a valid JSON object matching the schema below.
 2. Do NOT wrap the JSON in markdown formatting (like \`\`\`json). Just return the raw JSON object.
 3. Be objective. Do not inflate scores. If a CV is completely unrelated to the JD, the score must be near 0.
-4. Extract all missing keywords from the JD that are not present in the CV.
+4. Extract all missing keywords from the JD that are not present in the CV. Keep the keywords in their original language/form as extracted from the JD.
 5. Provide detailed recommendations with title, description, category ("semantic", "keyword", "experience", "skills"), severity ("low", "medium", "high"), and actionable (true/false).
+6. CRITICAL LANGUAGE REQUIREMENT: You must write all "findings", and all recommendation "title"s and "description"s 100% in the language matching the requested locale.
+   Requested Locale: "${locale === 'vi' ? 'Vietnamese (vi)' : 'English (en)'}".
+   Therefore, write those fields in ${locale === 'vi' ? 'Vietnamese' : 'English'}.
 
 JSON RESPONSE SCHEMA:
 {
@@ -212,27 +250,29 @@ ${cleanedJd}`;
     let isDegraded = false;
 
     try {
-      const output = await this.aiService['runPrompt'](
+      // Call aiProvider.generate directly to always use the fresh locale-aware systemPrompt
+      // (bypasses getActivePrompt DB cache which would return the old English prompt)
+      const response = await this.aiService.generateDirect(
         supabaseId,
-        'cv_ats_analyze',
-        {
-          system: systemPrompt,
-          user: userPrompt,
-          input: { cvId, jobDescriptionLength: cleanedJd.length },
-        },
+        systemPrompt,
+        userPrompt,
+        { cvId, jobDescriptionLength: cleanedJd.length, locale },
         0.2,
       );
 
       let parsedOutput: any;
-      if (typeof output === 'string') {
-        parsedOutput = this.cleanAndParseJson(output);
-      } else if (typeof output === 'object' && output !== null) {
-        if ('text' in output && typeof (output as any).text === 'string') {
-          parsedOutput = this.cleanAndParseJson((output as any).text);
-        } else if ('raw' in output && typeof (output as any).raw === 'string') {
-          parsedOutput = this.cleanAndParseJson((output as any).raw);
+      if (typeof response === 'string') {
+        parsedOutput = this.cleanAndParseJson(response);
+      } else if (typeof response === 'object' && response !== null) {
+        if ('raw' in response && typeof (response as any).raw === 'string') {
+          parsedOutput = this.cleanAndParseJson((response as any).raw);
+        } else if (
+          'text' in response &&
+          typeof (response as any).text === 'string'
+        ) {
+          parsedOutput = this.cleanAndParseJson((response as any).text);
         } else {
-          parsedOutput = output;
+          parsedOutput = response;
         }
       } else {
         parsedOutput = {};
@@ -280,12 +320,14 @@ ${cleanedJd}`;
           id: `rec-${rec.category}-${recIdCounter++}`,
         }));
       allFindings.unshift(
-        'Hệ thống phân tích AI tạm thời không khả dụng. Kết quả đánh giá bị giảm cấp (Degraded).',
+        isVi
+          ? 'Hệ thống phân tích AI tạm thời không khả dụng. Kết quả đánh giá bị giảm cấp (Degraded).'
+          : 'AI analysis service is temporarily unavailable. Evaluation is in degraded mode.',
       );
     }
 
     // Extract a descriptive Job Title from the first line of the JD
-    let jobTitle = 'Vị trí công việc';
+    let jobTitle = isVi ? 'Vị trí công việc' : 'Job Title';
     if (cleanedJd) {
       const firstLine = cleanedJd.split('\n')[0].trim();
       jobTitle =
@@ -353,31 +395,31 @@ ${cleanedJd}`;
         score: finalScore,
         rulesEvaluated: [
           {
-            ruleName: 'Sự phù hợp ngữ nghĩa (Semantic Match)',
+            ruleName: ruleNames.semantic,
             score: aiResult?.semanticScore ?? null,
             weight: 0.4,
             findings: aiResult?.findings ?? [],
           },
           {
-            ruleName: 'Độ phủ từ khóa (Keyword Match)',
+            ruleName: ruleNames.keyword,
             score: aiResult?.keywordScore ?? null,
             weight: 0.2,
             findings: [],
           },
           {
-            ruleName: 'Mức độ tương thích kinh nghiệm (Experience Relevance)',
+            ruleName: ruleNames.experience,
             score: aiResult?.experienceScore ?? null,
             weight: 0.2,
             findings: [],
           },
           {
-            ruleName: 'Độ bao phủ kỹ năng (Skills Coverage)',
+            ruleName: ruleNames.skills,
             score: aiResult?.skillsScore ?? null,
             weight: 0.1,
             findings: [],
           },
           {
-            ruleName: 'Tiêu chuẩn trình bày (Formatting & Presentation)',
+            ruleName: ruleNames.formatting,
             score: formatRuleResult.score,
             weight: 0.1,
             findings: formatRuleResult.findings,
@@ -470,11 +512,15 @@ ${cleanedJd}`;
     return lines.join('\n');
   }
 
-  private evaluateFormattingRule(cv: any): {
+  private evaluateFormattingRule(
+    cv: any,
+    locale: string,
+  ): {
     score: number;
     findings: string[];
     recommendations: any[];
   } {
+    const isVi = locale === 'vi';
     const findings: string[] = [];
     const recommendations: any[] = [];
     let score = 100;
@@ -506,12 +552,15 @@ ${cleanedJd}`;
     if (placeholderFound) {
       score -= 30;
       findings.push(
-        'Phát hiện văn bản tạm thời / placeholder chưa hoàn thiện (ví dụ: Lorem Ipsum, [tên công ty]).',
+        isVi
+          ? 'Phát hiện văn bản tạm thời / placeholder chưa hoàn thiện (ví dụ: Lorem Ipsum, [tên công ty]).'
+          : 'Placeholder text detected (e.g., Lorem Ipsum, [company name]).',
       );
       recommendations.push({
-        title: 'Thay thế placeholder',
-        description:
-          'Thay thế tất cả các placeholder và văn bản tạm thời bằng thông tin thực tế của bạn trước khi nộp.',
+        title: isVi ? 'Thay thế placeholder' : 'Replace placeholder',
+        description: isVi
+          ? 'Thay thế tất cả các placeholder và văn bản tạm thời bằng thông tin thực tế của bạn trước khi nộp.'
+          : 'Replace all placeholders and temporary text with your actual information before submitting.',
         category: 'formatting',
         severity: 'high',
         actionable: true,
@@ -528,12 +577,15 @@ ${cleanedJd}`;
     if (totalWordCount < 100) {
       score -= 20;
       findings.push(
-        `CV quá ngắn (${totalWordCount} từ), thiếu thông tin trầm trọng.`,
+        isVi
+          ? `CV quá ngắn (${totalWordCount} từ), thiếu thông tin trầm trọng.`
+          : `CV is too short (${totalWordCount} words), severely lacking information.`,
       );
       recommendations.push({
-        title: 'Bổ sung dung lượng CV',
-        description:
-          'Bổ sung thêm mô tả dự án và chi tiết kinh nghiệm làm việc để đạt ít nhất 300 từ.',
+        title: isVi ? 'Bổ sung dung lượng CV' : 'Add more content to CV',
+        description: isVi
+          ? 'Bổ sung thêm mô tả dự án và chi tiết kinh nghiệm làm việc để đạt ít nhất 300 từ.'
+          : 'Add more project descriptions and work experience details to reach at least 300 words.',
         category: 'formatting',
         severity: 'high',
         actionable: true,
@@ -541,18 +593,25 @@ ${cleanedJd}`;
     } else if (totalWordCount > 1200) {
       score -= 10;
       findings.push(
-        `CV có dung lượng lớn (${totalWordCount} từ), hãy cân nhắc thu gọn.`,
+        isVi
+          ? `CV có dung lượng lớn (${totalWordCount} từ), hãy cân nhắc thu gọn.`
+          : `CV is too long (${totalWordCount} words), consider condensing it.`,
       );
       recommendations.push({
-        title: 'Tối ưu hóa độ dài',
-        description:
-          'Tối ưu hóa từ ngữ, làm nổi bật thành tựu chính và hạn chế mô tả rườm rà.',
+        title: isVi ? 'Tối ưu hóa độ dài' : 'Optimize length',
+        description: isVi
+          ? 'Tối ưu hóa từ ngữ, làm nổi bật thành tựu chính và hạn chế mô tả rườm rà.'
+          : 'Optimize phrasing, highlight key achievements, and avoid wordy descriptions.',
         category: 'formatting',
         severity: 'low',
         actionable: true,
       });
     } else {
-      findings.push(`Độ dài CV phù hợp (${totalWordCount} từ).`);
+      findings.push(
+        isVi
+          ? `Độ dài CV phù hợp (${totalWordCount} từ).`
+          : `CV length is appropriate (${totalWordCount} words).`,
+      );
     }
 
     // 3. Fake metrics
@@ -570,12 +629,15 @@ ${cleanedJd}`;
     if (allMetrics.length > 5 && uniqueMetrics.size === 1) {
       score -= 15;
       findings.push(
-        'Phát hiện tỷ lệ phần trăm số liệu giống hệt nhau lặp đi lặp lại. Có nguy cơ AI tự bịa số liệu.',
+        isVi
+          ? 'Phát hiện tỷ lệ phần trăm số liệu giống hệt nhau lặp đi lặp lại. Có nguy cơ AI tự bịa số liệu.'
+          : 'Identical percentages found repeatedly. Risk of AI hallucinating metrics.',
       );
       recommendations.push({
-        title: 'Đa dạng hóa số liệu',
-        description:
-          'Thay thế hoặc đa dạng hóa các số liệu thống kê để phản ánh chính xác kết quả thực tế của bạn.',
+        title: isVi ? 'Đa dạng hóa số liệu' : 'Diversify metrics',
+        description: isVi
+          ? 'Thay thế hoặc đa dạng hóa các số liệu thống kê để phản ánh chính xác kết quả thực tế của bạn.'
+          : 'Replace or diversify statistics to accurately reflect your actual results.',
         category: 'formatting',
         severity: 'medium',
         actionable: true,
@@ -584,7 +646,11 @@ ${cleanedJd}`;
 
     score = Math.max(0, score);
     if (score === 100) {
-      findings.push('Định dạng và phân phối văn bản đạt chuẩn ATS.');
+      findings.push(
+        isVi
+          ? 'Định dạng và phân phối văn bản đạt chuẩn ATS.'
+          : 'CV formatting and text distribution meets ATS standards.',
+      );
     }
 
     return {

@@ -44,7 +44,7 @@ export function AiAssistantModal({
       return summaryText || emptyText;
     }
     const exp = experiences.find((e) => e.id === aiTarget.id);
-    return exp ? exp.description : emptyText;
+    return exp && exp.description ? exp.description : emptyText;
   };
 
   return (

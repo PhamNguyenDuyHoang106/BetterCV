@@ -303,23 +303,42 @@ function DashboardPageContent() {
       });
       const job = uploadRes?.data || uploadRes;
 
-      let status = job.status;
       let currentJob = job;
+      let status: string = (currentJob.status || "").toUpperCase();
 
       onProgress(activeLang === "vi" ? "Đang đưa CV vào hàng đợi xử lý AI..." : "Queuing resume for AI processing...");
 
-      while (status === "uploaded" || status === "queued" || status === "processing") {
+      // Poll until job is COMPLETED or FAILED (max 3 minutes = 90 attempts × 2s)
+      const MAX_ATTEMPTS = 90;
+      let attempts = 0;
+
+      while (
+        status === "UPLOADED" ||
+        status === "QUEUED" ||
+        status === "PROCESSING" ||
+        status === "REVIEWING"
+      ) {
+        if (attempts >= MAX_ATTEMPTS) {
+          throw new Error(
+            activeLang === "vi"
+              ? "Quá trình xử lý mất quá nhiều thời gian. Vui lòng thử lại."
+              : "Processing timed out. Please try again."
+          );
+        }
         await new Promise((r) => setTimeout(r, 2000));
         const statusRes = await apiFetch<any>(`/ai/ocr/status/${job.id}`);
         currentJob = statusRes?.data || statusRes;
-        status = currentJob.status;
+        status = (currentJob.status || "").toUpperCase();
+        attempts++;
 
-        if (status === "processing") {
+        if (status === "PROCESSING" || status === "REVIEWING") {
           onProgress(activeLang === "vi" ? "AI đang tiến hành quét OCR và phân tích cấu trúc CV..." : "AI is performing OCR and structural resume analysis...");
+        } else if (status === "QUEUED") {
+          onProgress(activeLang === "vi" ? "CV đang chờ trong hàng đợi xử lý..." : "Resume is waiting in the processing queue...");
         }
       }
 
-      if (status === "completed" && currentJob.extractedCvId) {
+      if (status === "COMPLETED" && currentJob.extractedCvId) {
         onProgress(activeLang === "vi" ? "Trích xuất hoàn tất! Đang áp dụng thiết kế giao diện..." : "Extraction complete! Applying design template...");
         
         // Save the chosen templateId onto the extracted CV
@@ -620,7 +639,7 @@ function DashboardPageContent() {
         loading={loading}
         selectedTemplateId={selectedTemplateId}
         selectedTemplateName={selectedTemplateName}
-        onClose={() => setIsWorkflowModalOpen(false)}
+        onClose={() => { setIsWorkflowModalOpen(false); setLoading(false); }}
         onStartFromScratch={handleStartFromScratch}
         onUploadAndParse={handleUploadAndParse}
       />

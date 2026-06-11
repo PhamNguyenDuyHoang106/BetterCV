@@ -336,7 +336,7 @@ export default function CvEditorPage() {
             )}
 
             {activeTab === "ats" && (
-              <AtsPanel cvId={cvId} />
+              <AtsPanel cvId={cvId} cvLocale={editor.cv?.locale || "vi"} />
             )}
 
             {activeTab === "settings" && (

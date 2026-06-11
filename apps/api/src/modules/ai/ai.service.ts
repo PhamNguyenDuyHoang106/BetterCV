@@ -77,8 +77,9 @@ export class AiService {
           'CRITICAL: Return ONLY the rewritten plain text. Never return JSON, never wrap in markdown code blocks, and never include any conversational filler. Just the polished plain text.',
         user:
           'Read the INPUT JSON which contains the CV section data and the target style. ' +
-          'Extract the text content (either from "text" or "description" field), rewrite it to fit the requested "style" and "locale", ' +
-          'and output ONLY the resulting plain text. Do NOT output any JSON structure.',
+          'If the sectionType is "EXPERIENCE" and the "description" field in content is empty or generic, generate a professional, high-impact description of achievements and responsibilities from scratch in the requested style and locale, using the "position" and "company" fields (if available). ' +
+          'Otherwise, extract the text content (either from "text" or "description" field), rewrite/optimize it to fit the requested "style" and "locale". ' +
+          'Output ONLY the resulting plain text. Do NOT output any JSON structure.',
         input: dto,
       },
       0.4,
@@ -131,6 +132,77 @@ export class AiService {
       },
       0.0,
     );
+  }
+
+  /**
+   * generateDirect: Sends a prompt directly to the AI provider using the provided systemPrompt,
+   * bypassing the DB-cached prompt versions (getActivePrompt).
+   * This ensures locale-sensitive prompts (e.g., Vietnamese/English) are always used as-is.
+   * Still applies quota tracking and safety rules.
+   */
+  async generateDirect(
+    supabaseId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    inputData: Record<string, any>,
+    temperature = 0.2,
+  ) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.applySafetyRules(inputData);
+
+    const estimated = this.estimateTokens({
+      system: systemPrompt,
+      user: userPrompt,
+      input: inputData,
+    });
+    await this.assertAndReserveQuota(userId, estimated);
+
+    const request = await this.prisma.aiRequest.create({
+      data: {
+        userId,
+        promptKey: 'cv_ats_analyze_direct',
+        input: toInputJson(inputData),
+        estimatedTokens: estimated,
+        status: 'PENDING',
+      },
+    });
+
+    try {
+      await this.prisma.aiRequest.update({
+        where: { id: request.id },
+        data: { status: 'PROCESSING' },
+      });
+
+      const response = await this.aiProvider.generate(
+        {
+          system: systemPrompt,
+          user: userPrompt,
+          input: inputData,
+        },
+        temperature,
+      );
+
+      await this.prisma.aiResponse.create({
+        data: {
+          requestId: request.id,
+          output: toInputJson(response.output),
+          tokens: response.tokens,
+        },
+      });
+
+      await this.reconcileQuotaUsage(
+        userId,
+        response.tokens,
+        estimated,
+        request.id,
+      );
+
+      return response.output;
+    } catch (err: any) {
+      await this.refundQuotaUsage(userId, estimated, request.id);
+      this.logger.error(`generateDirect failed: ${err.message}`);
+      throw err;
+    }
   }
 
   async generateStream(supabaseId: string, dto: AiGenerateDto, res: Response) {
@@ -188,8 +260,9 @@ export class AiService {
           'CRITICAL: Return ONLY the rewritten plain text. Never return JSON, never wrap in markdown code blocks, and never include any conversational filler. Just the polished plain text.',
         user:
           'Read the INPUT JSON which contains the CV section data and the target style. ' +
-          'Extract the text content (either from "text" or "description" field), rewrite it to fit the requested "style" and "locale", ' +
-          'and output ONLY the resulting plain text. Do NOT output any JSON structure.',
+          'If the sectionType is "EXPERIENCE" and the "description" field in content is empty or generic, generate a professional, high-impact description of achievements and responsibilities from scratch in the requested style and locale, using the "position" and "company" fields (if available). ' +
+          'Otherwise, extract the text content (either from "text" or "description" field), rewrite/optimize it to fit the requested "style" and "locale". ' +
+          'Output ONLY the resulting plain text. Do NOT output any JSON structure.',
         input: dto,
       },
       res,
@@ -276,11 +349,6 @@ export class AiService {
     res: Response,
     temperature = 0.4,
   ) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
     const userId = await this.resolveUserId(supabaseId);
     await this.applySafetyRules(payload.input);
 
@@ -303,6 +371,11 @@ export class AiService {
         status: 'PENDING',
       },
     });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
 
     try {
       // Chuyển sang trạng thái PROCESSING trước khi bắt đầu stream OpenAI
@@ -891,6 +964,151 @@ Specific Requirements:
       }
     } catch (err: any) {
       this.logger.error(`Failed to run reconciliation cron: ${err.message}`);
+    }
+  }
+
+  async analyzeGithubRepo(
+    supabaseId: string,
+    url: string,
+    locale: 'en' | 'vi',
+  ) {
+    const repoInfo = await this.fetchGithubRepo(url);
+    if (!repoInfo) {
+      throw new Error(
+        'Could not fetch repository information. Please check if the URL is correct and public.',
+      );
+    }
+
+    const systemPrompt =
+      'You are an expert resume developer. Your task is to analyze a GitHub repository profile and README, then extract and generate CV project details. ' +
+      'Return ONLY a valid JSON object matching the requested schema. Never return markdown code blocks, conversational filler, or note texts.';
+
+    const userPrompt =
+      `Analyze the following GitHub repository details and write a professional CV project entry.\n\n` +
+      `REPOSITORY DETAILS:\n` +
+      `- Name: ${repoInfo.name}\n` +
+      `- Metadata Description: ${repoInfo.description}\n` +
+      `- Main Language: ${repoInfo.language}\n` +
+      `- Topics: ${repoInfo.topics.join(', ')}\n\n` +
+      `README CONTENT:\n` +
+      `${repoInfo.readme}\n\n` +
+      `REQUIREMENTS:\n` +
+      `1. Generate the project name (improve/clean the repo name if necessary to sound professional).\n` +
+      `2. Extract the core technologies used (array of strings, e.g. ["React", "NestJS", "TailwindCSS", "PostgreSQL"]).\n` +
+      `3. Write a professional, high-impact description of the project (2-3 bullet points or a short paragraph) detailing what the project does, key features, and technical achievements. Write 100% in ${locale === 'vi' ? 'VIETNAMESE (Tiếng Việt)' : 'ENGLISH'}.\n` +
+      `4. Output format must be strictly a JSON object with this exact structure:\n` +
+      `{\n` +
+      `  "name": "...",\n` +
+      `  "technologies": ["...", "..."],\n` +
+      `  "description": "..."\n` +
+      `}`;
+
+    const output = await this.runPrompt(
+      supabaseId,
+      'cv_github_analyze',
+      {
+        system: systemPrompt,
+        user: userPrompt,
+        input: { url, locale },
+      },
+      0.2,
+    );
+
+    let parsed: { name: string; technologies: string[]; description: string } =
+      {
+        name: repoInfo.name,
+        technologies: [repoInfo.language].filter(Boolean),
+        description: repoInfo.description || '',
+      };
+
+    try {
+      const cleanStr =
+        typeof output === 'string'
+          ? output
+          : (output as any).raw || JSON.stringify(output);
+      let jsonStr = cleanStr.trim();
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr
+          .replace(/^```(json)?/i, '')
+          .replace(/```$/i, '')
+          .trim();
+      }
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      this.logger.error('Failed to parse GitHub analysis output JSON:', e);
+    }
+
+    return parsed;
+  }
+
+  async fetchGithubRepo(url: string) {
+    try {
+      const parsed = this.parseGithubUrl(url);
+      if (!parsed) return null;
+      const { owner, repo } = parsed;
+
+      const headers: Record<string, string> = {
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'BetterCV-App',
+      };
+
+      const token = this.config.get<string>('GITHUB_TOKEN');
+      if (token) {
+        headers['Authorization'] = `token ${token}`;
+      }
+
+      const repoRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}`,
+        { headers },
+      );
+      if (!repoRes.ok) {
+        throw new Error(`GitHub API returned status ${repoRes.status}`);
+      }
+      const repoData = (await repoRes.json()) as any;
+
+      const readmeRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/readme`,
+        { headers },
+      );
+      let readmeText = '';
+      if (readmeRes.ok) {
+        const readmeData = (await readmeRes.json()) as any;
+        if (readmeData.download_url) {
+          const rawReadmeRes = await fetch(readmeData.download_url);
+          if (rawReadmeRes.ok) {
+            readmeText = await rawReadmeRes.text();
+          }
+        }
+      }
+
+      return {
+        name: repoData.name,
+        description: repoData.description || '',
+        topics: repoData.topics || [],
+        language: repoData.language || '',
+        readme: readmeText.substring(0, 6000),
+      };
+    } catch (err: any) {
+      this.logger.error(`Failed to fetch GitHub repo: ${err.message}`);
+      return null;
+    }
+  }
+
+  private parseGithubUrl(url: string): { owner: string; repo: string } | null {
+    try {
+      const cleanUrl = url
+        .trim()
+        .replace(/\/$/, '')
+        .replace(/\.git$/, '');
+      const parsed = new URL(cleanUrl);
+      if (!parsed.hostname.includes('github.com')) return null;
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      if (parts.length >= 2) {
+        return { owner: parts[0], repo: parts[1] };
+      }
+      return null;
+    } catch {
+      return null;
     }
   }
 }

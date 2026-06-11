@@ -16,9 +16,10 @@ export class OpenAiProvider implements AiProvider {
   async generate(
     payload: PromptPayload,
     temperature = 0.4,
+    forceJsonOutput = false,
   ): Promise<AiResponseEnvelope> {
     const { baseUrl, apiKey } = this.getAiConfig();
-    const body = this.buildChatBody(payload, false, temperature);
+    const body = this.buildChatBody(payload, false, temperature, forceJsonOutput);
 
     const result = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -88,7 +89,7 @@ export class OpenAiProvider implements AiProvider {
           const delta = parsed.choices?.[0]?.delta?.content ?? '';
           if (delta) {
             fullText += delta;
-            res.write(`data: ${delta}\n\n`);
+            res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);
           }
           if (parsed.usage?.total_tokens) {
             totalTokens = parsed.usage.total_tokens;
@@ -168,6 +169,7 @@ export class OpenAiProvider implements AiProvider {
     payload: PromptPayload,
     stream: boolean,
     temperature: number,
+    forceJsonOutput = false,
   ) {
     return {
       model: this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
@@ -179,6 +181,7 @@ export class OpenAiProvider implements AiProvider {
         },
       ],
       temperature,
+      ...(forceJsonOutput ? { response_format: { type: 'json_object' } } : {}),
       ...(stream
         ? { stream: true, stream_options: { include_usage: true } }
         : {}),

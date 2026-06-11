@@ -25,9 +25,10 @@ type AtsReport = {
 
 type AtsPanelProps = {
   cvId: string;
+  cvLocale: string;
 };
 
-export function AtsPanel({ cvId }: AtsPanelProps) {
+export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
   const { t, language } = useTranslation();
   const [jobDescription, setJobDescription] = useState<string>("");
   const [atsReport, setAtsReport] = useState<AtsReport | null>(null);
@@ -49,6 +50,7 @@ export function AtsPanel({ cvId }: AtsPanelProps) {
         body: JSON.stringify({
           cvId,
           jobDescription,
+          locale: cvLocale || language,
         }),
       });
       const report = res?.data?.data || res?.data || res;

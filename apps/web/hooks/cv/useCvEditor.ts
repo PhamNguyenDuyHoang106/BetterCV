@@ -170,6 +170,30 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   // Reset refs when loading a new CV to force initialization reload
   useEffect(() => {
     loadedCvIdRef.current = null;
+
+    // Reset tất cả local form states về rỗng ngay lập tức khi cvId thay đổi.
+    // Điều này đảm bảo dữ liệu CV cũ không tự fill vào CV mới
+    // trong khoảng thời gian đang fetch CV mới từ API.
+    setProfileForm({
+      fullName: "",
+      title: "",
+      email: "",
+      phone: "",
+      website: "",
+      github: "",
+      linkedin: "",
+      avatarUrl: "",
+      address: "",
+      city: "",
+      theme: { primaryColor: "", accentColor: "" },
+    });
+    setSummaryText("");
+    setExperiences([]);
+    setEducations([]);
+    setSkills([]);
+    setProjects([]);
+    setShowLevel(true);
+    setSelectedTemplate(null);
   }, [cvId]);
 
   // Save Helpers
@@ -323,8 +347,17 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     saveProjects(updated);
   };
 
-  const updateProjectItem = (id: string, field: string, val: any) => {
-    const updated = projects.map((pr) => (pr.id === id ? { ...pr, [field]: val } : pr));
+  const updateProjectItem = (id: string, field: string | Record<string, any>, val?: any) => {
+    const updated = projects.map((pr) => {
+      if (pr.id === id) {
+        if (typeof field === "string") {
+          return { ...pr, [field]: val };
+        } else {
+          return { ...pr, ...field };
+        }
+      }
+      return pr;
+    });
     setProjects(updated);
   };
 

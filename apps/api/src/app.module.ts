@@ -74,10 +74,6 @@ import { RequestContextMiddleware } from './core/middleware/request-context.midd
       adapter: ExpressAdapter,
     }),
     BullBoardModule.forFeature({
-      name: 'ocr-queue',
-      adapter: BullMQAdapter,
-    }),
-    BullBoardModule.forFeature({
       name: 'thumbnail-queue',
       adapter: BullMQAdapter,
     }),

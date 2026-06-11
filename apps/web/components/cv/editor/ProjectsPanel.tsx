@@ -1,10 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "../../../hooks/useTranslation";
+import { apiFetch } from "../../../lib/api";
 
 type ProjectsPanelProps = {
   projects: any[];
   addProjectItem: () => void;
-  updateProjectItem: (id: string, field: string, val: any) => void;
+  updateProjectItem: (
+    id: string,
+    field: string | Record<string, any>,
+    val?: any,
+  ) => void;
   removeProjectItem: (id: string) => void;
   saveProjects: (items?: any[]) => void;
 };
@@ -17,6 +22,42 @@ export function ProjectsPanel({
   saveProjects,
 }: ProjectsPanelProps) {
   const { t, language } = useTranslation();
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  const handleSyncGithub = async (projId: string, url: string) => {
+    if (!url) return;
+    setSyncingId(projId);
+    try {
+      const response = await apiFetch<any>("/ai/github/analyze", {
+        method: "POST",
+        body: JSON.stringify({ url, locale: language }),
+      });
+      const res = response?.data || response;
+      if (res) {
+        const updatedFields = {
+          name: res.name || "",
+          technologies: res.technologies || [],
+          description: res.description || "",
+        };
+
+        // Update local React state in parent hook
+        updateProjectItem(projId, updatedFields);
+
+        // Map and save to Zustand draft store for autosave and template compilation
+        const updated = projects.map((p) =>
+          p.id === projId ? { ...p, ...updatedFields } : p
+        );
+        saveProjects(updated);
+      }
+    } catch (err: any) {
+      alert(language === "vi" 
+        ? `Lỗi đồng bộ GitHub: ${err.message || "Không thể tải thông tin dự án."}` 
+        : `GitHub sync error: ${err.message || "Could not fetch project details."}`
+      );
+    } finally {
+      setSyncingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -85,7 +126,28 @@ export function ProjectsPanel({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400">{t.editor.projects.link}</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-400">{t.editor.projects.link}</label>
+                {(proj.url && (proj.url.includes("github.com") || proj.url.includes("github.io"))) && (
+                  <button
+                    type="button"
+                    onClick={() => handleSyncGithub(proj.id, proj.url)}
+                    disabled={syncingId === proj.id}
+                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-slate-800 hover:bg-slate-700/80 px-2 py-0.5 rounded transition-all border border-slate-700/60 disabled:opacity-50"
+                  >
+                    {syncingId === proj.id ? (
+                      <>
+                        <div className="h-2.5 w-2.5 animate-spin rounded-full border border-indigo-400 border-t-transparent"></div>
+                        <span>{language === "vi" ? "Đang đồng bộ..." : "Syncing..."}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✨ {language === "vi" ? "Đồng bộ GitHub" : "Sync GitHub"}</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 value={proj.url || ""}

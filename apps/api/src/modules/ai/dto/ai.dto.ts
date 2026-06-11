@@ -40,3 +40,11 @@ export class AiScoreDto {
   @IsString()
   jobDescription!: string;
 }
+
+export class AiGithubAnalyzeDto {
+  @IsString()
+  url!: string;
+
+  @IsIn(['en', 'vi'])
+  locale!: 'en' | 'vi';
+}
