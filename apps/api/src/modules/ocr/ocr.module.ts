@@ -10,10 +10,7 @@ import { AiModule } from '../ai/ai.module';
 // horizontal scaling trong tương lai nếu cần.
 
 @Module({
-  imports: [
-    CvModule,
-    AiModule,
-  ],
+  imports: [CvModule, AiModule],
   controllers: [OcrController],
   providers: [OcrService],
   exports: [OcrService],

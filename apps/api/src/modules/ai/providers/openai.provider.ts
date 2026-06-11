@@ -19,7 +19,12 @@ export class OpenAiProvider implements AiProvider {
     forceJsonOutput = false,
   ): Promise<AiResponseEnvelope> {
     const { baseUrl, apiKey } = this.getAiConfig();
-    const body = this.buildChatBody(payload, false, temperature, forceJsonOutput);
+    const body = this.buildChatBody(
+      payload,
+      false,
+      temperature,
+      forceJsonOutput,
+    );
 
     const result = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',

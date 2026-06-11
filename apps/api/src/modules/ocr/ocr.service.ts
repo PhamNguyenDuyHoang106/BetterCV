@@ -44,7 +44,7 @@ export class OcrService {
   async createJob(
     supabaseId: string,
     file: any,
-    requestId?: string,
+    _requestId?: string,
   ): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { supabaseId },
@@ -98,7 +98,6 @@ export class OcrService {
     await this.updateJobStatus(jobId, 'QUEUED');
     return this.getJobStatus(jobId);
   }
-
 
   async getJobStatus(jobId: string): Promise<any> {
     const job = await this.prisma.ocrJob.findUnique({
@@ -390,14 +389,15 @@ export class OcrService {
       await this.updateJobStatus(jobId, 'COMPLETED', { extractedCvId: cv.id });
       this.logger.log(`OCR Job ${jobId} completed inline. CV ID: ${cv.id}`);
     } catch (err: any) {
-      this.logger.error(`OCR Job ${jobId} inline processing failed: ${err.message}`);
+      this.logger.error(
+        `OCR Job ${jobId} inline processing failed: ${err.message}`,
+      );
       await this.updateJobStatus(jobId, 'FAILED', {
         error: err.message?.slice(0, 2000),
       });
       throw err;
     }
   }
-
 
   private async extractImageFromPdf(buffer: Buffer): Promise<Buffer> {
     try {
