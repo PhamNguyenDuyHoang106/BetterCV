@@ -18,9 +18,11 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY apps/admin/package.json apps/admin/
 COPY packages/shared/package.json packages/shared/
 COPY packages/template-engine/package.json packages/template-engine/
-RUN npm ci --workspace=apps/api
+RUN npm ci
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
