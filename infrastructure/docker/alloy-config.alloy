@@ -31,25 +31,23 @@ loki.process "filter_logs" {
       msg = "msg",
       service = "service",
       environment = "environment",
-      module = "module"
+      module = "module",
     }
   }
 
   // Drop noise logs matching health check endpoints (prefix match to cover query params and future variants)
   stage.match {
     selector = "{service=\"bettercv-api\"}"
-    stages   = [
-      {
-        json = {
-          expressions = { req_url = "req.url" }
-        }
-      },
-    ]
-    drop_counter_reason = "health_probe"
-  }
 
-  stage.drop {
-    expression  = "req_url =~ \"/api/health.*\""
+    stage.json {
+      expressions = { req_url = "req.url" }
+    }
+
+    stage.drop {
+      expression  = "req_url =~ \"/api/health.*\""
+      drop_counter_reason = "health_probe"
+    }
+
     drop_counter_reason = "health_probe"
   }
 
