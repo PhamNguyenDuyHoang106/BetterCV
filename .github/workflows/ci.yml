@@ -86,7 +86,9 @@ jobs:
           REDIS_PORT: 6379
 
       - name: Execute Health & Observability Integration Tests
-        run: npm --workspace=apps/api run test:health
+        run: |
+          npm --workspace=apps/api run start:dev &
+          npm --workspace=apps/api run test:health
         env:
           DATABASE_URL: postgresql://postgres:password@localhost:5432/postgres
           REDIS_HOST: localhost
