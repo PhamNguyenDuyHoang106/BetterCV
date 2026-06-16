@@ -1,0 +1,137 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-bettercv}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    # Không expose port ra ngoài trong production
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+    networks:
+      - internal
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+    env_file:
+      - ../../.env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_ENABLED=true
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - internal
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    env_file:
+      - ../../.env
+    environment:
+      - PORT=3000
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - internal
+
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot-webroot:/var/www/certbot:ro
+      - certbot-certs:/etc/letsencrypt:ro
+    depends_on:
+      - web
+      - api
+    restart: unless-stopped
+    networks:
+      - internal
+      - external
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+    # Chạy thủ công: docker compose -f docker-compose.prod.yml run --rm certbot
+    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'
+    restart: unless-stopped
+    networks:
+      - external
+
+  loki:
+    image: grafana/loki:2.9.8
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml
+      - lokidata:/tmp/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+    networks:
+      - internal
+
+  alloy:
+    image: grafana/alloy:v1.1.0
+    volumes:
+      - ./alloy-config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: run --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - internal
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning
+      - grafanadata:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://${DOMAIN}/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+  external:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  lokidata:
+  grafanadata:
+  certbot-webroot:
+  certbot-certs:

@@ -27,7 +27,7 @@ limits_config:
   reject_old_samples: true
   reject_old_samples_max_age: 168h
   creation_grace_period: 10m
-  retention_period: 720h # Exactly 30 days retention policy
+  retention_period: 720h
 
 compactor:
   working_directory: /tmp/loki/compactor
