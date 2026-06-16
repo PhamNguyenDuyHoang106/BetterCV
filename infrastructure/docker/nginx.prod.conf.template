@@ -22,6 +22,11 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
+    # Cấu hình tăng kích thước bộ đệm để tránh lỗi 502 Bad Gateway khi Supabase trả về Cookie OAuth lớn
+    proxy_buffer_size          128k;
+    proxy_buffers              4 256k;
+    proxy_busy_buffers_size    256k;
+
     # Next.js static files
     location /_next/static/ {
         proxy_pass http://web:3000/_next/static/;
