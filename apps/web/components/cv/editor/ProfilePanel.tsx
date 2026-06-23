@@ -144,45 +144,113 @@ export function ProfilePanel({
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
-          {t.editor.profile.socialsTitle}
-        </h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.linkedin}</label>
-            <input
-              type="text"
-              value={profileForm.linkedin}
-              onChange={(e) => handleProfileChange("linkedin", e.target.value)}
-              placeholder={t.editor.profile.linkedinPlaceholder}
-              className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.github}</label>
-            <input
-              type="text"
-              value={profileForm.github}
-              onChange={(e) => handleProfileChange("github", e.target.value)}
-              placeholder={t.editor.profile.githubPlaceholder}
-              className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-            />
-          </div>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
+            {t.editor.profile.socialsTitle}
+          </h3>
+          <button
+            type="button"
+            onClick={() => {
+              const newSocial = { id: `social_${Date.now()}`, type: "linkedin", label: "", url: "" };
+              const updated = { ...profileForm, socials: [...(profileForm.socials || []), newSocial] };
+              setProfileForm(updated);
+              saveProfile(updated);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/10 transition-all border-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            {language === "vi" ? "Thêm liên kết" : "Add Link"}
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="block text-xs font-medium text-slate-400">{t.editor.profile.website}</label>
-            <input
-              type="text"
-              value={profileForm.website}
-              onChange={(e) => handleProfileChange("website", e.target.value)}
-              placeholder={t.editor.profile.websitePlaceholder}
-              className="mt-1.5 w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-            />
-          </div>
+        <div className="space-y-3">
+          {(profileForm.socials || []).map((social, idx) => {
+            const SOCIAL_OPTIONS = [
+              { value: "linkedin",   label: "LinkedIn",     placeholder: "https://linkedin.com/in/username" },
+              { value: "github",     label: "GitHub",       placeholder: "https://github.com/username" },
+              { value: "facebook",   label: "Facebook",     placeholder: "https://facebook.com/username" },
+              { value: "twitter",    label: "Twitter / X",  placeholder: "https://twitter.com/username" },
+              { value: "instagram",  label: "Instagram",    placeholder: "https://instagram.com/username" },
+              { value: "youtube",    label: "YouTube",      placeholder: "https://youtube.com/@channel" },
+              { value: "behance",    label: "Behance",      placeholder: "https://behance.net/username" },
+              { value: "dribbble",   label: "Dribbble",     placeholder: "https://dribbble.com/username" },
+              { value: "website",    label: "Website",      placeholder: "https://mywebsite.com" },
+              { value: "custom",     label: language === "vi" ? "Tùy chỉnh…" : "Custom…", placeholder: "https://..." },
+            ];
+            const option = SOCIAL_OPTIONS.find(o => o.value === social.type) || SOCIAL_OPTIONS[SOCIAL_OPTIONS.length - 1];
 
-          <div className="col-span-2 mt-2">
+            const updateSocial = (field: string, val: string) => {
+              const updated = {
+                ...profileForm,
+                socials: profileForm.socials.map((s, i) => i === idx ? { ...s, [field]: val } : s),
+              };
+              setProfileForm(updated);
+              saveProfile(updated);
+            };
+            const removeSocial = () => {
+              const updated = {
+                ...profileForm,
+                socials: profileForm.socials.filter((_, i) => i !== idx),
+              };
+              setProfileForm(updated);
+              saveProfile(updated);
+            };
+
+            return (
+              <div key={social.id} className="flex flex-col gap-2 rounded-lg bg-slate-900/60 border border-slate-800 p-3">
+                <div className="flex items-center gap-2">
+                  {/* Platform dropdown */}
+                  <select
+                    value={social.type}
+                    onChange={(e) => updateSocial("type", e.target.value)}
+                    className="flex-none rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs font-medium text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                    style={{ minWidth: "120px" }}
+                  >
+                    {SOCIAL_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+
+                  {/* Custom label input (only for "custom" type) */}
+                  {social.type === "custom" && (
+                    <input
+                      type="text"
+                      value={social.label || ""}
+                      onChange={(e) => updateSocial("label", e.target.value)}
+                      placeholder={language === "vi" ? "Tên website..." : "Website name..."}
+                      className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                    />
+                  )}
+
+                  {/* Delete button */}
+                  <button
+                    type="button"
+                    onClick={removeSocial}
+                    className="ml-auto flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-900/60 transition-all"
+                    title={language === "vi" ? "Xóa liên kết" : "Remove link"}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* URL input */}
+                <input
+                  type="url"
+                  value={social.url || ""}
+                  onChange={(e) => updateSocial("url", e.target.value)}
+                  placeholder={option.placeholder}
+                  className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-2">
             <label className="block text-xs font-medium text-slate-400 mb-2">
               {t.editor.profile.avatarLabel}
             </label>
@@ -291,7 +359,6 @@ export function ProfilePanel({
               )}
             </div>
           </div>
-        </div>
       </div>
     </div>
   );

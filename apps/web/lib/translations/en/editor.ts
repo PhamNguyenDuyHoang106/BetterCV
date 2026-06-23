@@ -34,7 +34,7 @@ export const editor = {
   // profile panel
   profile: {
     title: "Basic Contact Details",
-    fullName: "Full Name *",
+    fullName: "Full Name",
     fullNamePlaceholder: "John Doe",
     jobTitle: "Professional Title",
     jobTitlePlaceholder: "Software Engineer",

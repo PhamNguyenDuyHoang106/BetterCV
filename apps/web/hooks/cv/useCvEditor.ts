@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { DEFAULT_TEMPLATE_ID } from "@acv/shared";
+import type { SocialItem } from "@acv/shared";
 import { useCvStore } from "../../lib/store/cv";
 import { useAuthStore } from "../../lib/store/auth";
 import { apiFetch } from "../../lib/api";
@@ -16,6 +17,7 @@ export type ProfileForm = {
   avatarUrl: string;
   address: string;
   city: string;
+  socials: SocialItem[];
   theme: {
     primaryColor: string;
     accentColor: string;
@@ -53,6 +55,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     avatarUrl: "",
     address: "",
     city: "",
+    socials: [{ id: "social_default_li", type: "linkedin", label: "", url: "" }],
     theme: {
       primaryColor: "",
       accentColor: "",
@@ -74,6 +77,9 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   const [awards, setAwards] = useState<any[]>([]);
   const [showLevel, setShowLevel] = useState<boolean>(true);
 
+  const [prevCvId, setPrevCvId] = useState<string | null>(null);
+  const [resolvedTemplateId, setResolvedTemplateId] = useState<string | null>(null);
+
   // Load CV and Templates
   useEffect(() => {
     if (!accessToken || !cvId) return;
@@ -93,26 +99,46 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, cvId]);
 
-  // Sync templates selection once CV is loaded
-  useEffect(() => {
-    if (cv) {
-      const record = resolveCvTemplateRecord(cv, templates);
-      if (record) {
-        setSelectedTemplate(record);
-      } else if (templates.length > 0) {
-        const defaultTpl = templates.find((t) => t.id === DEFAULT_TEMPLATE_ID) || templates[0];
-        if (defaultTpl) {
-          setSelectedTemplate(defaultTpl);
-        }
+  // Sync template selection and section values synchronously during the render phase.
+  // This prevents blank preview flashes/remounts by ensuring initial srcDoc always compiles with populated states.
+  if (cv && (cv.id !== prevCvId || (templates.length > 0 && resolvedTemplateId !== cv.id))) {
+    setPrevCvId(cv.id);
+    if (templates.length > 0) {
+      setResolvedTemplateId(cv.id);
+    }
+
+    const record = resolveCvTemplateRecord(cv, templates);
+    if (record) {
+      setSelectedTemplate(record);
+    } else if (templates.length > 0) {
+      const defaultTpl = templates.find((t) => t.id === DEFAULT_TEMPLATE_ID) || templates[0];
+      if (defaultTpl) {
+        setSelectedTemplate(defaultTpl);
       }
     }
 
-    // Populate local form states from CV sections only ONCE on initial CV load (to decouple typing lag)
-    if (cv && cv.sections && cv.id !== loadedCvIdRef.current) {
-      loadedCvIdRef.current = cv.id;
-      
-      const profileSec = cv.sections.find((s) => s.type === "PROFILE");
+    // Only populate sections if the CV itself has changed
+    if (cv.id !== prevCvId) {
+      const profileSec = cv.sections?.find((s) => s.type === "PROFILE");
       if (profileSec && profileSec.content) {
+        // Load or migrate socials: use saved socials array if present, otherwise
+        // migrate legacy linkedin/github/website into the new socials format.
+        let loadedSocials: SocialItem[] = [];
+        const savedSocials = profileSec.content.socials;
+        if (Array.isArray(savedSocials) && savedSocials.length > 0) {
+          loadedSocials = savedSocials;
+        } else {
+          // Migration: auto-convert legacy fields to dynamic socials
+          const legacy = profileSec.content;
+          if (legacy.linkedin) loadedSocials.push({ id: `social_li_${Date.now()}`, type: "linkedin", label: "", url: legacy.linkedin });
+          if (legacy.github) loadedSocials.push({ id: `social_gh_${Date.now() + 1}`, type: "github", label: "", url: legacy.github });
+          if (legacy.website) loadedSocials.push({ id: `social_ws_${Date.now() + 2}`, type: "website", label: "", url: legacy.website });
+        }
+        // Always ensure at least one entry so the panel doesn't look empty
+        if (loadedSocials.length === 0) {
+          loadedSocials = [{ id: "social_default_li", type: "linkedin", label: "", url: "" }];
+        }
+
         setProfileForm({
           fullName: profileSec.content.fullName || "",
           title: profileSec.content.title || "",
@@ -124,6 +150,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
           avatarUrl: profileSec.content.avatarUrl || "",
           address: profileSec.content.address || "",
           city: profileSec.content.city || "",
+          socials: loadedSocials,
           theme: {
             primaryColor: profileSec.content.theme?.primaryColor || "",
             accentColor: profileSec.content.theme?.accentColor || "",
@@ -143,12 +170,12 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         });
       }
 
-      const summarySec = cv.sections.find((s) => s.type === "SUMMARY");
+      const summarySec = cv.sections?.find((s) => s.type === "SUMMARY");
       if (summarySec && summarySec.content) {
         setSummaryText(summarySec.content.text || "");
       }
 
-      const expSec = cv.sections.find((s) => s.type === "EXPERIENCE");
+      const expSec = cv.sections?.find((s) => s.type === "EXPERIENCE");
       if (expSec && expSec.content && Array.isArray(expSec.content.items)) {
         setExperiences(expSec.content.items);
       } else if (expSec && expSec.content && Array.isArray(expSec.content)) {
@@ -157,7 +184,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         setExperiences([]);
       }
 
-      const eduSec = cv.sections.find((s) => s.type === "EDUCATION");
+      const eduSec = cv.sections?.find((s) => s.type === "EDUCATION");
       if (eduSec && eduSec.content && Array.isArray(eduSec.content.items)) {
         setEducations(eduSec.content.items);
       } else if (eduSec && eduSec.content && Array.isArray(eduSec.content)) {
@@ -166,14 +193,10 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         setEducations([]);
       }
 
-      const skillSec = cv.sections.find((s) => s.type === "SKILLS");
+      const skillSec = cv.sections?.find((s) => s.type === "SKILLS");
       if (skillSec && skillSec.content && Array.isArray(skillSec.content.items)) {
         setSkills(skillSec.content.items);
-        if (skillSec.content.showLevel !== undefined) {
-          setShowLevel(!!skillSec.content.showLevel);
-        } else {
-          setShowLevel(true);
-        }
+        setShowLevel(skillSec.content.showLevel !== undefined ? !!skillSec.content.showLevel : true);
       } else if (skillSec && skillSec.content && Array.isArray(skillSec.content)) {
         setSkills(skillSec.content);
         setShowLevel(true);
@@ -182,7 +205,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         setShowLevel(true);
       }
 
-      const projSec = cv.sections.find((s) => s.type === "PROJECTS");
+      const projSec = cv.sections?.find((s) => s.type === "PROJECTS");
       if (projSec && projSec.content && Array.isArray(projSec.content.items)) {
         setProjects(projSec.content.items);
       } else if (projSec && projSec.content && Array.isArray(projSec.content)) {
@@ -191,7 +214,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         setProjects([]);
       }
 
-      const langSec = cv.sections.find((s) => s.type === "LANGUAGES");
+      const langSec = cv.sections?.find((s) => s.type === "LANGUAGES");
       if (langSec && langSec.content && Array.isArray(langSec.content.items)) {
         setLanguages(langSec.content.items);
       } else if (langSec && langSec.content && Array.isArray(langSec.content)) {
@@ -200,7 +223,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         setLanguages([]);
       }
 
-      const certSec = cv.sections.find((s) => s.type === "CERTIFICATIONS");
+      const certSec = cv.sections?.find((s) => s.type === "CERTIFICATIONS");
       if (certSec && certSec.content && Array.isArray(certSec.content.items)) {
         setCertifications(certSec.content.items);
       } else if (certSec && certSec.content && Array.isArray(certSec.content)) {
@@ -209,7 +232,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         setCertifications([]);
       }
 
-      const awardSec = cv.sections.find((s) => s.type === "AWARDS");
+      const awardSec = cv.sections?.find((s) => s.type === "AWARDS");
       if (awardSec && awardSec.content && Array.isArray(awardSec.content.items)) {
         setAwards(awardSec.content.items);
       } else if (awardSec && awardSec.content && Array.isArray(awardSec.content)) {
@@ -218,10 +241,12 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
         setAwards([]);
       }
     }
-  }, [cv, templates]);
+  }
 
   // Reset refs when loading a new CV to force initialization reload
   useEffect(() => {
+    setPrevCvId(null);
+    setResolvedTemplateId(null);
     loadedCvIdRef.current = null;
 
     // Reset tất cả local form states về rỗng ngay lập tức khi cvId thay đổi.
@@ -238,6 +263,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       avatarUrl: "",
       address: "",
       city: "",
+      socials: [{ id: "social_default_li", type: "linkedin", label: "", url: "" }],
       theme: { primaryColor: "", accentColor: "" },
       renderOptions: {
         hiddenSections: [],

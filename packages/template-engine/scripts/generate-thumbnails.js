@@ -2,7 +2,7 @@ const puppeteer = require("puppeteer");
 const path = require("path");
 const fs = require("fs");
 const { TEMPLATE_REGISTRY } = require("../../shared/dist/index.js");
-const { renderHtml, GALLERY_DEMO_DATA, getTemplateStyles, getLayoutConfig, getTemplateSectionStyles, getTemplateLayout } = require("../dist/index.js");
+const { renderHtml, getGalleryDemoData, getTemplateStyles, getLayoutConfig, getTemplateSectionStyles, getTemplateLayout } = require("../dist/index.js");
 
 const TEMPLATES = TEMPLATE_REGISTRY.map((entry) => ({
   id: entry.id,
@@ -77,7 +77,7 @@ async function main() {
 
     const html = renderHtml({
       template: templateSchema,
-      data: GALLERY_DEMO_DATA,
+      data: getGalleryDemoData(tpl.id),
     });
 
     try {

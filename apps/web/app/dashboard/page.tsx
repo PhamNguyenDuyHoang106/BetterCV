@@ -110,6 +110,13 @@ function DashboardPageContent() {
   }, [mounted, accessToken, router]);
 
   useEffect(() => {
+    const tab = searchParams?.get("tab");
+    if (tab && ["dashboard", "resumes", "templates", "upgrade", "settings", "profile"].includes(tab)) {
+      setActiveTab(tab as DashboardTab);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     const paid = searchParams.get("paid");
     const orderCode = searchParams.get("orderCode");
     if (paid !== "1") return;
@@ -124,6 +131,15 @@ function DashboardPageContent() {
           }
         }
         await syncSessionToApp();
+        if (typeof window !== "undefined" && window.opener) {
+          try {
+            window.opener.postMessage({ type: "PAYMENT_SUCCESS" }, window.location.origin);
+            window.close();
+            return;
+          } catch (e) {
+            console.error("Error sending postMessage to parent window:", e);
+          }
+        }
       } catch (err) {
         console.error("Failed to confirm payment and sync session:", err);
       } finally {
@@ -239,24 +255,12 @@ function DashboardPageContent() {
   };
 
   const handleUseTemplate = (templateId: string) => {
-    const meta = getTemplateDisplayMeta(templateId);
-    if (meta.tag === "Premium" && user?.role === "FREE") {
-      alert(t.dashboard.quickCreateAlert);
-      setActiveTab("upgrade");
-      return;
-    }
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
   };
 
   const handleQuickCreateFromTemplate = async (templateId: string, templateName: string) => {
-    const meta = getTemplateDisplayMeta(templateId);
-    if (meta.tag === "Premium" && user?.role === "FREE") {
-      alert(t.dashboard.quickCreateAlertName.replace("{name}", templateName));
-      setActiveTab("upgrade");
-      return;
-    }
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
@@ -508,6 +512,18 @@ function DashboardPageContent() {
       year: "numeric"
     });
   };
+
+  const paid = searchParams?.get("paid");
+  if (paid === "1") {
+    return (
+      <div className="fixed inset-0 bg-slate-900 flex flex-col items-center justify-center space-y-4 text-white z-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+        <p className="text-sm font-semibold text-slate-300">
+          {activeLang === "vi" ? "Đang xác nhận thanh toán và nâng cấp tài khoản..." : "Confirming payment and upgrading account..."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-shell text-on-surface font-body-md min-h-screen flex flex-col selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">

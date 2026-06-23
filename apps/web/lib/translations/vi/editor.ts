@@ -36,7 +36,7 @@ export const editor: TranslationSchema["editor"] = {
   // profile panel
   profile: {
     title: "Thông tin liên hệ cơ bản",
-    fullName: "Họ và tên *",
+    fullName: "Họ và tên",
     fullNamePlaceholder: "Nguyễn Văn A",
     jobTitle: "Chức danh",
     jobTitlePlaceholder: "Kỹ sư phần mềm",

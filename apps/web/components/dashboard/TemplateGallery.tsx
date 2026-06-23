@@ -8,7 +8,7 @@ import {
   getTemplateFallbackSchema,
 } from "../../lib/dashboard-templates";
 import { PREVIEW_STAGE_INSET_PX, TemplatePreview } from "./TemplatePreview";
-import { renderHtml, GALLERY_DEMO_DATA } from "@acv/template-engine";
+import { renderHtml, getGalleryDemoData } from "@acv/template-engine";
 
 export type ApiTemplate = {
   id: string;
@@ -73,7 +73,7 @@ function TemplateHtmlPreview({
   const html = useMemo(() => {
     const activeSchema = (schema || getTemplateFallbackSchema(templateId, templateName)) as any;
     try {
-      return renderHtml({ template: activeSchema, data: GALLERY_DEMO_DATA });
+      return renderHtml({ template: activeSchema, data: getGalleryDemoData(templateId) });
     } catch (err) {
       console.warn("Failed to render gallery preview for", templateId, err);
       return null;

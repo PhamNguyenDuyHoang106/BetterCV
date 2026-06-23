@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const SocialItemSchema = z.object({
+  id: z.string(),
+  type: z.string(), // e.g. "linkedin" | "github" | "facebook" | "twitter" | "behance" | "dribbble" | "youtube" | "instagram" | "website" | "custom"
+  label: z.string().optional(),
+  url: z.string().optional(),
+});
+
 export const ProfileSchema = z.object({
   fullName: z.string().min(1, "Họ và tên là bắt buộc"),
   title: z.string().optional(),
@@ -9,6 +16,9 @@ export const ProfileSchema = z.object({
   github: z.string().optional(),
   linkedin: z.string().optional(),
   avatarUrl: z.string().url("Đường dẫn ảnh đại diện không hợp lệ").or(z.string().length(0)).optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  socials: z.array(SocialItemSchema).default([]),
 });
 
 export const ExperienceSchema = z.object({
@@ -72,6 +82,7 @@ export const ResumeDataSchema = z.object({
   customSections: z.array(CustomSectionSchema).default([]),
 });
 
+export type SocialItem = z.infer<typeof SocialItemSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
 export type Experience = z.infer<typeof ExperienceSchema>;
 export type Education = z.infer<typeof EducationSchema>;

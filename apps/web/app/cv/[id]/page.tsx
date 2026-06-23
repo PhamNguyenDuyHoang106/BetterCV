@@ -8,6 +8,7 @@ import { apiFetch } from "../../../lib/api";
 import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
 import { useTranslation } from "../../../hooks/useTranslation";
+import { syncSessionToApp } from "../../../lib/auth-session";
 
 // Import renderHtml from template-engine
 import { renderHtml } from "@acv/template-engine";
@@ -30,6 +31,7 @@ import { AwardsPanel } from "../../../components/cv/editor/AwardsPanel";
 import { AtsPanel } from "../../../components/cv/editor/AtsPanel";
 import { TemplatePicker } from "../../../components/cv/editor/TemplatePicker";
 import { HistorySidebar } from "../../../components/cv/editor/HistorySidebar";
+import { getTemplateDisplayMeta } from "../../../lib/dashboard-templates";
 
 export default function CvEditorPage() {
   const { t, language } = useTranslation();
@@ -49,6 +51,10 @@ export default function CvEditorPage() {
   const [previewScale, setPreviewScale] = useState<number>(100);
   const [exporting, setExporting] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState<"PRO" | "PREMIUM" | null>(null);
 
   // 1. Hook quản lý Autosave
   const { triggerAutosave } = useAutosave();
@@ -103,6 +109,31 @@ export default function CvEditorPage() {
     }
   }, [mounted, accessToken, router]);
 
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data && event.data.type === "PAYMENT_SUCCESS") {
+        console.log("Payment success received from child tab!");
+        try {
+          await syncSessionToApp();
+          alert(language === "vi" ? "Nâng cấp tài khoản thành công!" : "Account upgraded successfully!");
+        } catch (e) {
+          console.error("Failed to sync session on payment success:", e);
+        } finally {
+          setShowUpgradeModal(false);
+          setCheckoutUrl(null);
+          setCheckoutQr(null);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [language]);
+
   // Sync iframe qua postMessage để giảm giật lag và flicker
   useEffect(() => {
     const html = getCompiledHtml();
@@ -129,14 +160,65 @@ export default function CvEditorPage() {
     }
   }, [getCompiledHtml]);
 
-  // Reset refs khi đổi CV
+  // Reset refs khi đổi CV hoặc khi cv bị null (loading)
   useEffect(() => {
-    initialHtmlRef.current = "";
-    lastHtmlRef.current = "";
-  }, [cvId]);
+    if (!editor.cv) {
+      initialHtmlRef.current = "";
+      lastHtmlRef.current = "";
+    }
+  }, [cvId, editor.cv]);
+
+  const handleUpgradeCheckout = async (tier: "PRO" | "PREMIUM") => {
+    setCheckoutLoading(tier);
+    try {
+      const origin = window.location.origin;
+      const successUrl = `${origin}/dashboard?paid=1`;
+      const cancelUrl = `${origin}/dashboard?paid=0`;
+      const mode = tier === "PREMIUM" ? "payment" : "subscription";
+      
+      const res = await apiFetch<any>("/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({
+          tier,
+          mode,
+          successUrl,
+          cancelUrl,
+        }),
+      });
+
+      const payload = res?.data ?? res;
+      const url = payload?.checkoutUrl ?? payload?.url;
+      if (!url) throw new Error("Could not retrieve checkout url");
+      setCheckoutUrl(url);
+      if (payload?.qrCode) setCheckoutQr(payload.qrCode);
+      window.open(url, "_blank");
+    } catch (e) {
+      alert(language === "vi" ? "Lỗi tạo link thanh toán: " + (e as Error).message : "Error creating checkout: " + (e as Error).message);
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
+  const qrSrc = checkoutQr
+    ? checkoutQr.startsWith("data:") || checkoutQr.startsWith("http")
+      ? checkoutQr
+      : `data:image/png;base64,${checkoutQr}`
+    : checkoutUrl
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
+      : null;
 
   // Hành động in và xuất PDF
   const handleExportPDF = async () => {
+    const currentTemplateId = editor.selectedTemplate?.id || editor.cv?.templateId;
+    const isPremiumTemplate = currentTemplateId
+      ? getTemplateDisplayMeta(currentTemplateId).tag === "Premium"
+      : false;
+
+    if (isPremiumTemplate && user?.role === "FREE") {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setExporting(true);
     try {
       const res = await apiFetch<any>("/exports/pdf", {
@@ -465,6 +547,136 @@ export default function CvEditorPage() {
 
       {/* Editing Conflicts Overlay Dialog */}
       <ConflictDialog />
+
+      {/* Premium Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-400">
+              <span className="material-symbols-outlined text-3xl">workspace_premium</span>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-white">
+                {language === "vi" ? "Mẫu CV Cao Cấp (PRO/ULTRA)" : "PRO/ULTRA CV Template"}
+              </h3>
+              <p className="text-sm text-slate-400">
+                {language === "vi"
+                  ? "Mẫu giao diện này chỉ áp dụng cho tài khoản cao cấp. Vui lòng chọn gói nâng cấp phù hợp bên dưới để tiếp tục xuất PDF."
+                  : "This template is only available for premium accounts. Please choose a suitable upgrade plan below to export PDF."}
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                disabled={checkoutLoading !== null}
+                onClick={() => handleUpgradeCheckout("PRO")}
+                className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-slate-900 border border-indigo-500/30 hover:border-indigo-500 hover:from-indigo-950/60 transition-all text-left group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-indigo-400 text-lg group-hover:scale-110 transition-transform">workspace_premium</span>
+                    {language === "vi" ? "Nâng cấp gói Pro (Theo tháng)" : "Upgrade to PRO (Monthly)"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {language === "vi" ? "Truy cập mọi mẫu CV, đầy đủ công cụ AI thông minh." : "Unlock all premium templates and AI assistant tools."}
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">chevron_right</span>
+              </button>
+
+              <button
+                disabled={checkoutLoading !== null}
+                onClick={() => handleUpgradeCheckout("PREMIUM")}
+                className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-amber-950/40 to-slate-900 border border-amber-500/30 hover:border-amber-500 hover:from-amber-950/60 transition-all text-left group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-amber-400 text-lg group-hover:scale-110 transition-transform">verified</span>
+                    {language === "vi" ? "Nâng cấp gói Ultra (Trọn đời)" : "Upgrade to ULTRA (Lifetime)"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {language === "vi" ? "Sở hữu vĩnh viễn, không giới hạn lượt xuất và tính năng." : "Lifetime access, unlimited exports and all features forever."}
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">chevron_right</span>
+              </button>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-transparent text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-all"
+              >
+                {language === "vi" ? "Đóng" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Checkout QR Modal Overlay */}
+      {checkoutUrl && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-white">
+                  {language === "vi" ? "Quét mã QR thanh toán" : "Scan QR Code"}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {language === "vi"
+                    ? "Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử để tiến hành nâng cấp tài khoản."
+                    : "Scan the QR code with your mobile banking or wallet app to complete payment."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="p-2 rounded-xl hover:bg-slate-800 text-slate-400"
+                onClick={() => {
+                  setCheckoutUrl(null);
+                  setCheckoutQr(null);
+                }}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {qrSrc && (
+              <div className="mt-5 flex items-center justify-center">
+                <img
+                  src={qrSrc}
+                  alt="Checkout QR"
+                  className="w-[220px] h-[220px] rounded-2xl ring-1 ring-slate-800 bg-white p-2"
+                />
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-col gap-2">
+              <a
+                href={checkoutUrl}
+                target="_blank"
+                rel="opener"
+                className="w-full text-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all border-none"
+              >
+                {language === "vi" ? "Mở trang thanh toán" : "Open payment page"}
+              </a>
+              <button
+                type="button"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-transparent text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-all"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(checkoutUrl);
+                    alert(language === "vi" ? "Đã sao chép liên kết thanh toán vào bộ nhớ tạm!" : "Payment link copied to clipboard!");
+                  } catch { }
+                }}
+              >
+                {language === "vi" ? "Sao chép liên kết" : "Copy payment link"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
