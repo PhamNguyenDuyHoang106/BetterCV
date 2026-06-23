@@ -27,7 +27,6 @@ import { SkillsPanel } from "../../../components/cv/editor/SkillsPanel";
 import { ProjectsPanel } from "../../../components/cv/editor/ProjectsPanel";
 import { AtsPanel } from "../../../components/cv/editor/AtsPanel";
 import { TemplatePicker } from "../../../components/cv/editor/TemplatePicker";
-import { AiAssistantModal } from "../../../components/cv/editor/AiAssistantModal";
 import { HistorySidebar } from "../../../components/cv/editor/HistorySidebar";
 
 export default function CvEditorPage() {
@@ -41,7 +40,7 @@ export default function CvEditorPage() {
   const lastHtmlRef = useRef<string>("");
 
   const { accessToken, user, hydrate } = useAuthStore();
-  const { loadCv, saveStatus } = useCvStore();
+  const { loadCv } = useCvStore();
 
   const [activeTab, setActiveTab] = useState<string>("profile");
   const [showHistory, setShowHistory] = useState<boolean>(false);
@@ -203,7 +202,7 @@ export default function CvEditorPage() {
 
         <div className="flex items-center gap-4">
           <AutosaveIndicator />
-          
+
           <button
             onClick={() => setShowHistory(!showHistory)}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-slate-700/80 hover:bg-slate-800 transition-all ${
@@ -285,7 +284,13 @@ export default function CvEditorPage() {
                 summaryText={editor.summaryText}
                 setSummaryText={editor.setSummaryText}
                 saveSummary={editor.saveSummary}
-                openAiRewrite={ai.openAiModal}
+                inlineAiState={ai.getInlineState("summary")}
+                onOpenInlineAi={() => ai.openInlineAi("summary")}
+                onCloseInlineAi={() => ai.closeInlineAi("summary")}
+                onGenerateInlineAi={(currentText) =>
+                  ai.generateInlineAi("summary", currentText)
+                }
+                onAcceptInlineAi={(text) => ai.acceptInlineAi("summary", text)}
               />
             )}
 
@@ -296,7 +301,11 @@ export default function CvEditorPage() {
                 updateExperienceItem={editor.updateExperienceItem}
                 removeExperienceItem={editor.removeExperienceItem}
                 saveExperiences={editor.saveExperiences}
-                openAiRewrite={ai.openAiModal}
+                getInlineAiState={ai.getInlineState}
+                onOpenInlineAi={ai.openInlineAi}
+                onCloseInlineAi={ai.closeInlineAi}
+                onGenerateInlineAi={ai.generateInlineAi}
+                onAcceptInlineAi={ai.acceptInlineAi}
               />
             )}
 
@@ -416,21 +425,6 @@ export default function CvEditorPage() {
           />
         </div>
       </div>
-
-      {/* AI Rewrite Assistant Modal Dialog */}
-      <AiAssistantModal
-        showAiModal={ai.showAiModal}
-        setShowAiModal={ai.setShowAiModal}
-        aiTarget={ai.aiTarget}
-        aiStyle={ai.aiStyle}
-        setAiStyle={ai.setAiStyle}
-        aiStreamingOutput={ai.aiStreamingOutput}
-        isAiGenerating={ai.isAiGenerating}
-        triggerAiRewrite={ai.triggerAiRewrite}
-        acceptAiSuggestion={ai.acceptAiSuggestion}
-        summaryText={editor.summaryText}
-        experiences={editor.experiences}
-      />
 
       {/* Editing Conflicts Overlay Dialog */}
       <ConflictDialog />

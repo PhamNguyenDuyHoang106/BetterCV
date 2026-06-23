@@ -18,7 +18,11 @@
     "db:generate": "npm --workspace apps/api run prisma:generate",
     "db:migrate": "npm --workspace apps/api run prisma:migrate",
     "db:seed": "npm --workspace apps/api run prisma:seed",
-    "generate:thumbnails": "npm run generate:thumbnails --prefix packages/template-engine"
+    "generate:thumbnails": "npm run generate:thumbnails --prefix packages/template-engine",
+    "seed:users": "node scripts/seed-users.mjs",
+    "update:avatars": "node scripts/update-avatars.mjs",
+    "update:avatars:force": "node scripts/update-avatars.mjs --force",
+    "update:avatars:dry": "node scripts/update-avatars.mjs --dry-run"
   },
   "engines": {
     "node": ">=18.18"

@@ -9,7 +9,7 @@ import { DashPageHero, DashPanel, dashInputClass } from "../dashboard-ui";
 type ProfileForm = { fullName: string };
 
 type Props = {
-  user?: { fullName?: string; email?: string; role?: string } | null;
+  user?: { fullName?: string; email?: string; role?: string; avatarUrl?: string | null } | null;
   errorMsg: string | null;
   register: UseFormRegister<ProfileForm>;
   onSubmit: UseFormHandleSubmit<ProfileForm>;
@@ -53,9 +53,17 @@ export function DashboardProfileTab({
 
       <DashPanel title={t.profile.infoPanel} icon="person" iconAccent="violet">
         <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary via-primary-dark to-primary-darker flex items-center justify-center text-on-primary font-bold text-xl shadow-lg">
-            {initials}
-          </div>
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={user?.fullName || "User"}
+              className="w-16 h-16 rounded-2xl object-cover shadow-lg border border-slate-200"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary via-primary-dark to-primary-darker flex items-center justify-center text-on-primary font-bold text-xl shadow-lg">
+              {initials}
+            </div>
+          )}
           <div>
             <h3 className="text-lg font-bold text-slate-900">{user?.fullName || "BetterCV User"}</h3>
             <p className="text-sm text-slate-500">{t.profile.memberOf}</p>

@@ -525,6 +525,7 @@ function DashboardPageContent() {
         activeTab={activeTab}
         userName={user?.fullName}
         userRole={user?.role}
+        userAvatar={user?.avatarUrl}
         onTabChange={setActiveTab}
         onUpgrade={() => setActiveTab("upgrade")}
         onProfile={() => setActiveTab("profile")}

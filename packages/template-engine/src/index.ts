@@ -1050,7 +1050,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir, locale }: RenderInput
     ? `<div class="contact-bar">${contacts.join(" | ")}</div>`
     : "";
 
-  const avatarHtml = avatarUrl
+  const avatarHtml = (avatarUrl && layout.showAvatar)
     ? `<img src="${escapeHtml(avatarUrl)}" class="profile-avatar" alt="Avatar" />`
     : "";
 

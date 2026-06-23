@@ -7,6 +7,7 @@ export type AuthProfile = {
   email: string;
   fullName: string;
   role: string;
+  avatarUrl?: string | null;
 };
 
 /** Persist Supabase session into app store + backend profile */

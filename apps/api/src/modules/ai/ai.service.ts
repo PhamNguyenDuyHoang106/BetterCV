@@ -68,6 +68,31 @@ export class AiService {
       return { text: cleanedOutput };
     }
 
+    if (dto.sectionType === 'EXPERIENCE') {
+      const detectedLocale = this.detectLanguage(
+        (dto.resumeContext?.jobTitle as string) ||
+          (dto.resumeContext?.position as string) ||
+          '',
+        dto.locale,
+      );
+      const systemPrompt = this.getExperienceSystemPrompt(detectedLocale);
+      const userPrompt = this.buildExperienceUserPrompt(dto, detectedLocale);
+
+      const output = await this.runPrompt(
+        supabaseId,
+        `cv_experience_${detectedLocale}`,
+        { system: systemPrompt, user: userPrompt, input: dto },
+        0.4,
+      );
+
+      let cleanedOutput =
+        typeof output === 'string'
+          ? output
+          : (output as any).text || (output as any).raw || '';
+      cleanedOutput = this.postValidateAndCleanSummary(cleanedOutput);
+      return { text: cleanedOutput };
+    }
+
     const output = await this.runPrompt(
       supabaseId,
       'cv_rewrite',
@@ -248,6 +273,25 @@ export class AiService {
         },
         res,
         0.5,
+      );
+    }
+
+    if (dto.sectionType === 'EXPERIENCE') {
+      const detectedLocale = this.detectLanguage(
+        (dto.resumeContext?.jobTitle as string) ||
+          (dto.resumeContext?.position as string) ||
+          '',
+        dto.locale,
+      );
+      const systemPrompt = this.getExperienceSystemPrompt(detectedLocale);
+      const userPrompt = this.buildExperienceUserPrompt(dto, detectedLocale);
+
+      return this.streamPrompt(
+        supabaseId,
+        `cv_experience_${detectedLocale}`,
+        { system: systemPrompt, user: userPrompt, input: dto },
+        res,
+        0.4,
       );
     }
 
@@ -459,7 +503,15 @@ export class AiService {
 
     const planQuota =
       user.subscriptions[0]?.plan?.monthlyAiQuota ??
-      (user.role === 'FREE' ? 500000 : 0);
+      (user.role === 'ADMIN'
+        ? 10000000
+        : user.role === 'PREMIUM'
+        ? 2000000
+        : user.role === 'PRO'
+        ? 1000000
+        : user.role === 'FREE'
+        ? 500000
+        : 0);
 
     const periodStart = new Date();
     periodStart.setUTCDate(1);
@@ -772,6 +824,84 @@ Specific Requirements:
 - Generate a balanced, formal, and engaging summary that is highly human-readable.
 - Keep the length between 60-100 words.
 - Highlight core expertise, key achievements, and professional strengths naturally.`;
+  }
+
+  private getExperienceSystemPrompt(_locale: 'en' | 'vi'): string {
+    return `You are an expert CV writer, ATS optimization specialist, and professional career coach.
+
+Your task is to generate or improve the Work Experience section of a resume.
+
+Output Rules:
+- Be ATS-friendly.
+- Use action verbs.
+- Be concise but impactful.
+- Focus on responsibilities, achievements, collaboration, problem-solving, and business impact.
+- Avoid generic filler text.
+- Avoid first-person pronouns (I, me, my).
+- Do not fabricate metrics, percentages, or achievements.
+- Return ONLY the final bullet points. No JSON, no markdown code blocks, no introductory text, no notes.`;
+  }
+
+  private buildExperienceUserPrompt(dto: AiRewriteDto, locale: 'en' | 'vi'): string {
+    const content = dto.content as any;
+    const ctx = dto.resumeContext as any;
+
+    const companyName = content?.company || ctx?.company || '';
+    const jobTitle = content?.position || ctx?.position || '';
+    const startDate = content?.startDate || ctx?.startDate || '';
+    const endDate = content?.endDate || ctx?.endDate || '';
+    const isCurrent = content?.current ?? ctx?.current ?? false;
+    const description = (content?.description || '').trim();
+    const resumeLanguage =
+      locale === 'vi' ? 'Vietnamese (Tiếng Việt)' : 'English';
+
+    const hasDescription = description.length > 0;
+
+    return `Your task is to generate or improve the Work Experience section of a resume.
+
+Input Data:
+
+Company Name: ${companyName}
+
+Job Title: ${jobTitle}
+
+Start Date: ${startDate}
+
+End Date: ${isCurrent ? 'Present (currently working here)' : endDate || 'N/A'}
+
+Currently Working: ${isCurrent ? 'Yes' : 'No'}
+
+User Description:
+${hasDescription ? description : '(empty — no description provided by user)'}
+
+Rules:
+
+1. If User Description is empty:
+   - Generate a professional work experience description based on the job title and company information.
+   - Infer common responsibilities and achievements relevant to the role.
+   - Do not invent unrealistic accomplishments.
+   - Generate 4-6 bullet points.
+
+2. If User Description is provided:
+   - Rewrite and enhance the user's content.
+   - Preserve all original meaning.
+   - Expand details professionally.
+   - Improve ATS keyword coverage.
+   - Generate 5-8 bullet points.
+   - Do not remove important information provided by the user.
+
+3. Output must:
+   - Be ATS-friendly.
+   - Use action verbs.
+   - Be concise but impactful.
+   - Focus on responsibilities, achievements, collaboration, problem-solving, and business impact.
+   - Avoid generic filler text.
+   - Avoid first-person pronouns (I, me, my).
+   - Do not fabricate metrics, percentages, or achievements.
+
+4. Return only the final bullet points.
+
+Language: ${resumeLanguage}`;
   }
 
   private buildResumeContextText(context: any, _locale: 'en' | 'vi'): string {

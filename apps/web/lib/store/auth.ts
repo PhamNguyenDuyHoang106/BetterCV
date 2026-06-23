@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 type AuthState = {
   accessToken: string | null;
-  user: { id: string; email: string; fullName: string; role: string } | null;
+  user: { id: string; email: string; fullName: string; role: string; avatarUrl?: string | null } | null;
   setAuth: (token: string, user: AuthState["user"]) => void;
   clear: () => void;
   hydrate: () => void;

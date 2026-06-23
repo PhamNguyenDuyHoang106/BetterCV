@@ -22,6 +22,7 @@ export class AuthController {
       user.sub,
       user.email,
       body.fullName ?? user.email.split('@')[0],
+      user.avatarUrl || undefined,
     );
   }
 

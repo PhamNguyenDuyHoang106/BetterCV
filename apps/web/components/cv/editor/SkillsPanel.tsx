@@ -66,10 +66,8 @@ export function SkillsPanel({
       );
       return;
     }
-    setSuggestCount((prev) => {
-      const next = prev + 1;
-      return next > 5 ? 1 : next;
-    });
+    if (suggestCount >= 5) return;
+    setSuggestCount((prev) => prev + 1);
     await fetchSkillSuggestions();
   };
 
@@ -152,7 +150,7 @@ export function SkillsPanel({
           <button
             type="button"
             onClick={handleRegenerateSkills}
-            disabled={isSuggestingSkills}
+            disabled={isSuggestingSkills || suggestCount >= 5}
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-gradient-to-r from-violet-600 to-sky-500 hover:from-violet-700 hover:to-sky-600 text-white shadow-lg shadow-sky-500/10 transition-all border-none disabled:opacity-40"
           >
             {isSuggestingSkills ? (
@@ -201,7 +199,7 @@ export function SkillsPanel({
                         name: skName,
                         level: "Advanced",
                       };
-                      const updated = [...skills, newItem];
+                      const updated = [newItem, ...skills];
                       setSkills(updated);
                       saveSkills(updated);
                     }

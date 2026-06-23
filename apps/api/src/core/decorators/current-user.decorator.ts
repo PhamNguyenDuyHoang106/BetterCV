@@ -5,6 +5,7 @@ export type JwtPayload = {
   email: string;
   role: string;
   fullName?: string;
+  avatarUrl?: string | null;
 };
 
 /**

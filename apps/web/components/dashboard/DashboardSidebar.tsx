@@ -35,6 +35,7 @@ type Props = {
   activeTab: DashboardTab;
   userName?: string;
   userRole?: string;
+  userAvatar?: string | null;
   onTabChange: (tab: DashboardTab) => void;
   onUpgrade: () => void;
   onProfile: () => void;
@@ -44,6 +45,7 @@ export function DashboardSidebar({
   activeTab,
   userName,
   userRole,
+  userAvatar,
   onTabChange,
   onUpgrade,
   onProfile,
@@ -134,9 +136,17 @@ export function DashboardSidebar({
               className={`dash-profile-card !p-1.5 !gap-2 ${activeTab === "profile" ? "dash-profile-card-active" : ""}`}
               title={userName || t.dashboard.tabProfile}
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-dark to-primary-darker flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
-                {initials}
-              </div>
+              {userAvatar ? (
+                <img
+                  src={userAvatar}
+                  alt={userName || "User"}
+                  className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-dark to-primary-darker flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
+                  {initials}
+                </div>
+              )}
               <div className="hidden md:block min-w-0 text-left">
                 <p className="text-xs font-bold text-slate-900 truncate max-w-[100px]">{userName || "User"}</p>
                 <p className="text-[10px] text-slate-500 truncate">{userRole || "Free"}</p>

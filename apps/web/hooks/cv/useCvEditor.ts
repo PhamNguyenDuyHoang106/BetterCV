@@ -311,7 +311,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       name: "",
       level: "",
     };
-    const updated = [...skills, newItem];
+    const updated = [newItem, ...skills];
     setSkills(updated);
     saveSkills(updated);
   };

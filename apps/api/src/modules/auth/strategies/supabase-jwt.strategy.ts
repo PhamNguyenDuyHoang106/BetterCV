@@ -72,7 +72,7 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
     sub: string;
     email?: string;
     role?: string;
-    user_metadata?: { full_name?: string };
+    user_metadata?: { full_name?: string; avatar_url?: string };
   }) {
     return {
       sub: payload.sub,
@@ -81,6 +81,7 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy) {
       fullName:
         payload.user_metadata?.full_name ??
         (payload.email ? payload.email.split('@')[0] : 'User'),
+      avatarUrl: payload.user_metadata?.avatar_url ?? null,
     };
   }
 }
