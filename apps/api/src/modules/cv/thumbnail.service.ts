@@ -11,6 +11,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import puppeteer from 'puppeteer';
 
 import { addJobWithTrace } from '../../core/utils/queue.util';
+import { resolveTemplateSchemaForCv } from '../template/template-schema.util';
 
 const METRICS_KEY = 'cv:thumbnail:metrics';
 
@@ -211,28 +212,7 @@ export class ThumbnailService {
       return;
     }
 
-    let templateSchema: any = null;
-
-    // Resolve template schema using the same priority as the frontend editor.
-    // The frontend uses cv.templateId to find the parent Template.schema.
-    if (cv.templateId) {
-      const template = await this.prisma.template.findUnique({
-        where: { id: cv.templateId },
-      });
-      if (template) {
-        templateSchema = template.schema;
-      }
-    }
-
-    // Fallback to templateVersionId only if parent template not found
-    if (!templateSchema && cv.templateVersionId) {
-      const ver = await this.prisma.templateVersion.findUnique({
-        where: { id: cv.templateVersionId },
-      });
-      if (ver) {
-        templateSchema = ver.schema;
-      }
-    }
+    const templateSchema = await resolveTemplateSchemaForCv(this.prisma, cv);
 
     if (!templateSchema) {
       await this.redisService.hincrby(METRICS_KEY, 'failedJobs', 1);
@@ -258,7 +238,7 @@ export class ThumbnailService {
     }
 
     const html = renderHtml({
-      template: templateSchema || {},
+      template: (templateSchema || {}) as any,
       data: flattenedData,
       locale: cv.locale || 'vi',
     });

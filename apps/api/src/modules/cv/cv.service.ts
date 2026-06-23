@@ -12,6 +12,10 @@ import { Prisma } from '@prisma/client';
 import { migrateCvData } from './migrations';
 import { ThumbnailService } from './thumbnail.service';
 import { AuditLogService } from '../audit/audit.service';
+import {
+  buildTemplateSnapshotForTemplateId,
+  resolveTemplateSchemaForCv,
+} from '../template/template-schema.util';
 
 @Injectable()
 export class CvService {
@@ -25,15 +29,15 @@ export class CvService {
     const userId = await this.resolveUserId(supabaseId);
     let templateVersionId: string | null = null;
     let templateVersionNum = 1;
+    let templateSnapshot: Prisma.InputJsonValue | undefined;
     if (dto.templateId) {
-      const ver = await this.prisma.templateVersion.findFirst({
-        where: { templateId: dto.templateId },
-        orderBy: { version: 'desc' },
-      });
-      if (ver) {
-        templateVersionId = ver.id;
-        templateVersionNum = ver.version;
-      }
+      const pinned = await buildTemplateSnapshotForTemplateId(
+        this.prisma,
+        dto.templateId,
+      );
+      templateVersionId = pinned.templateVersionId;
+      templateVersionNum = pinned.templateVersionNum;
+      templateSnapshot = pinned.templateSnapshot ?? undefined;
     }
     return this.prisma.cv.create({
       data: {
@@ -43,6 +47,7 @@ export class CvService {
         templateId: dto.templateId,
         templateVersionId,
         templateVersionNum,
+        templateSnapshot,
         atsScore: 0,
         completenessScore: 0,
       },
@@ -90,6 +95,22 @@ export class CvService {
     }
 
     this.autoEnqueueThumbnailIfNeeded(cv);
+
+    if (
+      !cv.templateSnapshot &&
+      (cv.templateVersionId || cv.templateId)
+    ) {
+      const resolvedSnapshot = await resolveTemplateSchemaForCv(this.prisma, cv);
+      if (resolvedSnapshot) {
+        await this.prisma.cv.update({
+          where: { id },
+          data: {
+            templateSnapshot: resolvedSnapshot as Prisma.InputJsonValue,
+          },
+        });
+        cv.templateSnapshot = resolvedSnapshot;
+      }
+    }
 
     // Run the on-read migration pipeline
     const assembled = this.assembleResumeData(cv);
@@ -144,25 +165,24 @@ export class CvService {
 
     let templateVersionId = existing.templateVersionId;
     let templateVersionNum = existing.templateVersionNum;
+    let templateSnapshot: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined =
+      (existing.templateSnapshot as Prisma.InputJsonValue | null) ?? undefined;
     if (
       dto.templateId !== undefined &&
       dto.templateId !== existing.templateId
     ) {
       if (dto.templateId) {
-        const ver = await this.prisma.templateVersion.findFirst({
-          where: { templateId: dto.templateId },
-          orderBy: { version: 'desc' },
-        });
-        if (ver) {
-          templateVersionId = ver.id;
-          templateVersionNum = ver.version;
-        } else {
-          templateVersionId = null;
-          templateVersionNum = 1;
-        }
+        const pinned = await buildTemplateSnapshotForTemplateId(
+          this.prisma,
+          dto.templateId,
+        );
+        templateVersionId = pinned.templateVersionId;
+        templateVersionNum = pinned.templateVersionNum;
+        templateSnapshot = pinned.templateSnapshot ?? undefined;
       } else {
         templateVersionId = null;
         templateVersionNum = 1;
+        templateSnapshot = Prisma.JsonNull;
       }
     }
 
@@ -175,6 +195,7 @@ export class CvService {
           templateId: dto.templateId,
           templateVersionId,
           templateVersionNum,
+          templateSnapshot,
           version: { increment: 1 },
           lastEditedSessionId: clientSession?.sessionId || null,
           lastEditedDevice: clientSession?.device || null,
@@ -412,6 +433,7 @@ export class CvService {
           title: snapshot.title || 'Untitled CV',
           locale: snapshot.locale || 'en',
           templateId: snapshot.templateId || null,
+          templateSnapshot: snapshot.templateSnapshot ?? Prisma.JsonNull,
           version: { increment: 1 },
           lastEditedSessionId: 'rollback',
           lastEditedDevice: 'Hệ thống (Phục hồi phiên bản)',
@@ -533,6 +555,7 @@ export class CvService {
           title: cv.title,
           locale: cv.locale,
           templateId: cv.templateId,
+          templateSnapshot: cv.templateSnapshot,
           sections: cv.sections,
           metadata: {
             isManual: force && !isExport,

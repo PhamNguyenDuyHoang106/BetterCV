@@ -97,6 +97,7 @@ model Cv {
   version              Int              @default(1)
   templateVersionId    String?
   templateVersionNum   Int              @default(1)
+  templateSnapshot     Json?
   atsScore             Int?
   completenessScore    Int?
   thumbnailGeneratedAt DateTime?
@@ -354,6 +355,9 @@ enum CvSectionType {
   EDUCATION
   SKILLS
   PROJECTS
+  LANGUAGES
+  CERTIFICATIONS
+  AWARDS
 }
 
 enum AiRequestStatus {

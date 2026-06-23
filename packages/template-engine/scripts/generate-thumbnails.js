@@ -1,42 +1,14 @@
 const puppeteer = require("puppeteer");
 const path = require("path");
 const fs = require("fs");
-const { renderHtml, GALLERY_DEMO_DATA, getTemplateStyles, getLayoutConfig } = require("../dist/index.js");
+const { TEMPLATE_REGISTRY } = require("../../shared/dist/index.js");
+const { renderHtml, GALLERY_DEMO_DATA, getTemplateStyles, getLayoutConfig, getTemplateSectionStyles, getTemplateLayout } = require("../dist/index.js");
 
-const TEMPLATES = [
-  { id: "standard-ats", name: "Standard ATS" },
-  { id: "tech-classic", name: "Tech Classic" },
-  { id: "techstack", name: "TechStack" },
-  { id: "business-classic", name: "Business Classic" },
-  { id: "dublin", name: "Dublin" },
-  { id: "design-classic", name: "Design Classic" },
-  { id: "nova", name: "Nova" },
-  { id: "monarch", name: "Monarch" },
-  { id: "minimalist", name: "Minimalist" },
-  { id: "london", name: "London" },
-  { id: "zurich", name: "Zurich" },
-  { id: "oslo", name: "Oslo" },
-  { id: "berlin", name: "Berlin" },
-  { id: "stockholm", name: "Stockholm" },
-  { id: "paris", name: "Paris" },
-  { id: "milan", name: "Milan" },
-  { id: "tokyo", name: "Tokyo" },
-  { id: "singapore", name: "Singapore" },
-  { id: "sydney", name: "Sydney" },
-  { id: "toronto", name: "Toronto" },
-  { id: "seattle", name: "Seattle" },
-  { id: "austin", name: "Austin" },
-  { id: "boston", name: "Boston" },
-  { id: "chicago", name: "Chicago" },
-  { id: "amsterdam", name: "Amsterdam" },
-  { id: "copenhagen", name: "Copenhagen" },
-  { id: "vienna", name: "Vienna" },
-  { id: "geneva", name: "Geneva" },
-  { id: "prague", name: "Prague" },
-  { id: "helsinki", name: "Helsinki" },
-  { id: "barcelona-creative", name: "Barcelona" },
-  { id: "hong-kong-finance", name: "Hong Kong" }
-];
+const TEMPLATES = TEMPLATE_REGISTRY.map((entry) => ({
+  id: entry.id,
+  name: entry.name,
+  category: entry.categoryCode,
+}));
 
 async function main() {
   const outputDir = path.join(__dirname, "..", "..", "..", "apps", "web", "public", "thumbnails");
@@ -96,16 +68,11 @@ async function main() {
     const templateSchema = {
       id: tpl.id,
       name: tpl.name,
-      category: "BUSINESS", // Dummy category
-      layout: { sections: [] },
+      category: tpl.category,
+      layout: getTemplateLayout(tpl.id),
       themeTokens: getTemplateStyles(tpl.id),
       layoutConfig: getLayoutConfig(tpl.id),
-      sectionStyles: {
-        experience: { variant: tpl.id === "nova" ? "timeline" : "classic" },
-        education: { variant: "classic" },
-        skills: { variant: tpl.id === "nova" ? "bars" : "badges" },
-        projects: { variant: "classic" }
-      }
+      sectionStyles: getTemplateSectionStyles(tpl.id),
     };
 
     const html = renderHtml({

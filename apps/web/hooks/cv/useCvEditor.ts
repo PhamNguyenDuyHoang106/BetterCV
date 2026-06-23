@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { DEFAULT_TEMPLATE_ID } from "@acv/shared";
 import { useCvStore } from "../../lib/store/cv";
 import { useAuthStore } from "../../lib/store/auth";
 import { apiFetch } from "../../lib/api";
+import { resolveCvTemplateRecord } from "../../lib/resolve-cv-template-schema";
 
 export type ProfileForm = {
   fullName: string;
@@ -17,6 +19,11 @@ export type ProfileForm = {
   theme: {
     primaryColor: string;
     accentColor: string;
+  };
+  renderOptions?: {
+    hiddenSections?: string[];
+    hiddenBlocks?: string[];
+    sectionVariants?: Record<string, string>;
   };
 };
 
@@ -50,6 +57,11 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       primaryColor: "",
       accentColor: "",
     },
+    renderOptions: {
+      hiddenSections: [],
+      hiddenBlocks: [],
+      sectionVariants: {},
+    },
   });
 
   const [summaryText, setSummaryText] = useState("");
@@ -57,6 +69,9 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   const [educations, setEducations] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [languages, setLanguages] = useState<any[]>([]);
+  const [certifications, setCertifications] = useState<any[]>([]);
+  const [awards, setAwards] = useState<any[]>([]);
   const [showLevel, setShowLevel] = useState<boolean>(true);
 
   // Load CV and Templates
@@ -80,15 +95,14 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
 
   // Sync templates selection once CV is loaded
   useEffect(() => {
-    if (cv && templates.length > 0) {
-      const matched = templates.find((t) => t.id === cv.templateId);
-      if (matched) {
-        setSelectedTemplate(matched);
-      } else {
-        const defaultTpl = templates.find((t) => t.id === "standard-ats") || templates[0];
+    if (cv) {
+      const record = resolveCvTemplateRecord(cv, templates);
+      if (record) {
+        setSelectedTemplate(record);
+      } else if (templates.length > 0) {
+        const defaultTpl = templates.find((t) => t.id === DEFAULT_TEMPLATE_ID) || templates[0];
         if (defaultTpl) {
           setSelectedTemplate(defaultTpl);
-          updateCvMetadata({ templateId: defaultTpl.id });
         }
       }
     }
@@ -113,6 +127,18 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
           theme: {
             primaryColor: profileSec.content.theme?.primaryColor || "",
             accentColor: profileSec.content.theme?.accentColor || "",
+          },
+          renderOptions: {
+            hiddenSections: Array.isArray(profileSec.content.renderOptions?.hiddenSections)
+              ? profileSec.content.renderOptions.hiddenSections
+              : [],
+            hiddenBlocks: Array.isArray(profileSec.content.renderOptions?.hiddenBlocks)
+              ? profileSec.content.renderOptions.hiddenBlocks
+              : [],
+            sectionVariants: profileSec.content.renderOptions?.sectionVariants
+              && typeof profileSec.content.renderOptions.sectionVariants === "object"
+              ? profileSec.content.renderOptions.sectionVariants
+              : {},
           },
         });
       }
@@ -164,8 +190,35 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       } else {
         setProjects([]);
       }
+
+      const langSec = cv.sections.find((s) => s.type === "LANGUAGES");
+      if (langSec && langSec.content && Array.isArray(langSec.content.items)) {
+        setLanguages(langSec.content.items);
+      } else if (langSec && langSec.content && Array.isArray(langSec.content)) {
+        setLanguages(langSec.content);
+      } else {
+        setLanguages([]);
+      }
+
+      const certSec = cv.sections.find((s) => s.type === "CERTIFICATIONS");
+      if (certSec && certSec.content && Array.isArray(certSec.content.items)) {
+        setCertifications(certSec.content.items);
+      } else if (certSec && certSec.content && Array.isArray(certSec.content)) {
+        setCertifications(certSec.content);
+      } else {
+        setCertifications([]);
+      }
+
+      const awardSec = cv.sections.find((s) => s.type === "AWARDS");
+      if (awardSec && awardSec.content && Array.isArray(awardSec.content.items)) {
+        setAwards(awardSec.content.items);
+      } else if (awardSec && awardSec.content && Array.isArray(awardSec.content)) {
+        setAwards(awardSec.content);
+      } else {
+        setAwards([]);
+      }
     }
-  }, [cv, templates, updateCvMetadata]);
+  }, [cv, templates]);
 
   // Reset refs when loading a new CV to force initialization reload
   useEffect(() => {
@@ -186,12 +239,20 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       address: "",
       city: "",
       theme: { primaryColor: "", accentColor: "" },
+      renderOptions: {
+        hiddenSections: [],
+        hiddenBlocks: [],
+        sectionVariants: {},
+      },
     });
     setSummaryText("");
     setExperiences([]);
     setEducations([]);
     setSkills([]);
     setProjects([]);
+    setLanguages([]);
+    setCertifications([]);
+    setAwards([]);
     setShowLevel(true);
     setSelectedTemplate(null);
   }, [cvId]);
@@ -231,6 +292,21 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     setDraftSection("PROJECTS", { items }, 6);
     triggerAutosave();
   }, [projects, setDraftSection, triggerAutosave]);
+
+  const saveLanguages = useCallback((items = languages) => {
+    setDraftSection("LANGUAGES", { items }, 7);
+    triggerAutosave();
+  }, [languages, setDraftSection, triggerAutosave]);
+
+  const saveCertifications = useCallback((items = certifications) => {
+    setDraftSection("CERTIFICATIONS", { items }, 8);
+    triggerAutosave();
+  }, [certifications, setDraftSection, triggerAutosave]);
+
+  const saveAwards = useCallback((items = awards) => {
+    setDraftSection("AWARDS", { items }, 9);
+    triggerAutosave();
+  }, [awards, setDraftSection, triggerAutosave]);
 
   // --- Profile Helpers ---
   const handleProfileChange = (field: keyof ProfileForm | string, val: any) => {
@@ -367,6 +443,60 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     saveProjects(updated);
   };
 
+  const addLanguageItem = () => {
+    const newItem = { id: `lang_${Date.now()}`, name: "", level: "" };
+    const updated = [...languages, newItem];
+    setLanguages(updated);
+    saveLanguages(updated);
+  };
+
+  const updateLanguageItem = (id: string, field: string, val: any) => {
+    const updated = languages.map((item) => (item.id === id ? { ...item, [field]: val } : item));
+    setLanguages(updated);
+  };
+
+  const removeLanguageItem = (id: string) => {
+    const updated = languages.filter((item) => item.id !== id);
+    setLanguages(updated);
+    saveLanguages(updated);
+  };
+
+  const addCertificationItem = () => {
+    const newItem = { id: `cert_${Date.now()}`, name: "", issuer: "", date: "", url: "" };
+    const updated = [...certifications, newItem];
+    setCertifications(updated);
+    saveCertifications(updated);
+  };
+
+  const updateCertificationItem = (id: string, field: string, val: any) => {
+    const updated = certifications.map((item) => (item.id === id ? { ...item, [field]: val } : item));
+    setCertifications(updated);
+  };
+
+  const removeCertificationItem = (id: string) => {
+    const updated = certifications.filter((item) => item.id !== id);
+    setCertifications(updated);
+    saveCertifications(updated);
+  };
+
+  const addAwardItem = () => {
+    const newItem = { id: `award_${Date.now()}`, title: "", issuer: "", date: "", description: "" };
+    const updated = [...awards, newItem];
+    setAwards(updated);
+    saveAwards(updated);
+  };
+
+  const updateAwardItem = (id: string, field: string, val: any) => {
+    const updated = awards.map((item) => (item.id === id ? { ...item, [field]: val } : item));
+    setAwards(updated);
+  };
+
+  const removeAwardItem = (id: string) => {
+    const updated = awards.filter((item) => item.id !== id);
+    setAwards(updated);
+    saveAwards(updated);
+  };
+
   // Assemble Local Resume Data for compilation/postMessage
   const assembleLocalResumeData = useCallback(() => {
     return {
@@ -377,9 +507,12 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       education: educations,
       skills: { items: skills, showLevel: showLevel },
       projects: projects,
+      languages: languages,
+      certifications: certifications,
+      awards: awards,
       theme: profileForm.theme,
     };
-  }, [profileForm, summaryText, experiences, educations, skills, showLevel, projects]);
+  }, [profileForm, summaryText, experiences, educations, skills, showLevel, projects, languages, certifications, awards]);
 
   return {
     cv,
@@ -398,6 +531,12 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     setSkills,
     projects,
     setProjects,
+    languages,
+    setLanguages,
+    certifications,
+    setCertifications,
+    awards,
+    setAwards,
     showLevel,
     setShowLevel,
     saveMetadata,
@@ -407,6 +546,9 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     saveEducations,
     saveSkills,
     saveProjects,
+    saveLanguages,
+    saveCertifications,
+    saveAwards,
     handleProfileChange,
     handleThemeChange,
     addExperienceItem,
@@ -422,6 +564,15 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     addProjectItem,
     updateProjectItem,
     removeProjectItem,
+    addLanguageItem,
+    updateLanguageItem,
+    removeLanguageItem,
+    addCertificationItem,
+    updateCertificationItem,
+    removeCertificationItem,
+    addAwardItem,
+    updateAwardItem,
+    removeAwardItem,
     assembleLocalResumeData,
   };
 }

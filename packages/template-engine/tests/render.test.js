@@ -6,7 +6,10 @@ const {
   normalizeData,
   TemplateSchemaZod,
   ThemeTokensSchema,
-  LayoutConfigSchema
+  LayoutConfigSchema,
+  getTemplateLayout,
+  getSectionBlocks,
+  sanitizeAndValidateTemplate,
 } = require("../src");
 
 // 1. Sanitization & Markdown Compiler Tests
@@ -253,6 +256,193 @@ test("renderHtml - renders correct HTML classes and structures for experience & 
   assert.ok(html.includes("variant-bars"));
   assert.ok(html.includes("skill-level-bars"));
   assert.ok(html.includes("level-bar"));
+});
+
+test("renderHtml - renders languages, certifications, awards and skills columns variant", () => {
+  const template = {
+    id: "variant-test",
+    name: "Variant Test",
+    category: "DESIGN",
+    layout: {
+      sections: [
+        { type: "LANGUAGES", blocks: [] },
+        { type: "CERTIFICATIONS", blocks: [] },
+        { type: "AWARDS", blocks: [] },
+        { type: "SKILLS", blocks: [] },
+      ],
+    },
+    layoutConfig: {
+      layoutMode: "single-column",
+      columns: {
+        main: ["LANGUAGES", "CERTIFICATIONS", "AWARDS", "SKILLS"],
+      },
+      order: ["LANGUAGES", "CERTIFICATIONS", "AWARDS", "SKILLS"],
+    },
+    sectionStyles: {
+      skills: { variant: "columns" },
+    },
+  };
+
+  const data = {
+    profile: { fullName: "Alex Mercer" },
+    languages: [{ name: "English", level: "Professional" }],
+    certifications: [{ name: "AWS SA", issuer: "AWS", date: "2023" }],
+    awards: [{ title: "Top Engineer", issuer: "TechCorp", date: "2024" }],
+    skills: [{ name: "React", level: "Expert" }],
+  };
+
+  const html = renderHtml({ template, data });
+
+  assert.ok(html.includes("Ngôn ngữ"));
+  assert.ok(html.includes("English"));
+  assert.ok(html.includes("Chứng chỉ"));
+  assert.ok(html.includes("AWS SA"));
+  assert.ok(html.includes("Giải thưởng"));
+  assert.ok(html.includes("Top Engineer"));
+  assert.ok(html.includes("variant-columns"));
+});
+
+test("renderHtml - skips duplicate CONTACT section when sidebar header already shows contacts", () => {
+  const template = {
+    id: "synergy-pro",
+    name: "Synergy Pro",
+    category: "DESIGN",
+    layout: { sections: [{ type: "CONTACT", blocks: [] }, { type: "SUMMARY", blocks: [] }] },
+    layoutConfig: {
+      layoutMode: "sidebar-left",
+      columns: { sidebar: ["CONTACT", "SUMMARY"], main: [] },
+      order: ["CONTACT", "SUMMARY"],
+      showAvatar: true,
+      fullPageBleed: true,
+    },
+  };
+
+  const data = {
+    profile: { fullName: "Alex Mercer", email: "alex@example.com", phone: "+84 123" },
+    summary: { text: "Builder." },
+  };
+
+  const html = renderHtml({ template, data });
+
+  assert.ok(html.includes("contact-bar-sidebar"));
+  assert.equal((html.match(/section-contact/g) || []).length, 0);
+});
+
+test("getTemplateLayout - derives sections and blocks from layoutConfig per template", () => {
+  const synergyLayout = getTemplateLayout("synergy-pro");
+  const sectionTypes = synergyLayout.sections.map((section) => section.type);
+
+  assert.ok(sectionTypes.includes("PROFILE"));
+  assert.ok(sectionTypes.includes("LANGUAGES"));
+  assert.ok(sectionTypes.includes("CONTACT"));
+  assert.equal(getSectionBlocks("startup-operator", "PROJECTS")[0].label, "Sản phẩm & Dự án");
+});
+
+test("sanitizeAndValidateTemplate - backfills missing layout sections from canonical template layout", () => {
+  const sanitized = sanitizeAndValidateTemplate({
+    id: "synergy-pro",
+    name: "Synergy Pro",
+    category: "BUSINESS",
+    layout: {
+      sections: [
+        { type: "SUMMARY", blocks: [{ key: "summary.text", label: "Giới thiệu" }] },
+      ],
+    },
+  });
+
+  const sectionTypes = sanitized.layout.sections.map((section) => section.type);
+  assert.ok(sectionTypes.includes("LANGUAGES"));
+  assert.ok(sectionTypes.includes("CONTACT"));
+});
+
+test("renderHtml - renders granular profile blocks inside CONTACT section", () => {
+  const template = {
+    id: "contact-blocks-test",
+    name: "Contact Blocks",
+    category: "BUSINESS",
+    layout: {
+      sections: [
+        {
+          type: "CONTACT",
+          blocks: [
+            { key: "profile.phone", label: "Phone" },
+            { key: "profile.email", label: "Email" },
+          ],
+        },
+      ],
+    },
+    layoutConfig: {
+      layoutMode: "single-column",
+      columns: { main: ["CONTACT"] },
+      order: ["CONTACT"],
+      showAvatar: false,
+    },
+  };
+
+  const data = {
+    profile: { fullName: "Ada Lovelace", phone: "+1 555", email: "ada@example.com" },
+  };
+
+  const html = renderHtml({ template, data, locale: "en" });
+
+  assert.ok(html.includes("block-profile-phone"));
+  assert.ok(html.includes("block-profile-email"));
+  assert.ok(html.includes("+1 555"));
+  assert.ok(html.includes("ada@example.com"));
+});
+
+test("renderHtml - honors renderOptions hidden sections and blocks", () => {
+  const template = {
+    id: "render-options-test",
+    name: "Render Options",
+    category: "BUSINESS",
+    layout: {
+      sections: [
+        { type: "SUMMARY", blocks: [{ key: "summary.text", label: "Summary" }] },
+        {
+          type: "CONTACT",
+          blocks: [
+            { key: "profile.phone", label: "Phone" },
+            { key: "profile.email", label: "Email" },
+          ],
+        },
+        { type: "SKILLS", blocks: [{ key: "skills", label: "Skills" }] },
+      ],
+    },
+    layoutConfig: {
+      layoutMode: "single-column",
+      columns: { main: ["SUMMARY", "CONTACT", "SKILLS"] },
+      order: ["SUMMARY", "CONTACT", "SKILLS"],
+      showAvatar: false,
+    },
+    sectionStyles: {
+      skills: { variant: "badges" },
+    },
+  };
+
+  const data = {
+    profile: {
+      fullName: "Ada Lovelace",
+      phone: "+1 555",
+      email: "ada@example.com",
+      renderOptions: {
+        hiddenSections: ["SUMMARY"],
+        hiddenBlocks: ["profile.phone"],
+        sectionVariants: {
+          SKILLS: "bars",
+        },
+      },
+    },
+    summary: { text: "This should be hidden" },
+    skills: [{ name: "TypeScript", level: "Expert" }],
+  };
+
+  const html = renderHtml({ template, data, locale: "en" });
+
+  assert.ok(!html.includes("Summary"));
+  assert.ok(!html.includes("block-profile-phone"));
+  assert.ok(html.includes("ada@example.com"));
+  assert.ok(html.includes("variant-bars"));
 });
 
 // 8. Backward Compatibility / Regression Tests

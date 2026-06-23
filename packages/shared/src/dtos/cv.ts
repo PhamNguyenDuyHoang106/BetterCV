@@ -4,7 +4,10 @@ export type CvSectionType =
   | "EXPERIENCE"
   | "EDUCATION"
   | "SKILLS"
-  | "PROJECTS";
+  | "PROJECTS"
+  | "LANGUAGES"
+  | "CERTIFICATIONS"
+  | "AWARDS";
 
 export type CvCreateDto = {
   title: string;

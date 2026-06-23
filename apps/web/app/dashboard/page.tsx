@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { apiFetch } from "../../lib/api";
 import { useAuthStore } from "../../lib/store/auth";
+import { TEMPLATE_IDS } from "@acv/shared";
 import { createSupabaseClient } from "../../lib/supabase";
 import { DashboardSidebar, type DashboardTab } from "../../components/dashboard/DashboardSidebar";
 import { TemplateGallery } from "../../components/dashboard/TemplateGallery";
@@ -145,9 +146,10 @@ function DashboardPageContent() {
     apiFetch<any>("/templates")
       .then((res) => {
         const data = Array.isArray(res) ? res : res?.data || [];
-        const list = data?.length ? data : FALLBACK_TEMPLATES;
+        const filtered = data.filter((item: Template) => TEMPLATE_IDS.includes(item.id));
+        const list = filtered?.length ? filtered : FALLBACK_TEMPLATES;
         setTemplates(list);
-        if (!data?.length) {
+        if (!filtered?.length) {
           setTemplatesError("Chưa có mẫu trong DB — đã hiển thị mẫu mặc định. Chạy: npm run db:seed");
         }
       })

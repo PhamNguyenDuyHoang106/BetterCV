@@ -7,23 +7,47 @@ export const apiFetch = async <T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> => {
-  const token = useAuthStore.getState().accessToken;
-  const headers = new Headers(options.headers);
+  const buildHeaders = (token?: string | null) => {
+    const headers = new Headers(options.headers);
+    if (!(options.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
+    }
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    return headers;
+  };
 
-  // Don't set Content-Type for FormData
-  if (!(options.body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
+  const requestWithToken = async (token?: string | null) =>
+    fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers: buildHeaders(token),
+    });
 
   try {
-    const response = await fetch(`${baseUrl}${path}`, {
-      ...options,
-      headers,
-    });
+    const token = useAuthStore.getState().accessToken;
+    let response = await requestWithToken(token);
+
+    // Attempt silent token refresh once on 401.
+    if (response.status === 401 && typeof window !== "undefined") {
+      try {
+        const { createSupabaseClient } = await import("./supabase");
+        const supabase = createSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const refreshedToken = session?.access_token || null;
+
+        if (refreshedToken) {
+          useAuthStore.setState({ accessToken: refreshedToken });
+          response = await requestWithToken(refreshedToken);
+        } else {
+          useAuthStore.getState().clear();
+        }
+      } catch {
+        useAuthStore.getState().clear();
+      }
+    }
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));

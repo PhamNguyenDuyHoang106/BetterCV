@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState, useRef, useLayoutEffect, useEffect } from "react";
+import { DEFAULT_TEMPLATE_ID } from "@acv/shared";
 import {
   getTemplateDisplayMeta,
   STYLE_BADGE_CLASSES,
+  getTemplateFallbackSchema,
 } from "../../lib/dashboard-templates";
 import { PREVIEW_STAGE_INSET_PX, TemplatePreview } from "./TemplatePreview";
 import { renderHtml, GALLERY_DEMO_DATA } from "@acv/template-engine";
@@ -40,11 +42,9 @@ const TAG_STYLES: Record<string, string> = {
 const GALLERY_TABS = [
   { id: "all", label: "All Templates", icon: "folder" },
   { id: "simple", label: "Simple", icon: "grade" },
-  { id: "modern", label: "Modern", icon: "draw" },
-  { id: "one-column", label: "One column", icon: "article" },
-  { id: "with-photo", label: "With photo", icon: "portrait" },
   { id: "professional", label: "Professional", icon: "work" },
-  { id: "ats", label: "ATS", icon: "shield" },
+  { id: "modern", label: "Modern", icon: "draw" },
+  { id: "impressive", label: "Impressive", icon: "bolt" },
 ] as const;
 
 type GalleryTabId = (typeof GALLERY_TABS)[number]["id"];
@@ -71,14 +71,14 @@ function TemplateHtmlPreview({
   const [scale, setScale] = useState<number>(0.25);
 
   const html = useMemo(() => {
-    if (!schema) return null;
+    const activeSchema = (schema || getTemplateFallbackSchema(templateId, templateName)) as any;
     try {
-      return renderHtml({ template: schema, data: GALLERY_DEMO_DATA });
+      return renderHtml({ template: activeSchema, data: GALLERY_DEMO_DATA });
     } catch (err) {
       console.warn("Failed to render gallery preview for", templateId, err);
       return null;
     }
-  }, [schema, templateId]);
+  }, [schema, templateId, templateName]);
 
   useIsomorphicLayoutEffect(() => {
     if (!html) return;
@@ -110,7 +110,7 @@ function TemplateHtmlPreview({
           alt={templateName}
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
+            (e.target as HTMLImageElement).src = `/thumbnails/${DEFAULT_TEMPLATE_ID}.webp`;
           }}
         />
       </picture>
@@ -245,21 +245,13 @@ export function TemplateGallery({
   const filtered = enriched.filter((t) => {
     let matchTab = true;
     if (activeTab === "simple") {
-      matchTab = t.meta.filterCategory === "Minimal";
-    } else if (activeTab === "modern") {
-      matchTab = t.meta.filterCategory === "Tech";
-    } else if (activeTab === "one-column") {
-      matchTab =
-        t.meta.preview === "compact-ats" ||
-        t.meta.preview === "finance" ||
-        t.meta.preview === "elegant-mono" ||
-        t.meta.preview === "classic-academic";
-    } else if (activeTab === "with-photo") {
-      matchTab = t.meta.preview === "modern-profile";
+      matchTab = t.meta.filterCategory === "Student" || t.meta.filterCategory === "ATS Friendly";
     } else if (activeTab === "professional") {
-      matchTab = t.meta.filterCategory === "Business";
-    } else if (activeTab === "ats") {
-      matchTab = t.meta.filterCategory === "ATS Friendly";
+      matchTab = t.meta.filterCategory === "Business" || t.meta.styleBadge === "PROFESSIONAL";
+    } else if (activeTab === "modern") {
+      matchTab = t.meta.styleBadge === "MODERN";
+    } else if (activeTab === "impressive") {
+      matchTab = t.meta.styleBadge === "EXECUTIVE" || t.meta.styleBadge === "CREATIVE";
     }
 
     return matchTab;

@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useCvStore } from "../../../lib/store/cv";
 import { useAuthStore } from "../../../lib/store/auth";
 import { apiFetch } from "../../../lib/api";
-import { syncSessionToApp } from "../../../lib/auth-session";
 import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
 import { useTranslation } from "../../../hooks/useTranslation";
@@ -25,6 +24,9 @@ import { ExperiencePanel } from "../../../components/cv/editor/ExperiencePanel";
 import { EducationPanel } from "../../../components/cv/editor/EducationPanel";
 import { SkillsPanel } from "../../../components/cv/editor/SkillsPanel";
 import { ProjectsPanel } from "../../../components/cv/editor/ProjectsPanel";
+import { LanguagesPanel } from "../../../components/cv/editor/LanguagesPanel";
+import { CertificationsPanel } from "../../../components/cv/editor/CertificationsPanel";
+import { AwardsPanel } from "../../../components/cv/editor/AwardsPanel";
 import { AtsPanel } from "../../../components/cv/editor/AtsPanel";
 import { TemplatePicker } from "../../../components/cv/editor/TemplatePicker";
 import { HistorySidebar } from "../../../components/cv/editor/HistorySidebar";
@@ -72,11 +74,14 @@ export default function CvEditorPage() {
 
   // Compile Live Preview HTML
   const getCompiledHtml = useCallback(() => {
-    if (!editor.selectedTemplate || !editor.cv) return "";
+    if (!editor.cv) return "";
+    const templateSchema =
+      editor.selectedTemplate?.schema || editor.cv.templateSnapshot;
+    if (!templateSchema) return "";
     const resumeData = editor.assembleLocalResumeData();
     try {
       return renderHtml({
-        template: editor.selectedTemplate.schema,
+        template: templateSchema,
         data: resumeData,
         locale: editor.cv?.locale || "vi",
       });
@@ -89,7 +94,6 @@ export default function CvEditorPage() {
   // Load Auth Session
   useEffect(() => {
     hydrate();
-    syncSessionToApp().catch(() => {});
     setMounted(true);
   }, [hydrate]);
 
@@ -249,6 +253,9 @@ export default function CvEditorPage() {
               { id: "education", label: t.editor.tabs.education },
               { id: "skills", label: t.editor.tabs.skills },
               { id: "projects", label: t.editor.tabs.projects },
+              { id: "languages", label: t.editor.tabs.languages },
+              { id: "certifications", label: t.editor.tabs.certifications },
+              { id: "awards", label: t.editor.tabs.awards },
               { id: "summary", label: t.editor.tabs.summary },
               { id: "ats", label: t.editor.tabs.ats },
               { id: "settings", label: t.editor.tabs.settings },
@@ -341,6 +348,36 @@ export default function CvEditorPage() {
                 updateProjectItem={editor.updateProjectItem}
                 removeProjectItem={editor.removeProjectItem}
                 saveProjects={editor.saveProjects}
+              />
+            )}
+
+            {activeTab === "languages" && (
+              <LanguagesPanel
+                languages={editor.languages}
+                addLanguageItem={editor.addLanguageItem}
+                updateLanguageItem={editor.updateLanguageItem}
+                removeLanguageItem={editor.removeLanguageItem}
+                saveLanguages={editor.saveLanguages}
+              />
+            )}
+
+            {activeTab === "certifications" && (
+              <CertificationsPanel
+                certifications={editor.certifications}
+                addCertificationItem={editor.addCertificationItem}
+                updateCertificationItem={editor.updateCertificationItem}
+                removeCertificationItem={editor.removeCertificationItem}
+                saveCertifications={editor.saveCertifications}
+              />
+            )}
+
+            {activeTab === "awards" && (
+              <AwardsPanel
+                awards={editor.awards}
+                addAwardItem={editor.addAwardItem}
+                updateAwardItem={editor.updateAwardItem}
+                removeAwardItem={editor.removeAwardItem}
+                saveAwards={editor.saveAwards}
               />
             )}
 

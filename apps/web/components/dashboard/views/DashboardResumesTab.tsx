@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
+import { DEFAULT_TEMPLATE_ID } from "@acv/shared";
 import Link from "next/link";
 import { DashEmptyState } from "../dashboard-ui";
 import { renderHtml } from "@acv/template-engine";
@@ -12,6 +13,8 @@ import {
   assembleResumeDataFromSections,
   isRenderableCv,
 } from "../../../lib/cv-health";
+import { getTemplateFallbackSchema } from "../../../lib/dashboard-templates";
+import { resolveCvTemplateSchema } from "../../../lib/resolve-cv-template-schema";
 
 type Recommendation = {
   id: string;
@@ -37,6 +40,7 @@ type Cv = {
   id: string;
   title: string;
   templateId?: string;
+  templateSnapshot?: Record<string, unknown>;
   atsScore?: number | null;
   atsScannedAt?: string | null;
   atsVersion?: string | null;
@@ -133,19 +137,18 @@ function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState<number>(1);
 
-  const template = templates.find((t) => t.id === (cv.templateId || "standard-ats"));
-  const schema = template?.schema;
+  const schema = resolveCvTemplateSchema(cv, templates) ?? undefined;
 
   const html = useMemo(() => {
-    if (!schema) return null;
+    const activeSchema = (schema || getTemplateFallbackSchema(cv.templateId || DEFAULT_TEMPLATE_ID)) as any;
     try {
       const cvData = assembleResumeDataFromSections(cv.sections || []);
-      return renderHtml({ template: schema, data: cvData, locale: cv.locale || "vi" });
+      return renderHtml({ template: activeSchema, data: cvData, locale: cv.locale || "vi" });
     } catch (err) {
       console.error("Failed to render quick preview:", err);
       return null;
     }
-  }, [schema, cv.sections, cv.locale]);
+  }, [schema, cv.templateId, cv.sections, cv.locale]);
 
   useIsomorphicLayoutEffect(() => {
     if (!html) return;
@@ -209,15 +212,15 @@ function QuickHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
   return (
     <picture className="absolute inset-0 w-full h-full block">
       <source
-        srcSet={`/thumbnails/${cv.templateId || "standard-ats"}@2x.webp 2x, /thumbnails/${cv.templateId || "standard-ats"}.webp 1x`}
+        srcSet={`/thumbnails/${cv.templateId || DEFAULT_TEMPLATE_ID}@2x.webp 2x, /thumbnails/${cv.templateId || DEFAULT_TEMPLATE_ID}.webp 1x`}
         type="image/webp"
       />
       <img
-        src={`/thumbnails/${cv.templateId || "standard-ats"}.webp`}
+        src={`/thumbnails/${cv.templateId || DEFAULT_TEMPLATE_ID}.webp`}
         alt={cv.title}
         className="w-full h-full object-cover"
         onError={(e) => {
-          (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
+          (e.target as HTMLImageElement).src = `/thumbnails/${DEFAULT_TEMPLATE_ID}.webp`;
         }}
       />
     </picture>
@@ -230,19 +233,18 @@ function CvCardHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState<number>(0.35);
 
-  const template = templates.find((t) => t.id === (cv.templateId || "standard-ats"));
-  const schema = template?.schema;
+  const schema = resolveCvTemplateSchema(cv, templates) ?? undefined;
 
   const html = useMemo(() => {
-    if (!schema) return null;
+    const activeSchema = (schema || getTemplateFallbackSchema(cv.templateId || DEFAULT_TEMPLATE_ID)) as any;
     try {
       const cvData = assembleResumeDataFromSections(cv.sections || []);
-      return renderHtml({ template: schema, data: cvData, locale: cv.locale || "vi" });
+      return renderHtml({ template: activeSchema, data: cvData, locale: cv.locale || "vi" });
     } catch (err) {
       console.error("Failed to render card preview:", err);
       return null;
     }
-  }, [schema, cv.sections, cv.locale]);
+  }, [schema, cv.templateId, cv.sections, cv.locale]);
 
   useIsomorphicLayoutEffect(() => {
     if (!html) return;
@@ -305,15 +307,15 @@ function CvCardHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
   return (
     <picture className="w-full h-full block relative rounded shadow-lg border border-slate-200/40 overflow-hidden bg-white">
       <source
-        srcSet={`/thumbnails/${cv.templateId || "standard-ats"}@2x.webp 2x, /thumbnails/${cv.templateId || "standard-ats"}.webp 1x`}
+        srcSet={`/thumbnails/${cv.templateId || DEFAULT_TEMPLATE_ID}@2x.webp 2x, /thumbnails/${cv.templateId || DEFAULT_TEMPLATE_ID}.webp 1x`}
         type="image/webp"
       />
       <img
-        src={`/thumbnails/${cv.templateId || "standard-ats"}.webp`}
+        src={`/thumbnails/${cv.templateId || DEFAULT_TEMPLATE_ID}.webp`}
         alt={cv.title}
         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
         onError={(e) => {
-          (e.target as HTMLImageElement).src = "/thumbnails/standard-ats.webp";
+          (e.target as HTMLImageElement).src = `/thumbnails/${DEFAULT_TEMPLATE_ID}.webp`;
         }}
       />
     </picture>
@@ -749,7 +751,7 @@ export function DashboardResumesTab({
                     <p className="font-bold text-slate-800 text-sm">
                       {templates.find((t) => t.id === previewCv.templateId)?.name || "Standard ATS"}
                     </p>
-                    <p className="text-[10px] font-mono text-slate-400 mt-1">ID: {previewCv.templateId || "standard-ats"}</p>
+                    <p className="text-[10px] font-mono text-slate-400 mt-1">ID: {previewCv.templateId || DEFAULT_TEMPLATE_ID}</p>
                   </div>
                 </div>
 

@@ -350,14 +350,26 @@ export function SummaryParagraph({ className = "", lines = 2 }: { className?: st
   return <p className={`text-[8.5px] text-slate-700 leading-[1.45] ${className}`}>{text}</p>;
 }
 
-export function ProfileAvatar({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+export function ProfileAvatar({
+  size = "md",
+  url,
+  fallbackInitials = "AN",
+}: {
+  size?: "sm" | "md" | "lg";
+  url?: string;
+  fallbackInitials?: string;
+}) {
   const dim = { sm: "w-8 h-8", md: "w-10 h-10", lg: "w-12 h-12" }[size];
+  const defaultUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80";
+  const imageUrl = url || defaultUrl;
+
   return (
-    <div
-      className={`${dim} rounded-full bg-gradient-to-br from-slate-200 to-slate-300 ring-2 ring-white shadow-sm shrink-0 flex items-center justify-center text-[9px] font-bold text-slate-600`}
-      aria-hidden
-    >
-      AN
+    <div className={`${dim} rounded-full ring-2 ring-white shadow-sm shrink-0 overflow-hidden bg-slate-100 flex items-center justify-center`}>
+      <img
+        src={imageUrl}
+        alt="Avatar"
+        className="w-full h-full object-cover"
+      />
     </div>
   );
 }
