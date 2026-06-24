@@ -1064,6 +1064,9 @@ img {
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
+.dark .text-slate-950 {
+  color: #f8fafc !important;
+}
 .dark .text-slate-900 {
   color: #f8fafc !important;
 }
