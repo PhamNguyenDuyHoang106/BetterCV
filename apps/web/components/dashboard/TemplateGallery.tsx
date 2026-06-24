@@ -9,6 +9,7 @@ import {
 } from "../../lib/dashboard-templates";
 import { PREVIEW_STAGE_INSET_PX, TemplatePreview } from "./TemplatePreview";
 import { renderHtml, getGalleryDemoData } from "@acv/template-engine";
+import { useTranslation } from "../../hooks/useTranslation";
 
 export type ApiTemplate = {
   id: string;
@@ -39,15 +40,17 @@ const TAG_STYLES: Record<string, string> = {
   Free: "bg-white/90 text-slate-700 ring-1 ring-slate-200/80",
 };
 
-const GALLERY_TABS = [
-  { id: "all", label: "All Templates", icon: "folder" },
-  { id: "simple", label: "Simple", icon: "grade" },
-  { id: "professional", label: "Professional", icon: "work" },
-  { id: "modern", label: "Modern", icon: "draw" },
-  { id: "impressive", label: "Impressive", icon: "bolt" },
-] as const;
+const GALLERY_TAB_IDS = ["all", "simple", "professional", "modern", "impressive"] as const;
 
-type GalleryTabId = (typeof GALLERY_TABS)[number]["id"];
+const GALLERY_TAB_ICONS: Record<(typeof GALLERY_TAB_IDS)[number], string> = {
+  all: "folder",
+  simple: "grade",
+  professional: "work",
+  modern: "draw",
+  impressive: "bolt",
+};
+
+type GalleryTabId = (typeof GALLERY_TAB_IDS)[number];
 
 // ─── renderHtml-based Gallery Preview ─────────────────────────────────────
 // Renders the actual template HTML at 1:1 size then scales it down into the
@@ -197,9 +200,6 @@ function TemplateCard({
           >
             {tpl.meta.tag}
           </span>
-          <span className="absolute top-2.5 right-2.5 z-[3] px-2 py-0.5 rounded-lg bg-white/95 backdrop-blur-sm text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200/60 tabular-nums">
-            ATS {tpl.meta.atsScore}%
-          </span>
         </div>
 
         <div className="px-3 pt-2.5 pb-3 border-t border-slate-100/90 bg-white">
@@ -231,7 +231,16 @@ export function TemplateGallery({
   onRetry,
   onUseNow,
 }: Props) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<GalleryTabId>("all");
+
+  const galleryTabLabels: Record<GalleryTabId, string> = {
+    all: t.templateGallery.tabAll,
+    simple: t.templateGallery.tabSimple,
+    professional: t.templateGallery.tabProfessional,
+    modern: t.templateGallery.tabModern,
+    impressive: t.templateGallery.tabImpressive,
+  };
 
   const enriched = useMemo(
     () =>
@@ -258,66 +267,52 @@ export function TemplateGallery({
   });
 
   return (
-    <div className="template-gallery flex flex-col gap-10">
-      <header className="template-gallery-header rounded-[24px] p-8 md:p-12 border border-white/60 bg-gradient-to-br from-white/95 to-slate-50/90 shadow-[0_4px_30px_rgba(0,0,0,0.03)] flex flex-col items-center text-center relative overflow-hidden">
-        <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-16 -right-16 w-52 h-52 rounded-full bg-primary-dark/10 blur-3xl pointer-events-none" />
-
-        <div className="max-w-2xl flex flex-col items-center relative z-10 mb-2">
-          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-primary-darker mb-3 bg-primary/30 px-3 py-1 rounded-full shadow-sm self-center">
-            Template library
-          </p>
-          <h2 className="text-3xl md:text-5xl font-bold text-slate-900 tracking-tight leading-tight mb-4">
-            Resume templates
-          </h2>
+    <div className="template-gallery flex flex-col gap-8">
+      {error && (
+        <div className="w-full max-w-xl flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-amber-50/90 border border-amber-200/60 px-4 py-3 text-sm text-amber-950 text-left mx-auto">
+          <span className="material-symbols-outlined text-lg shrink-0">info</span>
+          <p className="flex-1">{error}</p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="shrink-0 px-4 py-2 bg-white border border-amber-200/80 rounded-lg text-xs font-semibold hover:bg-amber-50 transition-colors"
+            >
+              Tải lại
+            </button>
+          )}
         </div>
+      )}
 
-        {error && (
-          <div className="mt-6 w-full max-w-xl flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-amber-50/90 border border-amber-200/60 px-4 py-3 text-sm text-amber-950 text-left">
-            <span className="material-symbols-outlined text-lg shrink-0">info</span>
-            <p className="flex-1">{error}</p>
-            {onRetry && (
-              <button
-                type="button"
-                onClick={onRetry}
-                className="shrink-0 px-4 py-2 bg-white border border-amber-200/80 rounded-lg text-xs font-semibold hover:bg-amber-50 transition-colors"
+      <div className="w-full border-b border-slate-200/80 flex overflow-x-auto no-scrollbar gap-6 md:gap-10 px-2 justify-start md:justify-center">
+        {GALLERY_TAB_IDS.map((tabId) => {
+          const isActive = activeTab === tabId;
+          return (
+            <button
+              key={tabId}
+              type="button"
+              onClick={() => setActiveTab(tabId)}
+              className={`flex items-center gap-2 py-3.5 px-1 border-b-2 font-bold text-xs md:text-sm tracking-wide transition-all duration-200 shrink-0 select-none relative -mb-[2px] ${
+                isActive
+                  ? "border-primary-darker text-primary-darker"
+                  : "border-transparent text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              <span
+                className="material-symbols-outlined text-[18px] shrink-0"
+                style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}
               >
-                Tải lại
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="w-full border-b border-slate-200/80 mt-10 flex overflow-x-auto no-scrollbar gap-6 md:gap-10 px-2 justify-start md:justify-center">
-          {GALLERY_TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-3.5 px-1 border-b-2 font-bold text-xs md:text-sm tracking-wide transition-all duration-200 shrink-0 select-none relative -mb-[2px] ${
-                  isActive
-                    ? "border-primary-darker text-primary-darker"
-                    : "border-transparent text-slate-400 hover:text-slate-700"
-                }`}
-              >
-                <span
-                  className="material-symbols-outlined text-[18px] shrink-0"
-                  style={{ fontVariationSettings: isActive ? "'FILL' 1" : "" }}
-                >
-                  {tab.icon}
-                </span>
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </header>
+                {GALLERY_TAB_ICONS[tabId]}
+              </span>
+              {galleryTabLabels[tabId]}
+            </button>
+          );
+        })}
+      </div>
 
       {!loading && (
         <p className="text-xs text-slate-400 font-bold -mb-4 px-2">
-          Hiển thị {filtered.length} / {enriched.length} mẫu
+          {t.templateGallery.showing.replace("{filtered}", String(filtered.length)).replace("{total}", String(enriched.length))}
         </p>
       )}
 
@@ -341,8 +336,8 @@ export function TemplateGallery({
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 mb-4">
             <span className="material-symbols-outlined text-3xl">folder_off</span>
           </div>
-          <p className="font-semibold text-slate-900">Không tìm thấy mẫu phù hợp</p>
-          <p className="text-sm text-slate-500 mt-1">Thử đổi bộ lọc</p>
+          <p className="font-semibold text-slate-900">{t.templateGallery.emptyTitle}</p>
+          <p className="text-sm text-slate-500 mt-1">{t.templateGallery.emptyDesc}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">

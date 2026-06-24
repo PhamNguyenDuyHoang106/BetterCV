@@ -363,6 +363,52 @@ export class CvService {
     });
   }
 
+  async createManualVersion(supabaseId: string, cvId: string) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+    await this.snapshotVersion(cvId, true, false);
+    return { success: true };
+  }
+
+  async renameVersion(
+    supabaseId: string,
+    cvId: string,
+    versionId: string,
+    title: string,
+  ) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+
+    const version = await this.prisma.cvVersion.findFirst({
+      where: { id: versionId, cvId },
+    });
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    return this.prisma.cvVersion.update({
+      where: { id: versionId },
+      data: { title },
+    });
+  }
+
+  async deleteVersion(supabaseId: string, cvId: string, versionId: string) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+
+    const version = await this.prisma.cvVersion.findFirst({
+      where: { id: versionId, cvId },
+    });
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    await this.prisma.cvVersion.delete({
+      where: { id: versionId },
+    });
+    return { success: true };
+  }
+
   /**
    * Retrieves the 20 most recent ATS scans for a CV.
    * To ensure the frontend Sparkline chart plots chronologically from left to right (oldest to newest),
@@ -541,8 +587,8 @@ export class CvService {
       });
       if (latest) {
         const timeDiff = Date.now() - new Date(latest.createdAt).getTime();
-        if (timeDiff < 120000) {
-          // Skip autosave if it has been less than 2 minutes
+        if (timeDiff < 60000) {
+          // Skip autosave if it has been less than 1 minute
           return;
         }
       }

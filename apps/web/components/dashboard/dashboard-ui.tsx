@@ -130,11 +130,15 @@ export function DashGhostBtn({
 export function DashToggleRow({
   title,
   description,
-  defaultChecked = true,
+  defaultChecked,
+  checked,
+  onChange,
 }: {
   title: string;
   description: string;
   defaultChecked?: boolean;
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
 }) {
   return (
     <div className="dash-toggle-row">
@@ -145,7 +149,9 @@ export function DashToggleRow({
       <input
         type="checkbox"
         defaultChecked={defaultChecked}
-        className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary/30 shrink-0"
+        checked={checked}
+        onChange={onChange ? (e) => onChange(e.target.checked) : undefined}
+        className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary/30 shrink-0 cursor-pointer"
       />
     </div>
   );

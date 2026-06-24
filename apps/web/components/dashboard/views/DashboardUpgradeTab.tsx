@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { DashPageHero } from "../dashboard-ui";
 import { apiFetch } from "../../../lib/api";
 import { useAuthStore } from "../../../lib/store/auth";
 import { useLanguageStore } from "../../../lib/store/language";
@@ -94,11 +93,6 @@ export function DashboardUpgradeTab() {
 
   return (
     <div className="max-w-4xl mx-auto w-full py-4">
-      <DashPageHero
-        title={t.upgrade.title}
-        subtitle={t.upgrade.subtitle}
-        accent="amber"
-      />
 
       {error && (
         <div className="mb-6 rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">

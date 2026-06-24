@@ -122,6 +122,7 @@ model Cv {
 model CvVersion {
   id        String   @id @default(cuid())
   cvId      String
+  title     String?
   snapshot  Json
   createdAt DateTime @default(now())
   cv        Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)

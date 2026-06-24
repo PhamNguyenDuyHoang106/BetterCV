@@ -2,22 +2,40 @@
 
 import { useState, useEffect } from "react";
 import { useLanguageStore } from "../../../lib/store/language";
+import { useThemeStore } from "../../../lib/store/theme";
 import { translations } from "../../../lib/translations";
 import { DashPanel, DashToggleRow } from "../dashboard-ui";
 
 export function DashboardSettingsTab() {
   const { language } = useLanguageStore();
+  const { theme, setTheme } = useThemeStore();
   const [mounted, setMounted] = useState(false);
+  const [emailNotif, setEmailNotif] = useState(true);
+  const [autoSave, setAutoSave] = useState(true);
 
   useEffect(() => {
     setMounted(true);
+    const savedEmail = localStorage.getItem("acv-email-notif");
+    const savedAutoSave = localStorage.getItem("acv-auto-save");
+    if (savedEmail !== null) {
+      setEmailNotif(savedEmail === "true");
+    }
+    if (savedAutoSave !== null) {
+      setAutoSave(savedAutoSave === "true");
+    }
   }, []);
 
   const activeLang = mounted ? language : "vi";
   const t = translations[activeLang];
 
-  const handleSave = () => {
-    alert(t.settings.savedAlert);
+  const handleToggleEmail = (checked: boolean) => {
+    setEmailNotif(checked);
+    localStorage.setItem("acv-email-notif", String(checked));
+  };
+
+  const handleToggleAutoSave = (checked: boolean) => {
+    setAutoSave(checked);
+    localStorage.setItem("acv-auto-save", String(checked));
   };
 
   return (
@@ -26,21 +44,24 @@ export function DashboardSettingsTab() {
         <div className="space-y-5">
 
           <DashToggleRow
+            title={t.settings.darkMode}
+            description={t.settings.darkModeDesc}
+            checked={mounted && theme === "dark"}
+            onChange={(checked) => setTheme(checked ? "dark" : "light")}
+          />
+          <DashToggleRow
             title={t.settings.emailNotif}
             description={t.settings.emailNotifDesc}
+            checked={mounted && emailNotif}
+            onChange={handleToggleEmail}
           />
           <DashToggleRow
             title={t.settings.autoSave}
             description={t.settings.autoSaveDesc}
+            checked={mounted && autoSave}
+            onChange={handleToggleAutoSave}
           />
 
-          <button
-            type="button"
-            onClick={handleSave}
-            className="dash-btn-primary mt-2"
-          >
-            {t.settings.saveBtn}
-          </button>
         </div>
       </DashPanel>
     </div>

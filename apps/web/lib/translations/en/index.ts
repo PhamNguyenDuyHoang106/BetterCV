@@ -30,6 +30,8 @@ export const en = {
   resumes: dashboard.resumes,
   createCvModal: dashboard.createCvModal,
   initializeCvModal: dashboard.initializeCvModal,
+  templateGallery: dashboard.templateGallery,
+  deleteCvModal: dashboard.deleteCvModal,
   editor,
   validation,
   toast,

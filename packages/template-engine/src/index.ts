@@ -807,9 +807,9 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
         layoutMode: "sidebar-left",
         columns: {
           sidebar: ["CONTACT", "EDUCATION", "SKILLS", "LANGUAGES", "CERTIFICATIONS"],
-          main: ["SUMMARY", "EXPERIENCE", "AWARDS"],
+          main: ["SUMMARY", "EXPERIENCE", "PROJECTS", "AWARDS"],
         },
-        order: ["SUMMARY", "EXPERIENCE", "AWARDS", "CONTACT", "EDUCATION", "SKILLS", "LANGUAGES", "CERTIFICATIONS"],
+        order: ["SUMMARY", "EXPERIENCE", "PROJECTS", "AWARDS", "CONTACT", "EDUCATION", "SKILLS", "LANGUAGES", "CERTIFICATIONS"],
         fullPageBleed: true,
       };
     case "ai-builder":
@@ -933,9 +933,9 @@ export const getLayoutConfig = (templateId: string): LayoutConfig => {
         layoutMode: "sidebar-left",
         columns: {
           sidebar: ["CONTACT", "SKILLS", "AWARDS", "CERTIFICATIONS", "LANGUAGES"],
-          main: ["SUMMARY", "EXPERIENCE", "EDUCATION"],
+          main: ["SUMMARY", "EXPERIENCE", "PROJECTS", "EDUCATION"],
         },
-        order: ["SUMMARY", "EXPERIENCE", "EDUCATION", "CONTACT", "SKILLS", "AWARDS", "CERTIFICATIONS", "LANGUAGES"],
+        order: ["SUMMARY", "EXPERIENCE", "PROJECTS", "EDUCATION", "CONTACT", "SKILLS", "AWARDS", "CERTIFICATIONS", "LANGUAGES"],
         fullBleedHeader: true,
         fullPageBleed: true,
       };

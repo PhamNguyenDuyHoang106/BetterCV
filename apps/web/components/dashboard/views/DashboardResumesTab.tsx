@@ -359,26 +359,7 @@ export function DashboardResumesTab({
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
-            <span className="material-symbols-outlined">folder_open</span>
-          </span>
-          <h2 className="text-xl font-bold text-slate-900">{t.resumes.cvListHeader}</h2>
-        </div>
-        <div className="relative w-full sm:w-72">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-            search
-          </span>
-          <input
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="dash-search-input"
-            placeholder={t.resumes.searchPlaceholder}
-            type="text"
-          />
-        </div>
-      </div>
+
 
       {filteredCvs.length === 0 ? (
         <DashEmptyState

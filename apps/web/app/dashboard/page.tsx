@@ -12,6 +12,7 @@ import { DashboardSidebar, type DashboardTab } from "../../components/dashboard/
 import { TemplateGallery } from "../../components/dashboard/TemplateGallery";
 import { CreateCvModal } from "../../components/dashboard/CreateCvModal";
 import { InitializeCvWorkflowModal } from "../../components/dashboard/InitializeCvWorkflowModal";
+import { DeleteCvConfirmModal } from "../../components/dashboard/DeleteCvConfirmModal";
 import { DashPageHero } from "../../components/dashboard/dashboard-ui";
 import { DashboardOverviewTab } from "../../components/dashboard/views/DashboardOverviewTab";
 import { DashboardResumesTab } from "../../components/dashboard/views/DashboardResumesTab";
@@ -88,6 +89,8 @@ function DashboardPageContent() {
 
   // Workflow states
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [cvToDelete, setCvToDelete] = useState<Cv | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CreateForm>({
@@ -404,19 +407,28 @@ function DashboardPageContent() {
   };
 
   // Handle Delete CV
-  const onDelete = async (cvId: string, event: React.MouseEvent) => {
+  const onDelete = (cvId: string, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!confirm(t.dashboard.deleteConfirm)) {
-      return;
+    const cv = cvs.find((c) => c.id === cvId);
+    if (cv) {
+      setCvToDelete(cv);
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!cvToDelete) return;
+    setDeleteLoading(true);
     try {
-      await apiFetch(`/cvs/${cvId}`, {
+      await apiFetch(`/cvs/${cvToDelete.id}`, {
         method: "DELETE"
       });
-      setCvs((prev) => prev.filter((cv) => cv.id !== cvId));
+      setCvs((prev) => prev.filter((cv) => cv.id !== cvToDelete.id));
+      setCvToDelete(null);
     } catch (err) {
       alert(t.dashboard.deleteFailed + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -547,39 +559,31 @@ function DashboardPageContent() {
         onTabChange={setActiveTab}
         onUpgrade={() => setActiveTab("upgrade")}
         onProfile={() => setActiveTab("profile")}
+        onCreateCv={() => setActiveTab("templates")}
       />
 
-      <main className="flex-1 min-w-0 w-full min-h-screen pt-topnav-height px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
-        <header className="flex flex-wrap justify-end items-center gap-4 w-full mb-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab("templates")}
-            className="dash-btn-primary flex items-center gap-2 shrink-0"
-          >
-            <span className="material-symbols-outlined text-xl">add</span>
-            {t.dashboard.createBtn}
-          </button>
-        </header>
+      <main className="flex-1 min-w-0 w-full min-h-screen pt-[calc(4.25rem+2rem)] px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
 
-        {activeTab !== "templates" && (
-          <div className="mb-6">
-            <DashPageHero
-              title={tabMeta[activeTab].title}
-              subtitle={tabMeta[activeTab].subtitle}
-              accent={
-                activeTab === "upgrade"
-                  ? "amber"
-                  : activeTab === "settings"
-                    ? "teal"
-                    : activeTab === "profile"
+
+        <div className="mb-6">
+          <DashPageHero
+            title={tabMeta[activeTab].title}
+            subtitle={tabMeta[activeTab].subtitle}
+            accent={
+              activeTab === "upgrade"
+                ? "amber"
+                : activeTab === "settings"
+                  ? "teal"
+                  : activeTab === "profile"
+                    ? "violet"
+                    : activeTab === "resumes"
                       ? "violet"
-                      : activeTab === "resumes"
-                        ? "violet"
+                      : activeTab === "templates"
+                        ? "teal"
                         : "blue"
-              }
-            />
-          </div>
-        )}
+            }
+          />
+        </div>
 
         {activeTab === "dashboard" && (
           <DashboardOverviewTab
@@ -661,6 +665,14 @@ function DashboardPageContent() {
         onClose={() => { setIsWorkflowModalOpen(false); setLoading(false); }}
         onStartFromScratch={handleStartFromScratch}
         onUploadAndParse={handleUploadAndParse}
+      />
+
+      <DeleteCvConfirmModal
+        open={!!cvToDelete}
+        cvTitle={cvToDelete?.title || ""}
+        loading={deleteLoading}
+        onClose={() => setCvToDelete(null)}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

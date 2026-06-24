@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Req,
@@ -14,7 +15,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { CvService } from './cv.service';
 import { ThumbnailService } from './thumbnail.service';
-import { CvCreateDto, CvUpdateDto } from './dto/cv.dto';
+import { CvCreateDto, CvUpdateDto, CvVersionRenameDto } from './dto/cv.dto';
 import { CvSectionUpsertDto } from './dto/section.dto';
 import { CurrentUser, JwtPayload, LogAudit } from '../../core/decorators';
 
@@ -124,6 +125,48 @@ export class CvController {
   @Get(':id/versions')
   async versions(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.cvService.listVersions(user.sub, id);
+  }
+
+  @Post(':id/versions')
+  @LogAudit({
+    action: 'Manual version created',
+    resourceType: 'Cv',
+    eventType: 'CV_UPDATED',
+  })
+  async createManualVersion(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.cvService.createManualVersion(user.sub, id);
+  }
+
+  @Patch(':id/versions/:versionId')
+  @LogAudit({
+    action: 'CV version renamed',
+    resourceType: 'CvVersion',
+    eventType: 'CV_UPDATED',
+  })
+  async renameVersion(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @Body() dto: CvVersionRenameDto,
+  ) {
+    return this.cvService.renameVersion(user.sub, id, versionId, dto.title);
+  }
+
+  @Delete(':id/versions/:versionId')
+  @LogAudit({
+    action: 'CV version deleted',
+    resourceType: 'CvVersion',
+    eventType: 'CV_UPDATED',
+  })
+  async deleteVersion(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.cvService.deleteVersion(user.sub, id, versionId);
   }
 
   @Get(':id/ats-history')

@@ -29,3 +29,8 @@ export class CvUpdateDto {
   @IsInt()
   version?: number;
 }
+
+export class CvVersionRenameDto {
+  @IsString()
+  title!: string;
+}

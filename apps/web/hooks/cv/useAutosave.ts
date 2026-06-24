@@ -13,6 +13,10 @@ export function useAutosave() {
   }, []);
 
   const triggerAutosave = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const enabled = localStorage.getItem("acv-auto-save") !== "false";
+      if (!enabled) return;
+    }
     const key = "autosave";
     if (saveTimersRef.current[key]) {
       clearTimeout(saveTimersRef.current[key]);
@@ -20,7 +24,7 @@ export function useAutosave() {
     saveTimersRef.current[key] = setTimeout(() => {
       syncDirtyChanges();
       delete saveTimersRef.current[key];
-    }, 1000);
+    }, 60000);
   }, [syncDirtyChanges]);
 
   return {

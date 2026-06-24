@@ -44,7 +44,7 @@ export default function CvEditorPage() {
   const lastHtmlRef = useRef<string>("");
 
   const { accessToken, user, hydrate } = useAuthStore();
-  const { loadCv } = useCvStore();
+  const { loadCv, isDirty, syncDirtyChanges } = useCvStore();
 
   const [activeTab, setActiveTab] = useState<string>("profile");
   const [showHistory, setShowHistory] = useState<boolean>(false);
@@ -55,6 +55,10 @@ export default function CvEditorPage() {
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<"PRO" | "PREMIUM" | null>(null);
+
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
+  const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
+  const [versionUpdateTrigger, setVersionUpdateTrigger] = useState<number>(0);
 
   // 1. Hook quản lý Autosave
   const { triggerAutosave } = useAutosave();
@@ -101,7 +105,30 @@ export default function CvEditorPage() {
   useEffect(() => {
     hydrate();
     setMounted(true);
+    if (typeof window !== "undefined") {
+      const savedAutoSave = localStorage.getItem("acv-auto-save");
+      if (savedAutoSave !== null) {
+        setAutoSaveEnabled(savedAutoSave === "true");
+      }
+    }
   }, [hydrate]);
+
+  const handleManualSave = async () => {
+    setIsSavingManual(true);
+    try {
+      if (isDirty) {
+        await syncDirtyChanges();
+      }
+      await apiFetch(`/cvs/${cvId}/versions`, { method: "POST" });
+      setVersionUpdateTrigger((prev) => prev + 1);
+      alert(language === "vi" ? "Lưu bản sao thành công!" : "Saved version copy successfully!");
+    } catch (err) {
+      console.error("Failed to save manually:", err);
+      alert(language === "vi" ? "Lỗi lưu bản sao!" : "Failed to save copy!");
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
 
   useEffect(() => {
     if (mounted && !accessToken) {
@@ -287,7 +314,33 @@ export default function CvEditorPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <AutosaveIndicator />
+          {autoSaveEnabled ? (
+            <AutosaveIndicator />
+          ) : (
+            <button
+              onClick={handleManualSave}
+              disabled={isSavingManual}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-slate-700/80 transition-all ${
+                isDirty
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500/50 shadow-lg shadow-emerald-500/10"
+                  : "bg-slate-900 text-slate-500 hover:bg-slate-850 border-slate-800/80"
+              }`}
+            >
+              {isSavingManual ? (
+                <>
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  {language === "vi" ? "Đang lưu..." : "Saving..."}
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8l-4-4H8zm0 0v4h6V4H8zm-2 9h12v5H6v-5z" />
+                  </svg>
+                  {language === "vi" ? "Lưu bản sao" : "Save Copy"}
+                </>
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setShowHistory(!showHistory)}
@@ -541,6 +594,7 @@ export default function CvEditorPage() {
             cvVersionNum={editor.cv.version}
             cvLocale={editor.cv.locale}
             loadCv={loadCv}
+            versionUpdateTrigger={versionUpdateTrigger}
           />
         </div>
       </div>
