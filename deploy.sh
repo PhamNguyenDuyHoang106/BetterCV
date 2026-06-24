@@ -13,7 +13,7 @@ fi
 export DOMAIN
 
 EMAIL=${EMAIL:-"admin@${DOMAIN}"}
-COMPOSE="docker compose --env-file .env -f infrastructure/docker/docker-compose.prod.yml"
+COMPOSE="docker compose --env-file $(pwd)/.env -f infrastructure/docker/docker-compose.prod.yml"
 
 echo ""
 echo "════════════════════════════════════════════════════"
