@@ -10,9 +10,10 @@ if [ -z "$DOMAIN" ]; then
   echo "❌ Thiếu biến DOMAIN. Chạy: DOMAIN=yourdomain.com bash deploy.sh"
   exit 1
 fi
+export DOMAIN
 
 EMAIL=${EMAIL:-"admin@${DOMAIN}"}
-COMPOSE="docker compose -f infrastructure/docker/docker-compose.prod.yml"
+COMPOSE="docker compose --env-file .env -f infrastructure/docker/docker-compose.prod.yml"
 
 echo ""
 echo "════════════════════════════════════════════════════"
