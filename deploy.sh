@@ -67,7 +67,7 @@ $COMPOSE ps
 # ── 5. Lấy SSL Certificate từ Let's Encrypt ─────────────────────────────────
 echo ""
 echo "🔐 Lấy SSL certificate từ Let's Encrypt..."
-$COMPOSE run --rm certbot certonly \
+$COMPOSE run --rm --entrypoint certbot certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
   --email "$EMAIL" \
