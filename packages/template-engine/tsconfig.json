@@ -6,8 +6,8 @@
     "outDir": "dist",
     "declaration": true,
     "paths": {
-      "@acv/shared": ["../shared/src"],
-      "@acv/shared/*": ["../shared/src/*"]
+      "@acv/shared": ["../shared/dist"],
+      "@acv/shared/*": ["../shared/dist/*"]
     }
   },
   "include": ["src"]
