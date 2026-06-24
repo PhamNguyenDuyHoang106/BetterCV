@@ -96,11 +96,11 @@ export class CvService {
 
     this.autoEnqueueThumbnailIfNeeded(cv);
 
-    if (
-      !cv.templateSnapshot &&
-      (cv.templateVersionId || cv.templateId)
-    ) {
-      const resolvedSnapshot = await resolveTemplateSchemaForCv(this.prisma, cv);
+    if (!cv.templateSnapshot && (cv.templateVersionId || cv.templateId)) {
+      const resolvedSnapshot = await resolveTemplateSchemaForCv(
+        this.prisma,
+        cv,
+      );
       if (resolvedSnapshot) {
         await this.prisma.cv.update({
           where: { id },
@@ -165,7 +165,10 @@ export class CvService {
 
     let templateVersionId = existing.templateVersionId;
     let templateVersionNum = existing.templateVersionNum;
-    let templateSnapshot: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined =
+    let templateSnapshot:
+      | Prisma.InputJsonValue
+      | typeof Prisma.JsonNull
+      | undefined =
       (existing.templateSnapshot as Prisma.InputJsonValue | null) ?? undefined;
     if (
       dto.templateId !== undefined &&

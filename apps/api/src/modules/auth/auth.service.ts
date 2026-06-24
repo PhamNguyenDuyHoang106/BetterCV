@@ -66,12 +66,16 @@ export class AuthService {
       if (fullName && fullName !== user.fullName) {
         updateData.fullName = fullName;
       }
-      
+
       if (!user.avatarUrl) {
         updateData.avatarUrl = finalAvatar;
       } else if (avatarUrl && avatarUrl !== user.avatarUrl) {
         updateData.avatarUrl = avatarUrl;
-      } else if (fullName && fullName !== user.fullName && user.avatarUrl.includes('ui-avatars.com')) {
+      } else if (
+        fullName &&
+        fullName !== user.fullName &&
+        user.avatarUrl.includes('ui-avatars.com')
+      ) {
         updateData.avatarUrl = generateDefaultAvatar(fullName, email);
       }
 
@@ -106,7 +110,7 @@ export class AuthService {
     avatarUrl?: string | null;
   }) {
     const supabaseId = userPayload.sub;
-    let user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { supabaseId },
       select: {
         id: true,
@@ -151,7 +155,9 @@ export class AuthService {
 
     // Auto-populate avatar if missing
     if (!user.avatarUrl) {
-      const generatedAvatar = userPayload.avatarUrl || generateDefaultAvatar(user.fullName, user.email);
+      const generatedAvatar =
+        userPayload.avatarUrl ||
+        generateDefaultAvatar(user.fullName, user.email);
       const updatedUser = await this.prisma.user.update({
         where: { id: user.id },
         data: { avatarUrl: generatedAvatar },

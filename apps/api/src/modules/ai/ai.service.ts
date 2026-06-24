@@ -506,12 +506,12 @@ export class AiService {
       (user.role === 'ADMIN'
         ? 10000000
         : user.role === 'PREMIUM'
-        ? 2000000
-        : user.role === 'PRO'
-        ? 1000000
-        : user.role === 'FREE'
-        ? 500000
-        : 0);
+          ? 2000000
+          : user.role === 'PRO'
+            ? 1000000
+            : user.role === 'FREE'
+              ? 500000
+              : 0);
 
     const periodStart = new Date();
     periodStart.setUTCDate(1);
@@ -842,7 +842,10 @@ Output Rules:
 - Return ONLY the final bullet points. No JSON, no markdown code blocks, no introductory text, no notes.`;
   }
 
-  private buildExperienceUserPrompt(dto: AiRewriteDto, locale: 'en' | 'vi'): string {
+  private buildExperienceUserPrompt(
+    dto: AiRewriteDto,
+    locale: 'en' | 'vi',
+  ): string {
     const content = dto.content as any;
     const ctx = dto.resumeContext as any;
 
