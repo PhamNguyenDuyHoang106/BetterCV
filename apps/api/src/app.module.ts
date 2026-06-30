@@ -19,6 +19,7 @@ import { AppController } from './app.controller';
 import { CoreModule } from './core/core.module';
 import { LoggerModule } from './core/logger/logger.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { CareerModule } from './modules/career/career.module';
 
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
@@ -33,9 +34,12 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { BullBoardAuthMiddleware } from './core/middleware/bull-board-auth.middleware';
 import { RequestContextMiddleware } from './core/middleware/request-context.middleware';
 
+import { EventEmitterModule } from '@nestjs/event-emitter';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    EventEmitterModule.forRoot(),
     LoggerModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
@@ -52,6 +56,11 @@ import { RequestContextMiddleware } from './core/middleware/request-context.midd
             name: 'ats',
             ttl: 60000,
             limit: 5,
+          },
+          {
+            name: 'coach',
+            ttl: 60000,
+            limit: 10,
           },
         ],
         storage: redisService.getClient()
@@ -78,6 +87,10 @@ import { RequestContextMiddleware } from './core/middleware/request-context.midd
       name: 'thumbnail-queue',
       adapter: BullMQAdapter,
     }),
+    BullBoardModule.forFeature({
+      name: 'career-queue',
+      adapter: BullMQAdapter,
+    }),
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -91,6 +104,7 @@ import { RequestContextMiddleware } from './core/middleware/request-context.midd
     ShareModule,
     AtsModule,
     OcrModule,
+    CareerModule,
     CoreModule,
     AuditModule,
   ],

@@ -6,9 +6,16 @@ export type PromptPayload = {
   input: unknown;
 };
 
+export type TokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
 export type AiResponseEnvelope = {
   output: any;
   tokens: number;
+  usage?: TokenUsage;
 };
 
 export interface AiProvider {
@@ -30,7 +37,7 @@ export interface AiProvider {
     payload: PromptPayload,
     res: Response,
     temperature?: number,
-  ): Promise<{ text: string; tokens: number }>;
+  ): Promise<{ text: string; tokens: number; usage?: TokenUsage }>;
 
   /**
    * Performs vision-based OCR extraction from an image buffer.

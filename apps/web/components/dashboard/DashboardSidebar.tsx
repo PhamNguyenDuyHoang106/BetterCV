@@ -10,6 +10,7 @@ import { LanguageDropdown } from "../LanguageDropdown";
 export type DashboardTab =
   | "dashboard"
   | "resumes"
+  | "career"
   | "templates"
   | "upgrade"
   | "settings"
@@ -26,6 +27,7 @@ type NavItem = {
 const NAV: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "dashboard", accent: "nav-accent-blue", iconBg: "from-emerald-500 to-primary-dark" },
   { id: "resumes", label: "My Resume", icon: "description", accent: "nav-accent-violet", iconBg: "from-violet-500 to-emerald-700" },
+  { id: "career", label: "Career Path", icon: "explore", accent: "nav-accent-teal", iconBg: "from-teal-500 to-emerald-700" },
   { id: "templates", label: "Template", icon: "dashboard_customize", accent: "nav-accent-teal", iconBg: "from-teal-500 to-primary-darker" },
   { id: "upgrade", label: "Nâng cấp", icon: "workspace_premium", accent: "nav-accent-amber", iconBg: "from-amber-400 to-orange-500" },
   { id: "settings", label: "Cài đặt", icon: "settings", accent: "nav-accent-slate", iconBg: "from-slate-500 to-slate-600" },
@@ -72,6 +74,7 @@ export function DashboardSidebar({
   const navLabelMap: Record<DashboardTab, string> = {
     dashboard: t.dashboard.title,
     resumes: t.dashboard.tabMyCvs,
+    career: t.career.tabTitle,
     templates: t.dashboard.tabTemplates,
     upgrade: t.dashboard.tabUpgrade,
     settings: t.dashboard.tabSettings,

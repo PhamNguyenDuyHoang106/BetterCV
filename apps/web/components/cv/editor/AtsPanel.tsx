@@ -12,6 +12,7 @@ type Recommendation = {
 };
 
 type AtsReport = {
+  id?: string;
   score: number;
   rulesEvaluated: Array<{
     ruleName: string;
@@ -34,6 +35,28 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
   const [atsReport, setAtsReport] = useState<AtsReport | null>(null);
   const [isAnalyzingAts, setIsAnalyzingAts] = useState<boolean>(false);
 
+  // Career Roadmap states
+  const [showRoadmapForm, setShowRoadmapForm] = useState(false);
+  const [currentRole, setCurrentRole] = useState("");
+  const [targetRole, setTargetRole] = useState("");
+  const [isCreatingRoadmap, setIsCreatingRoadmap] = useState(false);
+
+  const fetchCvProfile = async () => {
+    try {
+      const res = await apiFetch<any>(`/cvs/${cvId}`);
+      const cv = res?.data || res;
+      const profileSec = cv.sections?.find((s: any) => s.type === "PROFILE");
+      if (profileSec && profileSec.content?.title) {
+        setCurrentRole(profileSec.content.title);
+      } else {
+        setCurrentRole(language === "vi" ? "Lập trình viên" : "Software Engineer");
+      }
+    } catch (err) {
+      console.warn("Failed to fetch CV profile:", err);
+      setCurrentRole(language === "vi" ? "Lập trình viên" : "Software Engineer");
+    }
+  };
+
   const runAtsAnalysis = async () => {
     if (!jobDescription.trim()) {
       alert(
@@ -55,11 +78,45 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       });
       const report = res?.data?.data || res?.data || res;
       setAtsReport(report);
+
+      // Auto-extract target role from JD first line
+      const firstLine = jobDescription.split("\n")[0].trim();
+      const extractedTitle = firstLine.length > 80 ? firstLine.slice(0, 80) + "..." : firstLine;
+      setTargetRole(extractedTitle || (language === "vi" ? "Lập trình viên" : "Software Engineer"));
     } catch (err) {
       console.error("ATS Error:", err);
       alert(t.editor.ats.scanFailed);
     } finally {
       setIsAnalyzingAts(false);
+    }
+  };
+
+  const handleCreateRoadmap = async () => {
+    if (!currentRole.trim() || !targetRole.trim()) {
+      alert(language === "vi" ? "Vui lòng điền đầy đủ thông tin." : "Please fill in all fields.");
+      return;
+    }
+    setIsCreatingRoadmap(true);
+    try {
+      const res = await apiFetch<any>("/career/roadmap", {
+        method: "POST",
+        body: JSON.stringify({
+          atsScanId: atsReport?.id,
+          currentRole,
+          targetRole,
+        }),
+      });
+      const data = res?.data || res;
+      if (data.success && data.roadmapId) {
+        window.location.href = `/dashboard?tab=career&roadmapId=${data.roadmapId}`;
+      } else {
+        alert(language === "vi" ? "Không thể tạo lộ trình. Vui lòng thử lại." : "Failed to create roadmap.");
+      }
+    } catch (err: any) {
+      console.error("Roadmap error:", err);
+      alert(err.message || "Failed to create career roadmap.");
+    } finally {
+      setIsCreatingRoadmap(false);
     }
   };
 
@@ -194,6 +251,93 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
               ))}
             </ul>
           </div>
+
+          {/* AI Career Growth Explorer Card */}
+          {atsReport.id && (
+            <div className="rounded-xl border border-indigo-500/20 bg-gradient-to-br from-slate-900/90 to-indigo-950/40 p-4 space-y-4 shadow-md border-t pt-4">
+              <div className="flex items-start gap-3 text-left">
+                <span className="material-symbols-outlined text-indigo-400 text-[24px]">rocket_launch</span>
+                <div className="space-y-1">
+                  <h5 className="font-bold text-xs text-white leading-none">
+                    {language === "vi" ? "🚀 Lộ trình Sự nghiệp AI" : "🚀 AI Career Growth Explorer"}
+                  </h5>
+                  <p className="text-[10px] leading-relaxed text-slate-300">
+                    {language === "vi"
+                      ? "Tạo lộ trình học tập cá nhân hóa từ các từ khóa còn thiếu để cải thiện tối đa điểm tương thích ATS của bạn."
+                      : "Generate a personalized learning path from missing keywords to maximize your ATS match score."}
+                  </p>
+                </div>
+              </div>
+
+              {!showRoadmapForm ? (
+                <button
+                  onClick={() => {
+                    fetchCvProfile();
+                    setShowRoadmapForm(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 py-2 text-xs font-bold text-white border-none transition-all"
+                >
+                  <span className="material-symbols-outlined text-sm">explore</span>
+                  {language === "vi" ? "Thiết lập lộ trình học tập" : "Configure study roadmap"}
+                </button>
+              ) : (
+                <div className="space-y-3 pt-2 border-t border-slate-800 animate-in fade-in duration-200 text-left">
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        {language === "vi" ? "Chức danh hiện tại" : "Current Title"}
+                      </label>
+                      <input
+                        type="text"
+                        value={currentRole}
+                        onChange={(e) => setCurrentRole(e.target.value)}
+                        placeholder="e.g. Junior Developer"
+                        className="w-full rounded-md bg-slate-900 border border-slate-850 px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:border-indigo-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                        {language === "vi" ? "Vị trí mong muốn" : "Target Title"}
+                      </label>
+                      <input
+                        type="text"
+                        value={targetRole}
+                        onChange={(e) => setTargetRole(e.target.value)}
+                        placeholder="e.g. Senior Backend Engineer"
+                        className="w-full rounded-md bg-slate-900 border border-slate-850 px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:border-indigo-500 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowRoadmapForm(false)}
+                      className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 py-2 text-xs font-bold text-slate-300 border-none transition-all"
+                    >
+                      {language === "vi" ? "Hủy" : "Cancel"}
+                    </button>
+                    <button
+                      onClick={handleCreateRoadmap}
+                      disabled={isCreatingRoadmap}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 py-2 text-xs font-bold text-white border-none transition-all disabled:opacity-50"
+                    >
+                      {isCreatingRoadmap ? (
+                        <>
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                          {language === "vi" ? "Đang tạo..." : "Creating..."}
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-sm">construction</span>
+                          {language === "vi" ? "Bắt đầu tạo" : "Generate Now"}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-3 border-t border-slate-800 pt-4">
             <h5 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">

@@ -155,6 +155,7 @@ export class AtsService {
       return {
         success: true,
         data: {
+          id: existingScan.id,
           cvId,
           score: existingScan.overallScore,
           rulesEvaluated: [
@@ -335,12 +336,12 @@ ${cleanedJd}`;
     }
 
     // 5. Persist ATS Scan history to database
-    await this.prisma.$transaction(
+    const createdScan = await this.prisma.$transaction(
       async (tx) => {
         // Row-lock the parent Cv record using SELECT FOR UPDATE
         await tx.$executeRaw`SELECT * FROM "Cv" WHERE "id" = ${cvId} FOR UPDATE;`;
 
-        await tx.atsScan.create({
+        const scan = await tx.atsScan.create({
           data: {
             cvId,
             jobTitle,
@@ -382,6 +383,8 @@ ${cleanedJd}`;
             where: { id: { in: idsToDelete } },
           });
         }
+
+        return scan;
       },
       {
         timeout: 30000,
@@ -391,6 +394,7 @@ ${cleanedJd}`;
     return {
       success: !isDegraded,
       data: {
+        id: createdScan.id,
         cvId,
         score: finalScore,
         rulesEvaluated: [

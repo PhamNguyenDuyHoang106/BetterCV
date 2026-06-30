@@ -30,6 +30,7 @@ export const en = {
   resumes: dashboard.resumes,
   createCvModal: dashboard.createCvModal,
   initializeCvModal: dashboard.initializeCvModal,
+  career: dashboard.career,
   editor,
   validation,
   toast,

@@ -5,6 +5,7 @@ import {
   AiProvider,
   PromptPayload,
   AiResponseEnvelope,
+  TokenUsage,
 } from './ai-provider.interface';
 
 @Injectable()
@@ -43,15 +44,20 @@ export class OpenAiProvider implements AiProvider {
     const json = (await result.json()) as any;
     const content = json.choices?.[0]?.message?.content ?? '{}';
     const tokens = json.usage?.total_tokens ?? 0;
+    const usage: TokenUsage = {
+      promptTokens: json.usage?.prompt_tokens ?? 0,
+      completionTokens: json.usage?.completion_tokens ?? 0,
+      totalTokens: tokens,
+    };
 
-    return { output: this.safeJsonParse(content), tokens };
+    return { output: this.safeJsonParse(content), tokens, usage };
   }
 
   async stream(
     payload: PromptPayload,
     res: Response,
     temperature = 0.4,
-  ): Promise<{ text: string; tokens: number }> {
+  ): Promise<{ text: string; tokens: number; usage?: TokenUsage }> {
     const { baseUrl, apiKey } = this.getAiConfig();
     const body = this.buildChatBody(payload, true, temperature);
 
@@ -76,6 +82,8 @@ export class OpenAiProvider implements AiProvider {
     let buffer = '';
     let fullText = '';
     let totalTokens = 0;
+    let promptTokens = 0;
+    let completionTokens = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -98,6 +106,8 @@ export class OpenAiProvider implements AiProvider {
           }
           if (parsed.usage?.total_tokens) {
             totalTokens = parsed.usage.total_tokens;
+            promptTokens = parsed.usage.prompt_tokens ?? 0;
+            completionTokens = parsed.usage.completion_tokens ?? 0;
           }
         } catch {
           continue;
@@ -105,7 +115,12 @@ export class OpenAiProvider implements AiProvider {
       }
     }
 
-    return { text: fullText, tokens: totalTokens || 0 };
+    const usage: TokenUsage = {
+      promptTokens,
+      completionTokens,
+      totalTokens: totalTokens || 0,
+    };
+    return { text: fullText, tokens: totalTokens || 0, usage };
   }
 
   async visionOCR(
@@ -157,8 +172,13 @@ export class OpenAiProvider implements AiProvider {
     const json = (await result.json()) as any;
     const content = json.choices?.[0]?.message?.content ?? '{}';
     const tokens = json.usage?.total_tokens ?? 0;
+    const usage: TokenUsage = {
+      promptTokens: json.usage?.prompt_tokens ?? 0,
+      completionTokens: json.usage?.completion_tokens ?? 0,
+      totalTokens: tokens,
+    };
 
-    return { output: this.safeJsonParse(content), tokens };
+    return { output: this.safeJsonParse(content), tokens, usage };
   }
 
   private getAiConfig() {

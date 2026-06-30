@@ -17,6 +17,7 @@ import { DashboardResumesTab } from "../../components/dashboard/views/DashboardR
 import { DashboardUpgradeTab } from "../../components/dashboard/views/DashboardUpgradeTab";
 import { DashboardSettingsTab } from "../../components/dashboard/views/DashboardSettingsTab";
 import { DashboardProfileTab } from "../../components/dashboard/views/DashboardProfileTab";
+import { DashboardCareerTab } from "../../components/dashboard/career/DashboardCareerTab";
 import { FALLBACK_TEMPLATES, getTemplateDisplayMeta } from "../../lib/dashboard-templates";
 import { syncSessionToApp } from "../../lib/auth-session";
 import { useLanguageStore } from "../../lib/store/language";
@@ -107,6 +108,13 @@ function DashboardPageContent() {
       router.replace("/");
     }
   }, [mounted, accessToken, router]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "career") {
+      setActiveTab("career");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const paid = searchParams.get("paid");
@@ -379,6 +387,10 @@ function DashboardPageContent() {
       title: t.dashboard.tabMyCvs,
       subtitle: t.dashboard.myCvsSub,
     },
+    career: {
+      title: t.career.tabTitle,
+      subtitle: t.career.tabSubtitle,
+    },
     templates: {
       title: t.dashboard.tabTemplates,
       subtitle: t.dashboard.templatesSub,
@@ -603,6 +615,13 @@ function DashboardPageContent() {
         {activeTab === "upgrade" && <DashboardUpgradeTab />}
 
         {activeTab === "settings" && <DashboardSettingsTab />}
+
+        {activeTab === "career" && (
+          <DashboardCareerTab
+            t={t.career}
+            formatDate={formatDate}
+          />
+        )}
 
         {activeTab === "profile" && (
           <DashboardProfileTab

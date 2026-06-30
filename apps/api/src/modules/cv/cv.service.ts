@@ -13,12 +13,15 @@ import { migrateCvData } from './migrations';
 import { ThumbnailService } from './thumbnail.service';
 import { AuditLogService } from '../audit/audit.service';
 
+import { EventEmitter2 } from '@nestjs/event-emitter';
+
 @Injectable()
 export class CvService {
   constructor(
     private prisma: PrismaService,
     private thumbnailService: ThumbnailService,
     private auditService: AuditLogService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async create(supabaseId: string, dto: CvCreateDto) {
@@ -211,6 +214,9 @@ export class CvService {
       requestId,
     );
 
+    // Invalidate career coach personalization cache on CV update (Phase 5B event-driven)
+    this.eventEmitter.emit('cv.updated', { userId });
+
     return cv;
   }
 
@@ -328,6 +334,9 @@ export class CvService {
       result.updatedCv.version,
       requestId,
     );
+
+    // Invalidate career coach personalization cache on CV update (Phase 5B event-driven)
+    this.eventEmitter.emit('cv.updated', { userId });
 
     return result.section;
   }
@@ -450,6 +459,9 @@ export class CvService {
       result.version,
       requestId,
     );
+
+    // Invalidate career coach personalization cache on CV update (Phase 5B event-driven)
+    this.eventEmitter.emit('cv.updated', { userId });
 
     return result;
   }

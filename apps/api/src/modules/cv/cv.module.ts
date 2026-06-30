@@ -7,9 +7,11 @@ import { ThumbnailService } from './thumbnail.service';
 import { ThumbnailProcessor } from './thumbnail.processor';
 import { ThumbnailCleanupProcessor } from './thumbnail-cleanup.processor';
 import { ThumbnailGcTask } from './thumbnail-gc.task';
+import { CareerModule } from '../career/career.module';
 
 @Module({
   imports: [
+    CareerModule,
     BullModule.registerQueue({
       name: 'thumbnail-queue',
     }),

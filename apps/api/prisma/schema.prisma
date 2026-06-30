@@ -28,6 +28,9 @@ model User {
   subscriptions    Subscription[]
   usageQuota       UsageQuota?
   payosTransactions PayosTransaction[]
+  careerRoadmaps   CareerRoadmap[]
+  coachSessions    CareerCoachSession[]
+  aiUsageLogs      AiUsageLog[]
 
   @@index([email])
   @@index([supabaseId])
@@ -208,6 +211,7 @@ model AtsScan {
   missingKeywords    Json?
   recommendations    Json?
   createdAt          DateTime @default(now())
+  careerRoadmaps     CareerRoadmap[]
 
   @@index([cvId, createdAt(sort: Desc)])
   @@index([cvId, contentHash])
@@ -354,6 +358,9 @@ enum CvSectionType {
   EDUCATION
   SKILLS
   PROJECTS
+  LANGUAGES
+  CERTIFICATIONS
+  AWARDS
 }
 
 enum AiRequestStatus {
@@ -416,3 +423,220 @@ model AuditLog {
   @@index([resourceType, resourceId])
   @@index([createdAt])
 }
+
+enum SkillCategory {
+  BACKEND
+  FRONTEND
+  DEVOPS
+  CLOUD
+  DATABASE
+  MOBILE
+  AI_ML
+  SOFT_SKILL
+}
+
+enum SkillDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model Skill {
+  id             String            @id @default(cuid())
+  name           String            @unique // VD: "Docker", "AWS", "Kubernetes"
+  category       SkillCategory
+  difficulty     SkillDifficulty   @default(BEGINNER)
+  estimatedWeeks Int               @default(2)
+  createdAt      DateTime          @default(now())
+
+  dependencies   SkillDependency[] @relation("DependentSkills")
+  neededFor      SkillDependency[] @relation("RequiredSkills")
+  courses        Course[]
+  phaseSkills    RoadmapPhaseSkill[]
+  skillGaps      CareerSkillGap[]
+}
+
+model SkillDependency {
+  id             String   @id @default(cuid())
+  skillId        String
+  dependsOnId    String
+  createdAt      DateTime @default(now())
+
+  skill          Skill    @relation("DependentSkills", fields: [skillId], references: [id], onDelete: Cascade)
+  dependsOn      Skill    @relation("RequiredSkills", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, dependsOnId])
+}
+
+model Course {
+  id          String      @id @default(cuid())
+  title       String
+  provider    String      // "YouTube", "FreeCodeCamp", "Internal"
+  url         String
+  skillId     String      // Hard relation với Skill.id
+  level       CourseLevel @default(BEGINNER)
+  durationMin Int?        // thời lượng tính bằng phút
+  language    String      @default("en")
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  skill       Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+  @@index([provider, skillId])
+}
+
+model CareerRoadmap {
+  id              String           @id @default(cuid())
+  userId          String
+  atsScanId       String?
+  currentRole     String
+  targetRole      String
+  estimatedMonths Float
+  explanation     String?          @db.Text
+  status          RoadmapStatus    @default(GENERATING)
+  progress        Int              @default(0) // Tiến trình tạo (%)
+  failureReason   String?          // Lý do thất bại (OpenAI timeout, quota exceeded, etc.)
+  failedAt        DateTime?        // Thời điểm ghi nhận lỗi (hữu ích khi debug production)
+  version         Int              @default(1)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  atsScan         AtsScan?         @relation(fields: [atsScanId], references: [id], onDelete: SetNull)
+  phases          RoadmapPhase[]
+  skillGaps       CareerSkillGap[]
+  coachSessions   CareerCoachSession[]
+
+  @@index([userId])
+}
+
+model RoadmapPhase {
+  id         String              @id @default(cuid())
+  roadmapId  String
+  phaseIndex Int                 // Thứ tự phase (0, 1, 2...)
+  phaseName  String              // Tên phase tự động ("Phase 1: Foundation", "Phase 2: Cloud"...)
+  
+  roadmap    CareerRoadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  skills     RoadmapPhaseSkill[]
+}
+
+model RoadmapPhaseSkill {
+  id        String       @id @default(cuid())
+  phaseId   String
+  skillId   String
+  order     Int          // Thứ tự học của skill trong phase này
+  
+  phase     RoadmapPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  skill     Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([phaseId, skillId])
+  @@index([phaseId])
+  @@index([skillId])
+}
+
+model CareerSkillGap {
+  id              String        @id @default(cuid())
+  roadmapId       String
+  skillId         String
+  priority        Int           // 1 (Highest), 2, 3...
+  estimatedImpact Int           // Dự tính điểm cộng ATS (+5 cho Required, +2 cho Preferred, +1 cho Bonus)
+  
+  roadmap         CareerRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  skill           Skill         @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([roadmapId])
+  @@index([skillId])
+}
+
+enum RoadmapStatus {
+  GENERATING
+  READY
+  FAILED
+  CANCELLED
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CareerCoachRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model CareerCoachSession {
+  id            String   @id @default(cuid())
+  roadmapId     String
+  userId        String
+  title         String   @default("General Career Coaching")
+  archived      Boolean  @default(false)
+  messageCount  Int      @default(0)
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  roadmap       CareerRoadmap        @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      CareerCoachMessage[]
+
+  @@index([roadmapId])
+  @@index([userId])
+  @@index([roadmapId, archived])
+  @@index([lastMessageAt])
+}
+
+model CareerCoachMessage {
+  id        String          @id @default(cuid())
+  sessionId String
+  role      CareerCoachRole
+  content   String          @db.Text
+  createdAt DateTime        @default(now())
+
+  session   CareerCoachSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+}
+
+enum AiFeature {
+  CAREER_COACH
+  ATS_REVIEW
+  CV_REWRITE
+  OCR
+  SKILL_SUGGESTION
+  GITHUB_ANALYSIS
+}
+
+enum AiProvider {
+  OPENAI
+  GEMINI
+  CLAUDE
+}
+
+model AiUsageLog {
+  id               String     @id @default(cuid())
+  userId           String?
+  feature          AiFeature
+  provider         AiProvider
+  model            String
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  estimatedCostUsd Decimal    @db.Decimal(14, 8)
+  requestId        String?
+  success          Boolean
+  createdAt        DateTime   @default(now())
+
+  user             User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([feature])
+  @@index([requestId])
+  @@index([createdAt])
+}
+
+

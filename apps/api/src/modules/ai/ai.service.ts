@@ -3,9 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { AiGenerateDto, AiRewriteDto, AiScoreDto } from './dto/ai.dto';
 import { Response } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, AiFeature } from '@prisma/client';
 import { AiProvider, PromptPayload } from './providers/ai-provider.interface';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AiUsageService } from './ai-usage.service';
 
 @Injectable()
 export class AiService {
@@ -15,6 +16,7 @@ export class AiService {
     private prisma: PrismaService,
     private config: ConfigService,
     @Inject('AiProvider') private aiProvider: AiProvider,
+    private aiUsageService: AiUsageService,
   ) {}
 
   async generate(supabaseId: string, dto: AiGenerateDto) {
@@ -28,6 +30,7 @@ export class AiService {
         input: dto,
       },
       0.0,
+      AiFeature.CV_REWRITE,
     );
   }
 
@@ -58,6 +61,7 @@ export class AiService {
           input: dto,
         },
         0.5,
+        AiFeature.CV_REWRITE,
       );
 
       let cleanedOutput =
@@ -83,6 +87,7 @@ export class AiService {
         `cv_experience_${detectedLocale}`,
         { system: systemPrompt, user: userPrompt, input: dto },
         0.4,
+        AiFeature.CV_REWRITE,
       );
 
       let cleanedOutput =
@@ -108,6 +113,7 @@ export class AiService {
         input: dto,
       },
       0.4,
+      AiFeature.CV_REWRITE,
     );
 
     const cleanedOutput =
@@ -128,6 +134,7 @@ export class AiService {
         input: dto,
       },
       0.0,
+      AiFeature.ATS_REVIEW,
     );
   }
 
@@ -142,6 +149,7 @@ export class AiService {
         input: dto,
       },
       0.0,
+      AiFeature.ATS_REVIEW,
     );
   }
 
@@ -156,6 +164,105 @@ export class AiService {
         input: { jobDescription },
       },
       0.0,
+      AiFeature.ATS_REVIEW,
+    );
+  }
+
+  /**
+   * generateSkillBullet: Generates a single ATS-optimized resume bullet point
+   * demonstrating proficiency in a given skill for a target role.
+   * Non-streaming. Returns plain text (no JSON, no markdown).
+   */
+  async generateSkillBullet(params: {
+    supabaseId: string;
+    skillName: string;
+    skillCategory: string;
+    targetRole: string;
+    locale: string;
+  }): Promise<string> {
+    const { supabaseId, skillName, skillCategory, targetRole, locale } = params;
+    const isVi = locale === 'vi';
+
+    const systemPrompt = isVi
+      ? `Bạn là chuyên gia viết CV. Hãy tạo MỘT câu bullet point ngắn gọn, chuyên nghiệp, được tối ưu ATS cho CV.\nYêu cầu: Bắt đầu bằng động từ hành động mạnh (ví dụ: Triển khai, Xây dựng, Tối ưu hóa). Tối đa 2 dòng. Không dùng markdown. Chỉ trả về nội dung bullet, không thêm dấu gạch đầu dòng.`
+      : `You are a professional CV writer. Generate ONE concise, ATS-optimized resume bullet point.\nRequirements: Start with a strong action verb (e.g., Implemented, Developed, Optimized). Maximum 2 lines. No markdown. Return only the bullet text, no leading dash or bullet character.`;
+
+    const userPrompt = isVi
+      ? `Tạo một bullet point CV thể hiện thành thạo kỹ năng "${skillName}" (thuộc lĩnh vực ${skillCategory}) cho vai trò ${targetRole}.`
+      : `Generate a resume bullet point demonstrating proficiency in "${skillName}" (category: ${skillCategory}) for a ${targetRole} role.`;
+
+    const raw = await this.generateDirect(
+      supabaseId,
+      systemPrompt,
+      userPrompt,
+      { skillName, skillCategory, targetRole },
+      0.5,
+    );
+
+    // Normalize output to plain string
+    const text =
+      typeof raw === 'string'
+        ? raw
+        : (raw as any)?.text || (raw as any)?.raw || '';
+    return text.trim();
+  }
+
+  /**
+   * streamCoachChat: Streams conversational career coaching suggestions and guidance.
+   * Leverages streamPrompt to manage quota and handle network disconnection.
+   */
+  async streamCoachChat(params: {
+    supabaseId: string;
+    cvContext: string;
+    roadmapContext: string;
+    messages: Array<{ role: string; content: string }>;
+    locale: string;
+    res: Response;
+  }): Promise<string> {
+    const { supabaseId, cvContext, roadmapContext, messages, locale, res } =
+      params;
+    const isVi = locale === 'vi';
+
+    const systemPrompt = isVi
+      ? `Bạn là một AI Career Coach chuyên nghiệp và thân thiện của BetterCV. Nhiệm vụ của bạn là đồng hành và hỗ trợ người dùng hoàn thành Lộ trình Học tập (Roadmap) của họ.
+Dưới đây là thông tin chi tiết về CV hiện tại và Lộ trình của người dùng:
+${cvContext}
+${roadmapContext}
+
+Yêu cầu huấn luyện (QUY TẮC BẮT BUỘC):
+1. Chỉ cung cấp lời khuyên liên quan đến sự nghiệp, lộ trình học tập, tài liệu ôn thi/phỏng vấn, tối ưu CV và phát triển chuyên môn.
+2. Nếu thiếu thông tin cần thiết, hãy lịch sự hỏi người dùng thay vì tự bịa ra thông tin.
+3. Không tự ý khẳng định người dùng đã sở hữu bất cứ kỹ năng nào ngoài những kỹ năng đã được chỉ rõ trong CV Context.
+4. Luôn ưu tiên đưa ra đề xuất học tập theo thứ tự các phase trong Lộ trình.
+5. Không khuyến khích người dùng bỏ qua các kỹ năng cơ bản (prerequisites).
+6. Sử dụng định dạng Markdown (danh sách, bảng, in đậm) để cấu trúc câu trả lời đẹp mắt. Phản hồi bằng Tiếng Việt.`
+      : `You are an expert AI Career Coach from BetterCV. Your goal is to guide and encourage the user in mastering their Learning Roadmap.
+Here is the user's CV and Roadmap context:
+${cvContext}
+${roadmapContext}
+
+Strict Guardrails:
+1. Only provide advice concerning career growth, learning materials, interview preparation, CV polishing, and professional development.
+2. If necessary information is missing, ask the user instead of hallucinating.
+3. Do not claim the user possesses skills that are not explicitly listed in the CV context.
+4. Prioritize recommendations based on the current roadmap phases.
+5. Never recommend skipping prerequisite skills.
+6. Use clean Markdown styling (tables, bold lists) for readability. Always answer in English.`;
+
+    const lastUserMessage = messages[messages.length - 1]?.content || 'Hello';
+    const history = messages.slice(0, -1);
+
+    return this.streamPrompt(
+      supabaseId,
+      'career_coach_chat',
+      {
+        system: systemPrompt,
+        user: lastUserMessage,
+        input: { history },
+      },
+      res,
+      0.7,
+      AiFeature.CAREER_COACH,
     );
   }
 
@@ -192,6 +299,8 @@ export class AiService {
       },
     });
 
+    const modelName = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
+
     try {
       await this.prisma.aiRequest.update({
         where: { id: request.id },
@@ -222,10 +331,26 @@ export class AiService {
         request.id,
       );
 
+      this.aiUsageService.recordUsage({
+        userId,
+        feature: AiFeature.ATS_REVIEW,
+        model: modelName,
+        usage: response.usage,
+        success: true,
+      });
+
       return response.output;
     } catch (err: any) {
       await this.refundQuotaUsage(userId, estimated, request.id);
       this.logger.error(`generateDirect failed: ${err.message}`);
+
+      this.aiUsageService.recordUsage({
+        userId,
+        feature: AiFeature.ATS_REVIEW,
+        model: modelName,
+        success: false,
+      });
+
       throw err;
     }
   }
@@ -242,6 +367,7 @@ export class AiService {
       },
       res,
       0.0,
+      AiFeature.CV_REWRITE,
     );
   }
 
@@ -273,6 +399,7 @@ export class AiService {
         },
         res,
         0.5,
+        AiFeature.CV_REWRITE,
       );
     }
 
@@ -292,6 +419,7 @@ export class AiService {
         { system: systemPrompt, user: userPrompt, input: dto },
         res,
         0.4,
+        AiFeature.CV_REWRITE,
       );
     }
 
@@ -311,6 +439,7 @@ export class AiService {
       },
       res,
       0.4,
+      AiFeature.CV_REWRITE,
     );
   }
 
@@ -321,6 +450,7 @@ export class AiService {
     promptKey: string,
     payload: PromptPayload,
     temperature = 0.4,
+    feature: AiFeature = AiFeature.CV_REWRITE,
   ) {
     const userId = await this.resolveUserId(supabaseId);
     await this.applySafetyRules(payload.input);
@@ -344,6 +474,8 @@ export class AiService {
         status: 'PENDING',
       },
     });
+
+    const modelName = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
 
     try {
       // Chuyển sang trạng thái PROCESSING trước khi gọi OpenAI
@@ -377,11 +509,29 @@ export class AiService {
         request.id,
       );
 
+      // 3. Fire-and-forget usage accounting
+      this.aiUsageService.recordUsage({
+        userId,
+        feature,
+        model: modelName,
+        usage: response.usage,
+        success: true,
+      });
+
       return response.output;
     } catch (err: any) {
-      // 3. Hoàn trả lượng quota tạm tính nếu thất bại
+      // Hoàn trả lượng quota tạm tính nếu thất bại
       await this.refundQuotaUsage(userId, estimated, request.id);
       this.logger.error(`AI prompt generation failed: ${err.message}`);
+
+      // Record failed usage for observability
+      this.aiUsageService.recordUsage({
+        userId,
+        feature,
+        model: modelName,
+        success: false,
+      });
+
       throw err;
     }
   }
@@ -392,7 +542,8 @@ export class AiService {
     payload: PromptPayload,
     res: Response,
     temperature = 0.4,
-  ) {
+    feature: AiFeature = AiFeature.CV_REWRITE,
+  ): Promise<string> {
     const userId = await this.resolveUserId(supabaseId);
     await this.applySafetyRules(payload.input);
 
@@ -415,6 +566,8 @@ export class AiService {
         status: 'PENDING',
       },
     });
+
+    const modelName = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -454,16 +607,36 @@ export class AiService {
         request.id,
       );
 
+      // 3. Fire-and-forget usage accounting
+      this.aiUsageService.recordUsage({
+        userId,
+        feature,
+        model: modelName,
+        usage: result.usage,
+        success: true,
+      });
+
       res.write(`event: done\ndata: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
+      return result.text;
     } catch (err: any) {
-      // 3. Hoàn trả lượng quota tạm tính nếu thất bại
+      // Hoàn trả lượng quota tạm tính nếu thất bại
       await this.refundQuotaUsage(userId, estimated, request.id);
       this.logger.error(`AI prompt streaming failed: ${err.message}`);
+
+      // Record failed usage for observability
+      this.aiUsageService.recordUsage({
+        userId,
+        feature,
+        model: modelName,
+        success: false,
+      });
+
       res.write(
         `event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`,
       );
       res.end();
+      throw err;
     }
   }
 
@@ -506,12 +679,12 @@ export class AiService {
       (user.role === 'ADMIN'
         ? 10000000
         : user.role === 'PREMIUM'
-        ? 2000000
-        : user.role === 'PRO'
-        ? 1000000
-        : user.role === 'FREE'
-        ? 500000
-        : 0);
+          ? 2000000
+          : user.role === 'PRO'
+            ? 1000000
+            : user.role === 'FREE'
+              ? 500000
+              : 0);
 
     const periodStart = new Date();
     periodStart.setUTCDate(1);
@@ -679,6 +852,8 @@ RULES:
 
     const userPrompt = `Generate 4-6 skill suggestions for job title: "${dto.jobTitle}"`;
 
+    const modelName = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
+
     const output = await this.aiProvider.generate(
       {
         system: systemPrompt,
@@ -687,6 +862,13 @@ RULES:
       },
       0.2,
     );
+
+    this.aiUsageService.recordUsage({
+      feature: AiFeature.SKILL_SUGGESTION,
+      model: modelName,
+      usage: output.usage,
+      success: true,
+    });
 
     let parsed: string[] = [];
     try {
@@ -842,7 +1024,10 @@ Output Rules:
 - Return ONLY the final bullet points. No JSON, no markdown code blocks, no introductory text, no notes.`;
   }
 
-  private buildExperienceUserPrompt(dto: AiRewriteDto, locale: 'en' | 'vi'): string {
+  private buildExperienceUserPrompt(
+    dto: AiRewriteDto,
+    locale: 'en' | 'vi',
+  ): string {
     const content = dto.content as any;
     const ctx = dto.resumeContext as any;
 
@@ -1142,6 +1327,7 @@ Language: ${resumeLanguage}`;
         input: { url, locale },
       },
       0.2,
+      AiFeature.GITHUB_ANALYSIS,
     );
 
     let parsed: { name: string; technologies: string[]; description: string } =
