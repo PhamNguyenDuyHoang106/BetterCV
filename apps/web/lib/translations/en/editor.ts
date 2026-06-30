@@ -24,6 +24,9 @@ export const editor = {
     education: "Education",
     skills: "Skills",
     projects: "Projects",
+    languages: "Languages",
+    certifications: "Certifications",
+    awards: "Awards",
     summary: "Summary",
     ats: "ATS Scan 🎯",
     settings: "Design & Layout",
@@ -31,7 +34,7 @@ export const editor = {
   // profile panel
   profile: {
     title: "Basic Contact Details",
-    fullName: "Full Name *",
+    fullName: "Full Name",
     fullNamePlaceholder: "John Doe",
     jobTitle: "Professional Title",
     jobTitlePlaceholder: "Software Engineer",
@@ -124,6 +127,31 @@ export const editor = {
     description: "Project Details & Tech Stack",
     descriptionPlaceholder: "Describe what you built and the tools used (React, NestJS, AWS...).",
     addBtn: "+ Add Project",
+  },
+  languages: {
+    title: "Languages",
+    addBtn: "+ Add language",
+    nameLabel: "Language",
+    levelLabel: "Level",
+    levelPlaceholder: "e.g. Professional",
+  },
+  certifications: {
+    title: "Certifications",
+    addBtn: "+ Add certification",
+    nameLabel: "Certification name",
+    issuerLabel: "Issuer",
+    dateLabel: "Issue date",
+    urlLabel: "URL",
+    datePlaceholder: "YYYY-MM",
+  },
+  awards: {
+    title: "Awards",
+    addBtn: "+ Add award",
+    titleLabel: "Award title",
+    issuerLabel: "Issuer",
+    dateLabel: "Date",
+    datePlaceholder: "YYYY-MM",
+    descriptionLabel: "Short description",
   },
   // ats panel
   ats: {

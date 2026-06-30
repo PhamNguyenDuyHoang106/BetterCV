@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import { getTemplateStyles, getLayoutConfig } from "@acv/template-engine";
+import { TEMPLATE_REGISTRY } from "@acv/shared";
+import { getTemplateStyles, getLayoutConfig, getTemplateSectionStyles, getTemplateLayout } from "@acv/template-engine";
 
 const prisma = new PrismaClient();
 
@@ -15,50 +16,10 @@ const templateSchema = (opts: {
     id: opts.id,
     name: opts.name,
     category: opts.category,
-    layout: {
-      sections: [
-        {
-          type: "PROFILE",
-          blocks: [
-            { key: "profile.fullName", label: "Họ và tên" },
-            { key: "profile.title", label: "Chức danh" },
-            { key: "profile.email", label: "Email" },
-            { key: "profile.phone", label: "Số điện thoại" },
-            { key: "profile.linkedin", label: "LinkedIn" },
-            { key: "profile.github", label: "GitHub" },
-            { key: "profile.website", label: "Website" }
-          ]
-        },
-        {
-          type: "SUMMARY",
-          blocks: [{ key: "summary.text", label: "Giới thiệu" }]
-        },
-        {
-          type: "EXPERIENCE",
-          blocks: [{ key: "experience", label: "Kinh nghiệm làm việc" }]
-        },
-        {
-          type: "EDUCATION",
-          blocks: [{ key: "education", label: "Học vấn & Bằng cấp" }]
-        },
-        {
-          type: "SKILLS",
-          blocks: [{ key: "skills", label: "Kỹ năng chuyên môn" }]
-        },
-        {
-          type: "PROJECTS",
-          blocks: [{ key: "projects", label: "Dự án tiêu biểu" }]
-        }
-      ]
-    },
+    layout: getTemplateLayout(opts.id),
     themeTokens,
     layoutConfig,
-    sectionStyles: {
-      experience: { variant: opts.id === "nova" ? "timeline" : "classic" },
-      education: { variant: "classic" },
-      skills: { variant: opts.id === "nova" ? "bars" : "badges" },
-      projects: { variant: "classic" }
-    }
+    sectionStyles: getTemplateSectionStyles(opts.id),
   };
 };
 
@@ -124,44 +85,11 @@ async function main() {
     create: { name: "Design" }
   });
 
-  const templateRows: Array<{
-    id: string;
-    name: string;
-    category: "TECH" | "BUSINESS" | "DESIGN";
-  }> = [
-    { id: "standard-ats", name: "Standard ATS", category: "BUSINESS" },
-    { id: "tech-classic", name: "Tech Classic", category: "TECH" },
-    { id: "techstack", name: "TechStack", category: "TECH" },
-    { id: "business-classic", name: "Business Classic", category: "BUSINESS" },
-    { id: "dublin", name: "Dublin", category: "BUSINESS" },
-    { id: "design-classic", name: "Design Classic", category: "DESIGN" },
-    { id: "nova", name: "Nova", category: "DESIGN" },
-    { id: "monarch", name: "Monarch", category: "DESIGN" },
-    { id: "minimalist", name: "Minimalist", category: "DESIGN" },
-    { id: "london", name: "London", category: "BUSINESS" },
-    { id: "zurich", name: "Zurich", category: "BUSINESS" },
-    { id: "oslo", name: "Oslo", category: "TECH" },
-    { id: "berlin", name: "Berlin", category: "TECH" },
-    { id: "stockholm", name: "Stockholm", category: "BUSINESS" },
-    { id: "paris", name: "Paris", category: "DESIGN" },
-    { id: "milan", name: "Milan", category: "DESIGN" },
-    { id: "tokyo", name: "Tokyo", category: "DESIGN" },
-    { id: "singapore", name: "Singapore", category: "BUSINESS" },
-    { id: "sydney", name: "Sydney", category: "TECH" },
-    { id: "toronto", name: "Toronto", category: "BUSINESS" },
-    { id: "seattle", name: "Seattle", category: "TECH" },
-    { id: "austin", name: "Austin", category: "BUSINESS" },
-    { id: "boston", name: "Boston", category: "DESIGN" },
-    { id: "chicago", name: "Chicago", category: "BUSINESS" },
-    { id: "amsterdam", name: "Amsterdam", category: "DESIGN" },
-    { id: "copenhagen", name: "Copenhagen", category: "DESIGN" },
-    { id: "vienna", name: "Vienna", category: "DESIGN" },
-    { id: "geneva", name: "Geneva", category: "BUSINESS" },
-    { id: "prague", name: "Prague", category: "TECH" },
-    { id: "helsinki", name: "Helsinki", category: "BUSINESS" },
-    { id: "barcelona-creative", name: "Barcelona", category: "DESIGN" },
-    { id: "hong-kong-finance", name: "Hong Kong", category: "BUSINESS" },
-  ];
+  const templateRows = TEMPLATE_REGISTRY.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    category: entry.categoryCode,
+  }));
 
   const categoryByType = {
     TECH: techCategory,
@@ -214,6 +142,18 @@ async function main() {
       }
     });
   }
+
+  // Deactivate templates outside the curated registry to avoid saturated/legacy gallery.
+  await prisma.template.updateMany({
+    where: {
+      id: {
+        notIn: templateRows.map((row) => row.id),
+      },
+    },
+    data: {
+      isActive: false,
+    },
+  });
 
   await prisma.user.updateMany({
     data: { role: planFree.tier }

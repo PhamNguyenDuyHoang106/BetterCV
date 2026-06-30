@@ -7,6 +7,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import puppeteer from 'puppeteer';
 import { Document, HeadingLevel, Packer, Paragraph } from 'docx';
 import { CvService } from '../cv/cv.service';
+import { resolveTemplateSchemaForCv } from '../template/template-schema.util';
 
 @Injectable()
 export class ExportService {
@@ -117,37 +118,13 @@ export class ExportService {
       throw new ForbiddenException('CV not found');
     }
 
-    if (!cv.templateId && !cv.templateVersionId) {
+    if (!cv.templateId && !cv.templateVersionId && !cv.templateSnapshot) {
       if (requireTemplate)
         throw new ForbiddenException('Template not selected');
       return { cv, templateSchema: null };
     }
 
-    let templateSchema: any = null;
-
-    // IMPORTANT: Resolve template schema using the same priority as the
-    // frontend editor. The frontend uses cv.templateId to find the parent
-    // Template from /templates API and uses Template.schema.
-    // Using templateVersionId first caused schema mismatches where the PDF
-    // rendered with different themeTokens/layoutConfig/sectionStyles.
-    if (cv.templateId) {
-      const template = await this.prisma.template.findUnique({
-        where: { id: cv.templateId },
-      });
-      if (template) {
-        templateSchema = template.schema;
-      }
-    }
-
-    // Fallback to templateVersionId only if parent template not found
-    if (!templateSchema && cv.templateVersionId) {
-      const ver = await this.prisma.templateVersion.findUnique({
-        where: { id: cv.templateVersionId },
-      });
-      if (ver) {
-        templateSchema = ver.schema;
-      }
-    }
+    const templateSchema = await resolveTemplateSchemaForCv(this.prisma, cv);
 
     if (!templateSchema && requireTemplate) {
       throw new ForbiddenException('Template not found');

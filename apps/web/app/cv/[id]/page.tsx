@@ -5,10 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useCvStore } from "../../../lib/store/cv";
 import { useAuthStore } from "../../../lib/store/auth";
 import { apiFetch } from "../../../lib/api";
-import { syncSessionToApp } from "../../../lib/auth-session";
 import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
 import { useTranslation } from "../../../hooks/useTranslation";
+import { syncSessionToApp } from "../../../lib/auth-session";
 
 // Import renderHtml from template-engine
 import { renderHtml } from "@acv/template-engine";
@@ -25,9 +25,13 @@ import { ExperiencePanel } from "../../../components/cv/editor/ExperiencePanel";
 import { EducationPanel } from "../../../components/cv/editor/EducationPanel";
 import { SkillsPanel } from "../../../components/cv/editor/SkillsPanel";
 import { ProjectsPanel } from "../../../components/cv/editor/ProjectsPanel";
+import { LanguagesPanel } from "../../../components/cv/editor/LanguagesPanel";
+import { CertificationsPanel } from "../../../components/cv/editor/CertificationsPanel";
+import { AwardsPanel } from "../../../components/cv/editor/AwardsPanel";
 import { AtsPanel } from "../../../components/cv/editor/AtsPanel";
 import { TemplatePicker } from "../../../components/cv/editor/TemplatePicker";
 import { HistorySidebar } from "../../../components/cv/editor/HistorySidebar";
+import { getTemplateDisplayMeta } from "../../../lib/dashboard-templates";
 
 export default function CvEditorPage() {
   const { t, language } = useTranslation();
@@ -40,13 +44,21 @@ export default function CvEditorPage() {
   const lastHtmlRef = useRef<string>("");
 
   const { accessToken, user, hydrate } = useAuthStore();
-  const { loadCv } = useCvStore();
+  const { loadCv, isDirty, syncDirtyChanges } = useCvStore();
 
   const [activeTab, setActiveTab] = useState<string>("profile");
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [previewScale, setPreviewScale] = useState<number>(100);
   const [exporting, setExporting] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState<"PRO" | "PREMIUM" | null>(null);
+
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
+  const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
+  const [versionUpdateTrigger, setVersionUpdateTrigger] = useState<number>(0);
 
   // 1. Hook quản lý Autosave
   const { triggerAutosave } = useAutosave();
@@ -72,11 +84,14 @@ export default function CvEditorPage() {
 
   // Compile Live Preview HTML
   const getCompiledHtml = useCallback(() => {
-    if (!editor.selectedTemplate || !editor.cv) return "";
+    if (!editor.cv) return "";
+    const templateSchema =
+      editor.selectedTemplate?.schema || editor.cv.templateSnapshot;
+    if (!templateSchema) return "";
     const resumeData = editor.assembleLocalResumeData();
     try {
       return renderHtml({
-        template: editor.selectedTemplate.schema,
+        template: templateSchema,
         data: resumeData,
         locale: editor.cv?.locale || "vi",
       });
@@ -89,15 +104,62 @@ export default function CvEditorPage() {
   // Load Auth Session
   useEffect(() => {
     hydrate();
-    syncSessionToApp().catch(() => {});
     setMounted(true);
+    if (typeof window !== "undefined") {
+      const savedAutoSave = localStorage.getItem("acv-auto-save");
+      if (savedAutoSave !== null) {
+        setAutoSaveEnabled(savedAutoSave === "true");
+      }
+    }
   }, [hydrate]);
+
+  const handleManualSave = async () => {
+    setIsSavingManual(true);
+    try {
+      if (isDirty) {
+        await syncDirtyChanges();
+      }
+      await apiFetch(`/cvs/${cvId}/versions`, { method: "POST" });
+      setVersionUpdateTrigger((prev) => prev + 1);
+      alert(language === "vi" ? "Lưu bản sao thành công!" : "Saved version copy successfully!");
+    } catch (err) {
+      console.error("Failed to save manually:", err);
+      alert(language === "vi" ? "Lỗi lưu bản sao!" : "Failed to save copy!");
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
 
   useEffect(() => {
     if (mounted && !accessToken) {
       router.replace("/");
     }
   }, [mounted, accessToken, router]);
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data && event.data.type === "PAYMENT_SUCCESS") {
+        console.log("Payment success received from child tab!");
+        try {
+          await syncSessionToApp();
+          alert(language === "vi" ? "Nâng cấp tài khoản thành công!" : "Account upgraded successfully!");
+        } catch (e) {
+          console.error("Failed to sync session on payment success:", e);
+        } finally {
+          setShowUpgradeModal(false);
+          setCheckoutUrl(null);
+          setCheckoutQr(null);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [language]);
 
   // Sync iframe qua postMessage để giảm giật lag và flicker
   useEffect(() => {
@@ -125,14 +187,65 @@ export default function CvEditorPage() {
     }
   }, [getCompiledHtml]);
 
-  // Reset refs khi đổi CV
+  // Reset refs khi đổi CV hoặc khi cv bị null (loading)
   useEffect(() => {
-    initialHtmlRef.current = "";
-    lastHtmlRef.current = "";
-  }, [cvId]);
+    if (!editor.cv) {
+      initialHtmlRef.current = "";
+      lastHtmlRef.current = "";
+    }
+  }, [cvId, editor.cv]);
+
+  const handleUpgradeCheckout = async (tier: "PRO" | "PREMIUM") => {
+    setCheckoutLoading(tier);
+    try {
+      const origin = window.location.origin;
+      const successUrl = `${origin}/dashboard?paid=1`;
+      const cancelUrl = `${origin}/dashboard?paid=0`;
+      const mode = tier === "PREMIUM" ? "payment" : "subscription";
+      
+      const res = await apiFetch<any>("/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({
+          tier,
+          mode,
+          successUrl,
+          cancelUrl,
+        }),
+      });
+
+      const payload = res?.data ?? res;
+      const url = payload?.checkoutUrl ?? payload?.url;
+      if (!url) throw new Error("Could not retrieve checkout url");
+      setCheckoutUrl(url);
+      if (payload?.qrCode) setCheckoutQr(payload.qrCode);
+      window.open(url, "_blank");
+    } catch (e) {
+      alert(language === "vi" ? "Lỗi tạo link thanh toán: " + (e as Error).message : "Error creating checkout: " + (e as Error).message);
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
+  const qrSrc = checkoutQr
+    ? checkoutQr.startsWith("data:") || checkoutQr.startsWith("http")
+      ? checkoutQr
+      : `data:image/png;base64,${checkoutQr}`
+    : checkoutUrl
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
+      : null;
 
   // Hành động in và xuất PDF
   const handleExportPDF = async () => {
+    const currentTemplateId = editor.selectedTemplate?.id || editor.cv?.templateId;
+    const isPremiumTemplate = currentTemplateId
+      ? getTemplateDisplayMeta(currentTemplateId).tag === "Premium"
+      : false;
+
+    if (isPremiumTemplate && user?.role === "FREE") {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setExporting(true);
     try {
       const res = await apiFetch<any>("/exports/pdf", {
@@ -201,7 +314,33 @@ export default function CvEditorPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <AutosaveIndicator />
+          {autoSaveEnabled ? (
+            <AutosaveIndicator />
+          ) : (
+            <button
+              onClick={handleManualSave}
+              disabled={isSavingManual}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-slate-700/80 transition-all ${
+                isDirty
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500/50 shadow-lg shadow-emerald-500/10"
+                  : "bg-slate-900 text-slate-500 hover:bg-slate-850 border-slate-800/80"
+              }`}
+            >
+              {isSavingManual ? (
+                <>
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  {language === "vi" ? "Đang lưu..." : "Saving..."}
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8l-4-4H8zm0 0v4h6V4H8zm-2 9h12v5H6v-5z" />
+                  </svg>
+                  {language === "vi" ? "Lưu bản sao" : "Save Copy"}
+                </>
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setShowHistory(!showHistory)}
@@ -249,6 +388,9 @@ export default function CvEditorPage() {
               { id: "education", label: t.editor.tabs.education },
               { id: "skills", label: t.editor.tabs.skills },
               { id: "projects", label: t.editor.tabs.projects },
+              { id: "languages", label: t.editor.tabs.languages },
+              { id: "certifications", label: t.editor.tabs.certifications },
+              { id: "awards", label: t.editor.tabs.awards },
               { id: "summary", label: t.editor.tabs.summary },
               { id: "ats", label: t.editor.tabs.ats },
               { id: "settings", label: t.editor.tabs.settings },
@@ -344,6 +486,36 @@ export default function CvEditorPage() {
               />
             )}
 
+            {activeTab === "languages" && (
+              <LanguagesPanel
+                languages={editor.languages}
+                addLanguageItem={editor.addLanguageItem}
+                updateLanguageItem={editor.updateLanguageItem}
+                removeLanguageItem={editor.removeLanguageItem}
+                saveLanguages={editor.saveLanguages}
+              />
+            )}
+
+            {activeTab === "certifications" && (
+              <CertificationsPanel
+                certifications={editor.certifications}
+                addCertificationItem={editor.addCertificationItem}
+                updateCertificationItem={editor.updateCertificationItem}
+                removeCertificationItem={editor.removeCertificationItem}
+                saveCertifications={editor.saveCertifications}
+              />
+            )}
+
+            {activeTab === "awards" && (
+              <AwardsPanel
+                awards={editor.awards}
+                addAwardItem={editor.addAwardItem}
+                updateAwardItem={editor.updateAwardItem}
+                removeAwardItem={editor.removeAwardItem}
+                saveAwards={editor.saveAwards}
+              />
+            )}
+
             {activeTab === "ats" && (
               <AtsPanel cvId={cvId} cvLocale={editor.cv?.locale || "vi"} />
             )}
@@ -422,12 +594,143 @@ export default function CvEditorPage() {
             cvVersionNum={editor.cv.version}
             cvLocale={editor.cv.locale}
             loadCv={loadCv}
+            versionUpdateTrigger={versionUpdateTrigger}
           />
         </div>
       </div>
 
       {/* Editing Conflicts Overlay Dialog */}
       <ConflictDialog />
+
+      {/* Premium Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-400">
+              <span className="material-symbols-outlined text-3xl">workspace_premium</span>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-white">
+                {language === "vi" ? "Mẫu CV Cao Cấp (PRO/ULTRA)" : "PRO/ULTRA CV Template"}
+              </h3>
+              <p className="text-sm text-slate-400">
+                {language === "vi"
+                  ? "Mẫu giao diện này chỉ áp dụng cho tài khoản cao cấp. Vui lòng chọn gói nâng cấp phù hợp bên dưới để tiếp tục xuất PDF."
+                  : "This template is only available for premium accounts. Please choose a suitable upgrade plan below to export PDF."}
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                disabled={checkoutLoading !== null}
+                onClick={() => handleUpgradeCheckout("PRO")}
+                className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-slate-900 border border-indigo-500/30 hover:border-indigo-500 hover:from-indigo-950/60 transition-all text-left group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-indigo-400 text-lg group-hover:scale-110 transition-transform">workspace_premium</span>
+                    {language === "vi" ? "Nâng cấp gói Pro (Theo tháng)" : "Upgrade to PRO (Monthly)"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {language === "vi" ? "Truy cập mọi mẫu CV, đầy đủ công cụ AI thông minh." : "Unlock all premium templates and AI assistant tools."}
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">chevron_right</span>
+              </button>
+
+              <button
+                disabled={checkoutLoading !== null}
+                onClick={() => handleUpgradeCheckout("PREMIUM")}
+                className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-amber-950/40 to-slate-900 border border-amber-500/30 hover:border-amber-500 hover:from-amber-950/60 transition-all text-left group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-amber-400 text-lg group-hover:scale-110 transition-transform">verified</span>
+                    {language === "vi" ? "Nâng cấp gói Ultra (Trọn đời)" : "Upgrade to ULTRA (Lifetime)"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {language === "vi" ? "Sở hữu vĩnh viễn, không giới hạn lượt xuất và tính năng." : "Lifetime access, unlimited exports and all features forever."}
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">chevron_right</span>
+              </button>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-transparent text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-all"
+              >
+                {language === "vi" ? "Đóng" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Checkout QR Modal Overlay */}
+      {checkoutUrl && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-white">
+                  {language === "vi" ? "Quét mã QR thanh toán" : "Scan QR Code"}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {language === "vi"
+                    ? "Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử để tiến hành nâng cấp tài khoản."
+                    : "Scan the QR code with your mobile banking or wallet app to complete payment."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="p-2 rounded-xl hover:bg-slate-800 text-slate-400"
+                onClick={() => {
+                  setCheckoutUrl(null);
+                  setCheckoutQr(null);
+                }}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {qrSrc && (
+              <div className="mt-5 flex items-center justify-center">
+                <img
+                  src={qrSrc}
+                  alt="Checkout QR"
+                  className="w-[220px] h-[220px] rounded-2xl ring-1 ring-slate-800 bg-white p-2"
+                />
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-col gap-2">
+              <a
+                href={checkoutUrl}
+                target="_blank"
+                rel="opener"
+                className="w-full text-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all border-none"
+              >
+                {language === "vi" ? "Mở trang thanh toán" : "Open payment page"}
+              </a>
+              <button
+                type="button"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-transparent text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-all"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(checkoutUrl);
+                    alert(language === "vi" ? "Đã sao chép liên kết thanh toán vào bộ nhớ tạm!" : "Payment link copied to clipboard!");
+                  } catch { }
+                }}
+              >
+                {language === "vi" ? "Sao chép liên kết" : "Copy payment link"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

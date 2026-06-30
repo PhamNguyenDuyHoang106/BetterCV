@@ -6,11 +6,13 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { apiFetch } from "../../lib/api";
 import { useAuthStore } from "../../lib/store/auth";
+import { TEMPLATE_IDS } from "@acv/shared";
 import { createSupabaseClient } from "../../lib/supabase";
 import { DashboardSidebar, type DashboardTab } from "../../components/dashboard/DashboardSidebar";
 import { TemplateGallery } from "../../components/dashboard/TemplateGallery";
 import { CreateCvModal } from "../../components/dashboard/CreateCvModal";
 import { InitializeCvWorkflowModal } from "../../components/dashboard/InitializeCvWorkflowModal";
+import { DeleteCvConfirmModal } from "../../components/dashboard/DeleteCvConfirmModal";
 import { DashPageHero } from "../../components/dashboard/dashboard-ui";
 import { DashboardOverviewTab } from "../../components/dashboard/views/DashboardOverviewTab";
 import { DashboardResumesTab } from "../../components/dashboard/views/DashboardResumesTab";
@@ -88,6 +90,8 @@ function DashboardPageContent() {
 
   // Workflow states
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [cvToDelete, setCvToDelete] = useState<Cv | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CreateForm>({
@@ -110,9 +114,9 @@ function DashboardPageContent() {
   }, [mounted, accessToken, router]);
 
   useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab === "career") {
-      setActiveTab("career");
+    const tab = searchParams?.get("tab");
+    if (tab && ["dashboard", "resumes", "career", "templates", "upgrade", "settings", "profile"].includes(tab)) {
+      setActiveTab(tab as DashboardTab);
     }
   }, [searchParams]);
 
@@ -131,6 +135,15 @@ function DashboardPageContent() {
           }
         }
         await syncSessionToApp();
+        if (typeof window !== "undefined" && window.opener) {
+          try {
+            window.opener.postMessage({ type: "PAYMENT_SUCCESS" }, window.location.origin);
+            window.close();
+            return;
+          } catch (e) {
+            console.error("Error sending postMessage to parent window:", e);
+          }
+        }
       } catch (err) {
         console.error("Failed to confirm payment and sync session:", err);
       } finally {
@@ -153,9 +166,10 @@ function DashboardPageContent() {
     apiFetch<any>("/templates")
       .then((res) => {
         const data = Array.isArray(res) ? res : res?.data || [];
-        const list = data?.length ? data : FALLBACK_TEMPLATES;
+        const filtered = data.filter((item: Template) => TEMPLATE_IDS.includes(item.id));
+        const list = filtered?.length ? filtered : FALLBACK_TEMPLATES;
         setTemplates(list);
-        if (!data?.length) {
+        if (!filtered?.length) {
           setTemplatesError("Chưa có mẫu trong DB — đã hiển thị mẫu mặc định. Chạy: npm run db:seed");
         }
       })
@@ -245,24 +259,12 @@ function DashboardPageContent() {
   };
 
   const handleUseTemplate = (templateId: string) => {
-    const meta = getTemplateDisplayMeta(templateId);
-    if (meta.tag === "Premium" && user?.role === "FREE") {
-      alert(t.dashboard.quickCreateAlert);
-      setActiveTab("upgrade");
-      return;
-    }
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
   };
 
   const handleQuickCreateFromTemplate = async (templateId: string, templateName: string) => {
-    const meta = getTemplateDisplayMeta(templateId);
-    if (meta.tag === "Premium" && user?.role === "FREE") {
-      alert(t.dashboard.quickCreateAlertName.replace("{name}", templateName));
-      setActiveTab("upgrade");
-      return;
-    }
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
@@ -410,19 +412,28 @@ function DashboardPageContent() {
   };
 
   // Handle Delete CV
-  const onDelete = async (cvId: string, event: React.MouseEvent) => {
+  const onDelete = (cvId: string, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!confirm(t.dashboard.deleteConfirm)) {
-      return;
+    const cv = cvs.find((c) => c.id === cvId);
+    if (cv) {
+      setCvToDelete(cv);
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!cvToDelete) return;
+    setDeleteLoading(true);
     try {
-      await apiFetch(`/cvs/${cvId}`, {
+      await apiFetch(`/cvs/${cvToDelete.id}`, {
         method: "DELETE"
       });
-      setCvs((prev) => prev.filter((cv) => cv.id !== cvId));
+      setCvs((prev) => prev.filter((cv) => cv.id !== cvToDelete.id));
+      setCvToDelete(null);
     } catch (err) {
       alert(t.dashboard.deleteFailed + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -519,6 +530,18 @@ function DashboardPageContent() {
     });
   };
 
+  const paid = searchParams?.get("paid");
+  if (paid === "1") {
+    return (
+      <div className="fixed inset-0 bg-slate-900 flex flex-col items-center justify-center space-y-4 text-white z-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+        <p className="text-sm font-semibold text-slate-300">
+          {activeLang === "vi" ? "Đang xác nhận thanh toán và nâng cấp tài khoản..." : "Confirming payment and upgrading account..."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-shell text-on-surface font-body-md min-h-screen flex flex-col selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden relative transition-all duration-300">
       {/* Loading Overlay */}
@@ -541,39 +564,31 @@ function DashboardPageContent() {
         onTabChange={setActiveTab}
         onUpgrade={() => setActiveTab("upgrade")}
         onProfile={() => setActiveTab("profile")}
+        onCreateCv={() => setActiveTab("templates")}
       />
 
-      <main className="flex-1 min-w-0 w-full min-h-screen pt-topnav-height px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
-        <header className="flex flex-wrap justify-end items-center gap-4 w-full mb-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab("templates")}
-            className="dash-btn-primary flex items-center gap-2 shrink-0"
-          >
-            <span className="material-symbols-outlined text-xl">add</span>
-            {t.dashboard.createBtn}
-          </button>
-        </header>
+      <main className="flex-1 min-w-0 w-full min-h-screen pt-[calc(4.25rem+2rem)] px-container-margin md:px-grid-gutter py-stack-md relative z-10 flex flex-col transition-all duration-300">
 
-        {activeTab !== "templates" && (
-          <div className="mb-6">
-            <DashPageHero
-              title={tabMeta[activeTab].title}
-              subtitle={tabMeta[activeTab].subtitle}
-              accent={
-                activeTab === "upgrade"
-                  ? "amber"
-                  : activeTab === "settings"
-                    ? "teal"
-                    : activeTab === "profile"
+
+        <div className="mb-6">
+          <DashPageHero
+            title={tabMeta[activeTab].title}
+            subtitle={tabMeta[activeTab].subtitle}
+            accent={
+              activeTab === "upgrade"
+                ? "amber"
+                : activeTab === "settings"
+                  ? "teal"
+                  : activeTab === "profile"
+                    ? "violet"
+                    : activeTab === "resumes"
                       ? "violet"
-                      : activeTab === "resumes"
-                        ? "violet"
+                      : activeTab === "templates"
+                        ? "teal"
                         : "blue"
-              }
-            />
-          </div>
-        )}
+            }
+          />
+        </div>
 
         {activeTab === "dashboard" && (
           <DashboardOverviewTab
@@ -662,6 +677,14 @@ function DashboardPageContent() {
         onClose={() => { setIsWorkflowModalOpen(false); setLoading(false); }}
         onStartFromScratch={handleStartFromScratch}
         onUploadAndParse={handleUploadAndParse}
+      />
+
+      <DeleteCvConfirmModal
+        open={!!cvToDelete}
+        cvTitle={cvToDelete?.title || ""}
+        loading={deleteLoading}
+        onClose={() => setCvToDelete(null)}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

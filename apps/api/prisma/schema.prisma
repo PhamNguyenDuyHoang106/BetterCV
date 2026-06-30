@@ -100,6 +100,7 @@ model Cv {
   version              Int              @default(1)
   templateVersionId    String?
   templateVersionNum   Int              @default(1)
+  templateSnapshot     Json?
   atsScore             Int?
   completenessScore    Int?
   thumbnailGeneratedAt DateTime?
@@ -124,6 +125,7 @@ model Cv {
 model CvVersion {
   id        String   @id @default(cuid())
   cvId      String
+  title     String?
   snapshot  Json
   createdAt DateTime @default(now())
   cv        Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)

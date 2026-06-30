@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { getTemplateStyles } from "@acv/template-engine";
 import { getTemplateDisplayMeta } from "../../../lib/dashboard-templates";
 import { useTranslation } from "../../../hooks/useTranslation";
@@ -30,6 +30,20 @@ export function TemplatePicker({
 }: TemplatePickerProps) {
   const { t, language } = useTranslation();
 
+  const freeTemplates = useMemo(() => {
+    return templates.filter((t) => {
+      const meta = getTemplateDisplayMeta(t.id);
+      return meta.tag !== "Premium";
+    });
+  }, [templates]);
+
+  const proTemplates = useMemo(() => {
+    return templates.filter((t) => {
+      const meta = getTemplateDisplayMeta(t.id);
+      return meta.tag === "Premium";
+    });
+  }, [templates]);
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
@@ -46,15 +60,6 @@ export function TemplatePicker({
               const newTplId = e.target.value;
               const matched = templates.find((t) => t.id === newTplId);
               if (matched) {
-                const meta = getTemplateDisplayMeta(newTplId);
-                if (meta.tag === "Premium" && userRole === "FREE") {
-                  alert(
-                    t.dashboard.quickCreateAlertName
-                      ? t.dashboard.quickCreateAlertName.replace("{name}", matched.name)
-                      : `Mẫu "${matched.name}" là mẫu Premium. Vui lòng nâng cấp tài khoản của bạn để sử dụng!`
-                  );
-                  return;
-                }
                 setSelectedTemplate(matched);
                 saveMetadata({ templateId: newTplId });
               }
@@ -64,11 +69,20 @@ export function TemplatePicker({
             <option value="" disabled>
               {language === "vi" ? "-- Chọn mẫu giao diện --" : "-- Select layout template --"}
             </option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.category?.name || "General"})
-              </option>
-            ))}
+            <optgroup label={language === "vi" ? "Mẫu CV Miễn Phí" : "Free Templates"}>
+              {freeTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.category?.name || "General"})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={language === "vi" ? "Mẫu CV Cao Cấp (Pro / Premium)" : "Pro Templates"}>
+              {proTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  ⭐ {t.name} ({t.category?.name || "General"})
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
       </div>

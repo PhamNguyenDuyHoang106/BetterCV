@@ -8,6 +8,8 @@ type Cv = {
   locale: string;
   version: number;
   templateId?: string;
+  templateSnapshot?: Record<string, unknown>;
+  templateVersionId?: string;
   sections: Array<{ id: string; type: string; content: any; order: number }>;
 };
 

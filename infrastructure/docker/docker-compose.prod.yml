@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: postgres:16-alpine
@@ -86,6 +84,7 @@ services:
 
   loki:
     image: grafana/loki:2.9.8
+    user: "0"
     volumes:
       - ./loki-config.yml:/etc/loki/local-config.yaml
       - lokidata:/tmp/loki

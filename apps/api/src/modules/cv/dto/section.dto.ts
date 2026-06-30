@@ -7,6 +7,9 @@ const sectionTypes = [
   'EDUCATION',
   'SKILLS',
   'PROJECTS',
+  'LANGUAGES',
+  'CERTIFICATIONS',
+  'AWARDS',
 ] as const;
 
 export class CvSectionUpsertDto {

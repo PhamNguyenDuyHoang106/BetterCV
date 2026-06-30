@@ -32,6 +32,8 @@ export const vi: TranslationSchema = {
   createCvModal: dashboard.createCvModal,
   initializeCvModal: dashboard.initializeCvModal,
   career: dashboard.career,
+  templateGallery: dashboard.templateGallery,
+  deleteCvModal: dashboard.deleteCvModal,
   editor,
   validation,
   toast,

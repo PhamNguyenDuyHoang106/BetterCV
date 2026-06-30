@@ -10,9 +10,10 @@ if [ -z "$DOMAIN" ]; then
   echo "❌ Thiếu biến DOMAIN. Chạy: DOMAIN=yourdomain.com bash deploy.sh"
   exit 1
 fi
+export DOMAIN
 
 EMAIL=${EMAIL:-"admin@${DOMAIN}"}
-COMPOSE="docker compose -f infrastructure/docker/docker-compose.prod.yml"
+COMPOSE="docker compose --env-file $(pwd)/.env -f infrastructure/docker/docker-compose.prod.yml"
 
 echo ""
 echo "════════════════════════════════════════════════════"
@@ -66,7 +67,7 @@ $COMPOSE ps
 # ── 5. Lấy SSL Certificate từ Let's Encrypt ─────────────────────────────────
 echo ""
 echo "🔐 Lấy SSL certificate từ Let's Encrypt..."
-$COMPOSE run --rm certbot certonly \
+$COMPOSE run --rm --entrypoint certbot certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
   --email "$EMAIL" \

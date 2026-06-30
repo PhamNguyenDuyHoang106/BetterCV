@@ -41,6 +41,7 @@ type Props = {
   onTabChange: (tab: DashboardTab) => void;
   onUpgrade: () => void;
   onProfile: () => void;
+  onCreateCv?: () => void;
 };
 
 export function DashboardSidebar({
@@ -51,6 +52,7 @@ export function DashboardSidebar({
   onTabChange,
   onUpgrade,
   onProfile,
+  onCreateCv,
 }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { language } = useLanguageStore();
@@ -112,7 +114,7 @@ export function DashboardSidebar({
   return (
     <>
       <header className="dashboard-topnav fixed top-0 left-0 right-0 z-50 h-topnav-height">
-        <div className="h-full max-w-[1600px] mx-auto px-4 md:px-6 flex items-center gap-3 md:gap-6">
+        <div className="h-full w-full px-4 md:px-8 flex items-center gap-3 md:gap-6">
           <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary via-primary-dark to-primary-darker flex items-center justify-center text-on-primary font-bold text-sm shadow-md shadow-primary/30 group-hover:scale-[1.03] transition-transform">
               BC
@@ -155,6 +157,17 @@ export function DashboardSidebar({
                 <p className="text-[10px] text-slate-500 truncate">{userRole || "Free"}</p>
               </div>
             </button>
+
+            {onCreateCv && (
+              <button
+                type="button"
+                onClick={onCreateCv}
+                className="dash-btn-primary !py-2 !px-3.5 !text-xs flex items-center gap-1.5 shrink-0"
+              >
+                <span className="material-symbols-outlined text-base">add</span>
+                <span className="hidden sm:inline">{t.dashboard.createBtn}</span>
+              </button>
+            )}
 
             <button
               type="button"

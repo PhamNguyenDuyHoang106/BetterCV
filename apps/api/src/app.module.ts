@@ -70,13 +70,27 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        connection: {
-          host: configService.get<string>('REDIS_HOST', 'localhost'),
-          port: configService.get<number>('REDIS_PORT', 6379),
-          enableOfflineQueue: false,
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const redisEnabled =
+          configService.get<string>('REDIS_ENABLED', 'true') === 'true';
+
+        return {
+          connection: {
+            host: configService.get<string>('REDIS_HOST', 'localhost'),
+            port: Number(configService.get<number>('REDIS_PORT', 6379)),
+            enableOfflineQueue: false,
+            // If Redis is disabled, configure ioredis to fail instantly and never retry to avoid log spamming
+            maxRetriesPerRequest: redisEnabled ? 3 : 0,
+            enableReadyCheck: redisEnabled,
+            retryStrategy: redisEnabled
+              ? (times) => {
+                  if (times > 10) return null;
+                  return Math.min(100 * Math.pow(2, times - 1), 3000);
+                }
+              : () => null,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     BullBoardModule.forRoot({

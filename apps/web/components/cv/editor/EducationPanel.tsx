@@ -61,7 +61,7 @@ export function EducationPanel({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-400">
-                {language === "vi" ? "Trường/Cơ sở đào tạo *" : "School / University *"}
+                {language === "vi" ? "Trường/Cơ sở đào tạo" : "School / University"}
               </label>
               <input
                 type="text"
@@ -74,7 +74,7 @@ export function EducationPanel({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-400">
-                {language === "vi" ? "Bằng cấp *" : "Degree *"}
+                {language === "vi" ? "Bằng cấp" : "Degree"}
               </label>
               <input
                 type="text"

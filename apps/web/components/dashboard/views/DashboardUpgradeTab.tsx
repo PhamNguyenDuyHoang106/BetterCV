@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { DashPageHero } from "../dashboard-ui";
 import { apiFetch } from "../../../lib/api";
 import { useAuthStore } from "../../../lib/store/auth";
 import { useLanguageStore } from "../../../lib/store/language";
 import { translations } from "../../../lib/translations";
+import { syncSessionToApp } from "../../../lib/auth-session";
 
 export function DashboardUpgradeTab() {
   const { user } = useAuthStore();
@@ -22,6 +22,30 @@ export function DashboardUpgradeTab() {
 
   const activeLang = mounted ? language : "vi";
   const t = translations[activeLang];
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data && event.data.type === "PAYMENT_SUCCESS") {
+        console.log("Payment success received from child tab!");
+        try {
+          await syncSessionToApp();
+          alert(activeLang === "vi" ? "Nâng cấp tài khoản thành công!" : "Account upgraded successfully!");
+        } catch (e) {
+          console.error("Failed to sync session on payment success:", e);
+        } finally {
+          setCheckoutUrl(null);
+          setCheckoutQr(null);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [activeLang]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const successUrl = useMemo(() => `${origin}/dashboard?paid=1`, [origin]);
@@ -51,7 +75,7 @@ export function DashboardUpgradeTab() {
       if (!url) throw new Error(t.upgrade.errPay);
       setCheckoutUrl(url);
       if (payload?.qrCode) setCheckoutQr(payload.qrCode);
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(url, "_blank");
     } catch (e) {
       setError(e instanceof Error ? e.message : t.upgrade.errGeneric);
     } finally {
@@ -69,11 +93,6 @@ export function DashboardUpgradeTab() {
 
   return (
     <div className="max-w-4xl mx-auto w-full py-4">
-      <DashPageHero
-        title={t.upgrade.title}
-        subtitle={t.upgrade.subtitle}
-        accent="amber"
-      />
 
       {error && (
         <div className="mb-6 rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -247,7 +266,7 @@ export function DashboardUpgradeTab() {
               <a
                 href={checkoutUrl}
                 target="_blank"
-                rel="noreferrer"
+                rel="opener"
                 className="dash-btn-primary w-full"
               >
                 {t.upgrade.openPayBtn}

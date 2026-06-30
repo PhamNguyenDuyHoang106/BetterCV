@@ -12,6 +12,7 @@ import { GoogleAuthButton } from "../../components/auth/GoogleAuthButton";
 import { useLanguageStore } from "../../lib/store/language";
 import { translations } from "../../lib/translations";
 import { LanguageDropdown } from "../../components/LanguageDropdown";
+import { useThemeStore } from "../../lib/store/theme";
 
 type EmailForm = {
   email: string;
@@ -24,6 +25,19 @@ export default function UnifiedAuthContent() {
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const { language } = useLanguageStore();
+  const { theme } = useThemeStore();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const html = document.documentElement;
+      html.classList.remove("dark");
+    }
+    return () => {
+      if (typeof window !== "undefined" && theme === "dark") {
+        document.documentElement.classList.add("dark");
+      }
+    };
+  }, [theme]);
 
   const {
     register,
@@ -341,7 +355,7 @@ export default function UnifiedAuthContent() {
             {/* Divider */}
             <div className="relative flex items-center justify-center my-6">
               <div className="absolute w-full h-px bg-slate-200" />
-              <span className="relative bg-white px-4 text-[10px] font-bold text-slate-400 tracking-wider">
+              <span className="relative bg-white/95 px-4 text-[10px] font-bold text-slate-400 tracking-wider">
                 {t.auth.or}
               </span>
             </div>

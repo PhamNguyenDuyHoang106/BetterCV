@@ -12,6 +12,10 @@ import { Prisma } from '@prisma/client';
 import { migrateCvData } from './migrations';
 import { ThumbnailService } from './thumbnail.service';
 import { AuditLogService } from '../audit/audit.service';
+import {
+  buildTemplateSnapshotForTemplateId,
+  resolveTemplateSchemaForCv,
+} from '../template/template-schema.util';
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
@@ -28,15 +32,15 @@ export class CvService {
     const userId = await this.resolveUserId(supabaseId);
     let templateVersionId: string | null = null;
     let templateVersionNum = 1;
+    let templateSnapshot: Prisma.InputJsonValue | undefined;
     if (dto.templateId) {
-      const ver = await this.prisma.templateVersion.findFirst({
-        where: { templateId: dto.templateId },
-        orderBy: { version: 'desc' },
-      });
-      if (ver) {
-        templateVersionId = ver.id;
-        templateVersionNum = ver.version;
-      }
+      const pinned = await buildTemplateSnapshotForTemplateId(
+        this.prisma,
+        dto.templateId,
+      );
+      templateVersionId = pinned.templateVersionId;
+      templateVersionNum = pinned.templateVersionNum;
+      templateSnapshot = pinned.templateSnapshot ?? undefined;
     }
     return this.prisma.cv.create({
       data: {
@@ -46,6 +50,7 @@ export class CvService {
         templateId: dto.templateId,
         templateVersionId,
         templateVersionNum,
+        templateSnapshot,
         atsScore: 0,
         completenessScore: 0,
       },
@@ -93,6 +98,22 @@ export class CvService {
     }
 
     this.autoEnqueueThumbnailIfNeeded(cv);
+
+    if (!cv.templateSnapshot && (cv.templateVersionId || cv.templateId)) {
+      const resolvedSnapshot = await resolveTemplateSchemaForCv(
+        this.prisma,
+        cv,
+      );
+      if (resolvedSnapshot) {
+        await this.prisma.cv.update({
+          where: { id },
+          data: {
+            templateSnapshot: resolvedSnapshot as Prisma.InputJsonValue,
+          },
+        });
+        cv.templateSnapshot = resolvedSnapshot;
+      }
+    }
 
     // Run the on-read migration pipeline
     const assembled = this.assembleResumeData(cv);
@@ -147,25 +168,27 @@ export class CvService {
 
     let templateVersionId = existing.templateVersionId;
     let templateVersionNum = existing.templateVersionNum;
+    let templateSnapshot:
+      | Prisma.InputJsonValue
+      | typeof Prisma.JsonNull
+      | undefined =
+      (existing.templateSnapshot as Prisma.InputJsonValue | null) ?? undefined;
     if (
       dto.templateId !== undefined &&
       dto.templateId !== existing.templateId
     ) {
       if (dto.templateId) {
-        const ver = await this.prisma.templateVersion.findFirst({
-          where: { templateId: dto.templateId },
-          orderBy: { version: 'desc' },
-        });
-        if (ver) {
-          templateVersionId = ver.id;
-          templateVersionNum = ver.version;
-        } else {
-          templateVersionId = null;
-          templateVersionNum = 1;
-        }
+        const pinned = await buildTemplateSnapshotForTemplateId(
+          this.prisma,
+          dto.templateId,
+        );
+        templateVersionId = pinned.templateVersionId;
+        templateVersionNum = pinned.templateVersionNum;
+        templateSnapshot = pinned.templateSnapshot ?? undefined;
       } else {
         templateVersionId = null;
         templateVersionNum = 1;
+        templateSnapshot = Prisma.JsonNull;
       }
     }
 
@@ -178,6 +201,7 @@ export class CvService {
           templateId: dto.templateId,
           templateVersionId,
           templateVersionNum,
+          templateSnapshot,
           version: { increment: 1 },
           lastEditedSessionId: clientSession?.sessionId || null,
           lastEditedDevice: clientSession?.device || null,
@@ -351,6 +375,52 @@ export class CvService {
     });
   }
 
+  async createManualVersion(supabaseId: string, cvId: string) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+    await this.snapshotVersion(cvId, true, false);
+    return { success: true };
+  }
+
+  async renameVersion(
+    supabaseId: string,
+    cvId: string,
+    versionId: string,
+    title: string,
+  ) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+
+    const version = await this.prisma.cvVersion.findFirst({
+      where: { id: versionId, cvId },
+    });
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    return this.prisma.cvVersion.update({
+      where: { id: versionId },
+      data: { title },
+    });
+  }
+
+  async deleteVersion(supabaseId: string, cvId: string, versionId: string) {
+    const userId = await this.resolveUserId(supabaseId);
+    await this.assertOwnership(userId, cvId);
+
+    const version = await this.prisma.cvVersion.findFirst({
+      where: { id: versionId, cvId },
+    });
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    await this.prisma.cvVersion.delete({
+      where: { id: versionId },
+    });
+    return { success: true };
+  }
+
   /**
    * Retrieves the 20 most recent ATS scans for a CV.
    * To ensure the frontend Sparkline chart plots chronologically from left to right (oldest to newest),
@@ -421,6 +491,7 @@ export class CvService {
           title: snapshot.title || 'Untitled CV',
           locale: snapshot.locale || 'en',
           templateId: snapshot.templateId || null,
+          templateSnapshot: snapshot.templateSnapshot ?? Prisma.JsonNull,
           version: { increment: 1 },
           lastEditedSessionId: 'rollback',
           lastEditedDevice: 'Hệ thống (Phục hồi phiên bản)',
@@ -531,8 +602,8 @@ export class CvService {
       });
       if (latest) {
         const timeDiff = Date.now() - new Date(latest.createdAt).getTime();
-        if (timeDiff < 120000) {
-          // Skip autosave if it has been less than 2 minutes
+        if (timeDiff < 60000) {
+          // Skip autosave if it has been less than 1 minute
           return;
         }
       }
@@ -545,6 +616,7 @@ export class CvService {
           title: cv.title,
           locale: cv.locale,
           templateId: cv.templateId,
+          templateSnapshot: cv.templateSnapshot,
           sections: cv.sections,
           metadata: {
             isManual: force && !isExport,

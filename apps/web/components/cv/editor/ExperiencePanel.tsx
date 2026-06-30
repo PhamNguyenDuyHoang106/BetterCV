@@ -109,7 +109,7 @@ export function ExperiencePanel({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400">
-                  {language === "vi" ? "Tên công ty *" : "Company Name *"}
+                  {language === "vi" ? "Tên công ty" : "Company Name"}
                 </label>
                 <input
                   type="text"
@@ -122,7 +122,7 @@ export function ExperiencePanel({
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-400">
-                  {language === "vi" ? "Vị trí chức danh *" : "Role / Position *"}
+                  {language === "vi" ? "Vị trí chức danh" : "Role / Position"}
                 </label>
                 <input
                   type="text"
@@ -139,7 +139,7 @@ export function ExperiencePanel({
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400">
-                  {language === "vi" ? "Bắt đầu (YYYY-MM) *" : "Start (YYYY-MM) *"}
+                  {language === "vi" ? "Bắt đầu (YYYY-MM)" : "Start (YYYY-MM)"}
                 </label>
                 <input
                   type="text"

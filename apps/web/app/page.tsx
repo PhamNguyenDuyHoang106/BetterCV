@@ -9,6 +9,7 @@ import { apiFetch } from "../lib/api";
 import { useLanguageStore } from "../lib/store/language";
 import { translations } from "../lib/translations";
 import { LanguageDropdown } from "../components/LanguageDropdown";
+import { useThemeStore } from "../lib/store/theme";
 
 /* ── Static Icon Mapping Arrays ── */
 
@@ -84,6 +85,20 @@ function HomePageContent() {
 
   // Auth Card states
   const [cvCount, setCvCount] = useState<number | null>(null);
+
+  const { theme } = useThemeStore();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const html = document.documentElement;
+      html.classList.remove("dark");
+    }
+    return () => {
+      if (typeof window !== "undefined" && theme === "dark") {
+        document.documentElement.classList.add("dark");
+      }
+    };
+  }, [theme]);
 
   useEffect(() => {
     setMounted(true);

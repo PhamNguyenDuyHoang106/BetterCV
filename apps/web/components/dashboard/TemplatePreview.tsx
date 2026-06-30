@@ -71,7 +71,7 @@ export function TemplatePreview({
   const maxScale = size === "large" ? 1.2 : 1.12;
   const { containerRef, scale: fitScale } = useFitScale(fill, maxScale);
   const scale = fill ? fitScale : FIXED_SCALE[size];
-  const Layout = PREVIEW_LAYOUTS[variant] ?? PREVIEW_LAYOUTS["compact-ats"];
+  const Layout = PREVIEW_LAYOUTS[variant] ?? PREVIEW_LAYOUTS["ironclad-ats"];
   const fontClass = getPreviewFontClass(variant);
 
   const scaledW = DOC_W * scale;
