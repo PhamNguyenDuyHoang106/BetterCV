@@ -6,6 +6,8 @@ import { RequestContextStore } from '../../core/context/request-context.store';
 import { AiService } from '../ai/ai.service';
 import { AtsService } from '../ats/ats.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ConfigService } from '@nestjs/config';
+import { CareerProcessor } from './career.processor';
 
 @Injectable()
 export class CareerService {
@@ -15,6 +17,8 @@ export class CareerService {
     private aiService: AiService,
     private atsService: AtsService,
     private eventEmitter: EventEmitter2,
+    private config: ConfigService,
+    private careerProcessor: CareerProcessor,
   ) {}
 
   /**
@@ -43,24 +47,40 @@ export class CareerService {
     if (!scan) throw new NotFoundException('ATS Scan not found');
 
     // 2. Idempotency & Cache Check: Verify if there is an active generation job or already cached roadmap
-    const existing = await this.prisma.careerRoadmap.findFirst({
+    let existing = await this.prisma.careerRoadmap.findFirst({
       where: {
         userId,
         atsScanId,
         targetRole,
         status: { in: ['GENERATING', 'READY'] },
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, createdAt: true },
     });
 
     if (existing) {
-      return {
-        success: true,
-        roadmapId: existing.id,
-        msg: existing.status === 'GENERATING'
-          ? 'Roadmap generation already in progress'
-          : 'Roadmap already generated and cached',
-      };
+      if (
+        existing.status === 'GENERATING' &&
+        Date.now() - new Date(existing.createdAt).getTime() > 5 * 60 * 1000 // 5 minutes timeout
+      ) {
+        // Stale job! Mark it as FAILED so it can be re-run
+        await this.prisma.careerRoadmap.update({
+          where: { id: existing.id },
+          data: {
+            status: 'FAILED',
+            failureReason: 'Roadmap generation timed out (stale job).',
+            failedAt: new Date(),
+          },
+        });
+        existing = null; // Proceed to create a new job
+      } else {
+        return {
+          success: true,
+          roadmapId: existing.id,
+          msg: existing.status === 'GENERATING'
+            ? 'Roadmap generation already in progress'
+            : 'Roadmap already generated and cached',
+        };
+      }
     }
 
     // 3. Quota Check (Monthly Quota)
@@ -97,24 +117,43 @@ export class CareerService {
       },
     });
 
-    // 5. Enqueue Job to BullMQ with tracing metadata
+    // 5. Enqueue Job or process inline
     const requestId = RequestContextStore.get('requestId') || `worker-req-${roadmap.id}`;
-    await this.careerQueue.add(
-      'generate-roadmap',
-      {
-        roadmapId: roadmap.id,
-        userId,
-        atsScanId,
-        targetRole,
-        trace: {
-          requestId,
-          createdAt: Date.now(),
+    const redisEnabled = this.config.get<string>('REDIS_ENABLED', 'true') === 'true';
+
+    if (!redisEnabled) {
+      // Process inline asynchronously to avoid blocking the HTTP request
+      setImmediate(() => {
+        this.careerProcessor
+          .generateRoadmapInline({
+            roadmapId: roadmap.id,
+            userId,
+            atsScanId,
+            targetRole,
+            requestId,
+          })
+          .catch((err) => {
+            // Sentry or log error is already handled inside generateRoadmapInline
+          });
+      });
+    } else {
+      await this.careerQueue.add(
+        'generate-roadmap',
+        {
+          roadmapId: roadmap.id,
+          userId,
+          atsScanId,
+          targetRole,
+          trace: {
+            requestId,
+            createdAt: Date.now(),
+          },
         },
-      },
-      {
-        jobId: roadmap.id, // Ensure single active job per roadmap ID in queue
-      },
-    );
+        {
+          jobId: roadmap.id, // Ensure single active job per roadmap ID in queue
+        },
+      );
+    }
 
     return { success: true, roadmapId: roadmap.id };
   }
@@ -129,7 +168,7 @@ export class CareerService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const roadmap = await this.prisma.careerRoadmap.findFirst({
+    let roadmap = await this.prisma.careerRoadmap.findFirst({
       where: { id: roadmapId, userId: user.id },
       include: {
         phases: {
@@ -152,6 +191,39 @@ export class CareerService {
     });
 
     if (!roadmap) throw new NotFoundException('Career Roadmap not found');
+
+    // Auto-fail stale generating job on-read
+    if (
+      roadmap.status === 'GENERATING' &&
+      Date.now() - new Date(roadmap.createdAt).getTime() > 5 * 60 * 1000
+    ) {
+      roadmap = await this.prisma.careerRoadmap.update({
+        where: { id: roadmap.id },
+        data: {
+          status: 'FAILED',
+          failureReason: 'Roadmap generation timed out (stale job).',
+          failedAt: new Date(),
+        },
+        include: {
+          phases: {
+            orderBy: { phaseIndex: 'asc' },
+            include: {
+              skills: {
+                orderBy: { order: 'asc' },
+                include: {
+                  skill: true,
+                },
+              },
+            },
+          },
+          skillGaps: {
+            include: {
+              skill: true,
+            },
+          },
+        },
+      });
+    }
 
     if (roadmap.status !== 'READY') {
       return {

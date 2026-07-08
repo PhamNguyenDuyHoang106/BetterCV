@@ -27,18 +27,32 @@ export class CareerProcessor extends WorkerHost {
     const { roadmapId, userId, atsScanId, targetRole, trace } = job.data;
     const requestId = trace?.requestId || `worker-${job.id}`;
 
+    return this.generateRoadmapInline({
+      roadmapId,
+      userId,
+      atsScanId,
+      targetRole,
+      requestId,
+    });
+  }
+
+  async generateRoadmapInline(data: {
+    roadmapId: string;
+    userId: string;
+    atsScanId: string;
+    targetRole: string;
+    requestId?: string;
+  }): Promise<any> {
+    const { roadmapId, userId, atsScanId, targetRole, requestId = 'inline' } = data;
     return RequestContextStore.run(
       { requestId },
       async () => {
-        const queueDelayMs = Date.now() - (trace?.createdAt || job.timestamp);
         this.logger.log({
-          msg: 'Career roadmap job started processing',
-          module: 'QueueWorker',
+          msg: 'Career roadmap inline generation started',
+          module: 'CareerService',
           jobType: 'career-roadmap',
           event: 'job_started',
-          queue: 'career-queue',
-          jobId: job.id,
-          queueDelayMs,
+          roadmapId,
           requestId,
         });
 
@@ -104,7 +118,6 @@ export class CareerProcessor extends WorkerHost {
 
             this.logger.log({
               msg: 'Career roadmap completed with empty skills selection',
-              jobId: job.id,
               roadmapId,
             });
             return { success: true, skillsCount: 0 };
@@ -192,16 +205,18 @@ export class CareerProcessor extends WorkerHost {
                 explanation,
               },
             });
+          }, {
+            maxWait: 10000, // 10 seconds max wait for connection
+            timeout: 30000, // 30 seconds max execution time
           });
 
           const durationMs = Date.now() - start;
           this.logger.log({
-            msg: 'Career roadmap job completed successfully',
-            module: 'QueueWorker',
+            msg: 'Career roadmap inline generation completed successfully',
+            module: 'CareerService',
             jobType: 'career-roadmap',
             event: 'job_completed',
-            queue: 'career-queue',
-            jobId: job.id,
+            roadmapId,
             durationMs,
             requestId,
           });
@@ -210,12 +225,11 @@ export class CareerProcessor extends WorkerHost {
         } catch (err: any) {
           const durationMs = Date.now() - start;
           this.logger.error({
-            msg: `Career roadmap generation failed for job ${job.id}: ${err.message}`,
-            module: 'QueueWorker',
+            msg: `Career roadmap inline generation failed: ${err.message}`,
+            module: 'CareerService',
             jobType: 'career-roadmap',
             event: 'job_failed',
-            queue: 'career-queue',
-            jobId: job.id,
+            roadmapId,
             durationMs,
             requestId,
             errorMessage: err.message,
@@ -234,14 +248,9 @@ export class CareerProcessor extends WorkerHost {
             this.logger.error(`Failed to mark roadmap ${roadmapId} as FAILED: ${dbErr.message}`);
           });
 
-          // Mark job as unrecoverable if scan is missing (permanent error)
-          if (err instanceof NotFoundException) {
-            throw new UnrecoverableError(err.message);
-          }
-
           throw err;
         }
-      },
+      }
     );
   }
 
