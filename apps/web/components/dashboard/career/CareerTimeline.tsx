@@ -1,13 +1,20 @@
 import React from "react";
 import { PhaseCard } from "./PhaseCard";
 
-type Course = {
+type LearningResource = {
   id: string;
+  slug: string;
   title: string;
+  description?: string | null;
   url: string;
   provider: string;
-  difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
-  durationWeeks: number;
+  providerLabel?: string | null;
+  resourceType: string;
+  level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  durationMin?: number | null;
+  isPaid: boolean;
+  qualityScore: number;
+  status: string;
 };
 
 type Skill = {
@@ -16,7 +23,15 @@ type Skill = {
   category: string;
   difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
   estimatedWeeks: number;
-  courses: Course[];
+  hiringDemand: "CORE" | "IMPORTANT" | "OPTIONAL";
+  prerequisites: Array<{ id: string; name: string }>;
+  project: {
+    suggestion: string;
+    difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+    hours: number;
+    outcome: string;
+  } | null;
+  resources: LearningResource[];
 };
 
 type Phase = {

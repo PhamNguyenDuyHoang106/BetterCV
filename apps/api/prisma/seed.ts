@@ -171,6 +171,14 @@ async function main() {
       create: { name: rule.name, pattern: rule.pattern, isActive: true }
     });
   }
+
+  // Seed modern learning resources & skill metadata
+  try {
+    const { seedLearningResources } = await import("./seeds/learning-resources.seed");
+    await seedLearningResources(prisma);
+  } catch (err) {
+    console.error("Failed to seed learning resources:", err);
+  }
 }
 
 main()
@@ -181,3 +189,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

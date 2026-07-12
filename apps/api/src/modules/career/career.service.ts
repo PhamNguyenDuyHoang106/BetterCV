@@ -8,6 +8,7 @@ import { AtsService } from '../ats/ats.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { CareerProcessor } from './career.processor';
+import { LearningResource } from '@prisma/client';
 
 @Injectable()
 export class CareerService {
@@ -159,7 +160,7 @@ export class CareerService {
   }
 
   /**
-   * Retrieves full details of a CareerRoadmap, mapping courses in real-time.
+   * Retrieves full details of a CareerRoadmap, mapping learning resources in real-time.
    */
   async getRoadmap(supabaseId: string, roadmapId: string) {
     const user = await this.prisma.user.findUnique({
@@ -177,7 +178,17 @@ export class CareerService {
             skills: {
               orderBy: { order: 'asc' },
               include: {
-                skill: true,
+                skill: {
+                  include: {
+                    dependencies: {
+                      select: {
+                        dependsOn: {
+                          select: { id: true, name: true },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -211,7 +222,17 @@ export class CareerService {
               skills: {
                 orderBy: { order: 'asc' },
                 include: {
-                  skill: true,
+                  skill: {
+                    include: {
+                      dependencies: {
+                        select: {
+                          dependsOn: {
+                            select: { id: true, name: true },
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -246,21 +267,62 @@ export class CareerService {
       });
     });
 
-    // 2. Query all active courses for these skills in a single query
-    const courses = await this.prisma.course.findMany({
+    // 2. Query all active learning resources for these skills
+    // We order by isPaid (free first), qualityScore (desc) and learningOrder (asc)
+    const dbResources = await this.prisma.learningResource.findMany({
       where: {
         skillId: { in: allSkillIds },
         isActive: true,
+        status: { not: 'BROKEN' },
       },
+      orderBy: [
+        { isPaid: 'asc' },          // Free resources first
+        { qualityScore: 'desc' },   // Then by quality
+        { learningOrder: 'asc' },   // Then by learning step order
+      ],
     });
 
-    // Group courses by skillId for fast O(1) lookup
-    const coursesBySkillId = new Map<string, any[]>();
-    courses.forEach(course => {
-      if (!coursesBySkillId.has(course.skillId)) {
-        coursesBySkillId.set(course.skillId, []);
+    // Top 3 Resource Type Diversity Algorithm:
+    // For each skill, pick at most 3 resources. To make it a diverse learning journey,
+    // we try to pick at most 1 resource of each type first (e.g. 1 DOCS, 1 INTERACTIVE, 1 VIDEO/COURSE/PRACTICE).
+    const resourcesBySkillId = new Map<string, LearningResource[]>();
+    
+    // Group all by skill
+    const rawResourcesBySkill = new Map<string, LearningResource[]>();
+    dbResources.forEach(res => {
+      if (!rawResourcesBySkill.has(res.skillId)) {
+        rawResourcesBySkill.set(res.skillId, []);
       }
-      coursesBySkillId.get(course.skillId)!.push(course);
+      rawResourcesBySkill.get(res.skillId)!.push(res);
+    });
+
+    // Select top 3 with type diversity
+    rawResourcesBySkill.forEach((list, skillId) => {
+      const selected: LearningResource[] = [];
+      const usedTypes = new Set<string>();
+
+      // First pass: try to pick one of each type
+      for (const res of list) {
+        if (!usedTypes.has(res.resourceType)) {
+          selected.push(res);
+          usedTypes.add(res.resourceType);
+        }
+        if (selected.length >= 3) break;
+      }
+
+      // Second pass: fill remaining slots with highest quality remaining resources
+      if (selected.length < 3) {
+        for (const res of list) {
+          if (!selected.some(s => s.id === res.id)) {
+            selected.push(res);
+          }
+          if (selected.length >= 3) break;
+        }
+      }
+
+      // Sort selected by learningOrder so they show up in sequence Docs -> Interactive -> Video -> Practice
+      selected.sort((a, b) => a.learningOrder - b.learningOrder);
+      resourcesBySkillId.set(skillId, selected);
     });
 
     // 3. Compute ATS match improvement range (deterministic)
@@ -273,14 +335,30 @@ export class CareerService {
       id: phase.id,
       phaseIndex: phase.phaseIndex,
       phaseName: phase.phaseName,
-      skills: phase.skills.map(ps => ({
-        id: ps.skill.id,
-        name: ps.skill.name,
-        category: ps.skill.category,
-        difficulty: ps.skill.difficulty,
-        estimatedWeeks: ps.skill.estimatedWeeks,
-        courses: coursesBySkillId.get(ps.skillId) || [],
-      })),
+      skills: phase.skills.map(ps => {
+        const skill = ps.skill;
+        const prerequisites = skill.dependencies.map(d => ({
+          id: d.dependsOn.id,
+          name: d.dependsOn.name,
+        }));
+
+        return {
+          id: skill.id,
+          name: skill.name,
+          category: skill.category,
+          difficulty: skill.difficulty,
+          estimatedWeeks: skill.estimatedWeeks,
+          hiringDemand: skill.hiringDemand, // CORE | IMPORTANT | OPTIONAL
+          prerequisites,
+          project: skill.projectSuggestion ? {
+            suggestion: skill.projectSuggestion,
+            difficulty: skill.projectDifficulty,
+            hours: skill.projectHours,
+            outcome: skill.projectOutcome,
+          } : null,
+          resources: resourcesBySkillId.get(skill.id) || [],
+        };
+      }),
     }));
 
     return {
@@ -300,6 +378,10 @@ export class CareerService {
         id: gap.id,
         name: gap.skill.name,
         priority: gap.priority,
+        priorityLevel: gap.priorityLevel ?? 'MEDIUM',
+        reason: gap.reason ?? null,
+        hiringDemand: gap.skill.hiringDemand,
+        estimatedWeeks: gap.estimatedWeeks ?? gap.skill.estimatedWeeks,
         estimatedImpact: gap.estimatedImpact,
       })),
       createdAt: roadmap.createdAt,

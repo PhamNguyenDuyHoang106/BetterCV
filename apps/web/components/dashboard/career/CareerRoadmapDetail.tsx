@@ -3,13 +3,20 @@ import { CareerTimeline } from "./CareerTimeline";
 import { RerunAtsButton } from "./RerunAtsButton";
 import { CareerCoachPanel } from "./CareerCoachPanel";
 
-type Course = {
+type LearningResource = {
   id: string;
+  slug: string;
   title: string;
+  description?: string | null;
   url: string;
   provider: string;
-  difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
-  durationWeeks: number;
+  providerLabel?: string | null;
+  resourceType: string;
+  level: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  durationMin?: number | null;
+  isPaid: boolean;
+  qualityScore: number;
+  status: string;
 };
 
 type Skill = {
@@ -18,7 +25,15 @@ type Skill = {
   category: string;
   difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
   estimatedWeeks: number;
-  courses: Course[];
+  hiringDemand: "CORE" | "IMPORTANT" | "OPTIONAL";
+  prerequisites: Array<{ id: string; name: string }>;
+  project: {
+    suggestion: string;
+    difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+    hours: number;
+    outcome: string;
+  } | null;
+  resources: LearningResource[];
 };
 
 type Phase = {
@@ -31,8 +46,11 @@ type Phase = {
 type SkillGap = {
   id: string;
   name: string;
-  priority: "HIGH" | "MEDIUM" | "LOW";
-  estimatedImpact: number;
+  priority: number;
+  priorityLevel: "HIGH" | "MEDIUM" | "LOW";
+  reason: string | null;
+  hiringDemand: "CORE" | "IMPORTANT" | "OPTIONAL";
+  estimatedWeeks: number;
 };
 
 type RoadmapDetail = {
@@ -244,30 +262,52 @@ export function CareerRoadmapDetail({ roadmap, t, onBack }: Props) {
             Identified Skill Gaps
           </h3>
           
-          <div className="space-y-3">
-            {roadmap.skillGaps.map((gap) => (
-              <div
-                key={gap.id}
-                className="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/30 flex items-center justify-between gap-3"
-              >
-                <div className="min-w-0">
-                  <h4 className="font-bold text-xs text-slate-800 truncate">{gap.name}</h4>
-                  <span className={`inline-block text-[8px] font-black uppercase px-1.5 py-0.5 rounded leading-none mt-1 ${
-                    gap.priority === "HIGH"
-                      ? "bg-rose-50 text-rose-600"
-                      : gap.priority === "MEDIUM"
-                      ? "bg-amber-50 text-amber-600"
-                      : "bg-blue-50 text-blue-600"
-                  }`}>
-                    {gap.priority} Priority
-                  </span>
+          <div className="space-y-3.5">
+            {roadmap.skillGaps.map((gap) => {
+              const demandStyles = {
+                CORE: "bg-red-50 text-red-700 border-red-200",
+                IMPORTANT: "bg-amber-50 text-amber-700 border-amber-200",
+                OPTIONAL: "bg-blue-50 text-blue-700 border-blue-200",
+              };
+
+              const priorityStyles = {
+                HIGH: "bg-rose-50 text-rose-600",
+                MEDIUM: "bg-slate-100 text-slate-600",
+                LOW: "bg-slate-50 text-slate-400",
+              };
+
+              return (
+                <div
+                  key={gap.id}
+                  className="p-4 rounded-2xl border border-slate-100 bg-slate-50/20 space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-black text-xs text-slate-800 leading-snug">{gap.name}</h4>
+                      
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <span className={`inline-block text-[8px] font-black uppercase px-1.5 py-0.5 rounded leading-none border ${demandStyles[gap.hiringDemand] || demandStyles.IMPORTANT}`}>
+                          {gap.hiringDemand} Demand
+                        </span>
+                        <span className={`inline-block text-[8px] font-black uppercase px-1.5 py-0.5 rounded leading-none ${priorityStyles[gap.priorityLevel] || priorityStyles.MEDIUM}`}>
+                          {gap.priorityLevel} Priority
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Duration</span>
+                      <span className="text-xs font-black text-slate-700">~{gap.estimatedWeeks} {gap.estimatedWeeks === 1 ? "week" : "weeks"}</span>
+                    </div>
+                  </div>
+
+                  {gap.reason && (
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic border-t border-slate-100/50 pt-2">
+                      &ldquo;{gap.reason}&rdquo;
+                    </p>
+                  )}
                 </div>
-                <div className="text-right shrink-0">
-                  <span className="text-[10px] text-slate-400 block font-medium">ATS Impact</span>
-                  <span className="text-xs font-black text-slate-700">+{gap.estimatedImpact}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

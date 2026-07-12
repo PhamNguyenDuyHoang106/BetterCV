@@ -94,7 +94,9 @@ export class CareerProcessor extends WorkerHost {
             locale,
           );
 
-          const { selectedSkillIds, explanation } = aiResult;
+          const { explanation, skills: aiSkills } = aiResult;
+          const selectedSkillIds = aiSkills.map(s => s.skillId);
+          const aiMetaMap = new Map(aiSkills.map(s => [s.skillId, s]));
 
           // Update progress: 50%
           await this.prisma.careerRoadmap.update({
@@ -149,7 +151,14 @@ export class CareerProcessor extends WorkerHost {
             where: { id: { in: selectedSkillIds } },
             select: { id: true, estimatedWeeks: true },
           });
-          const totalWeeks = skillsMeta.reduce((sum, s) => sum + s.estimatedWeeks, 0);
+          const dbWeeksMap = new Map(skillsMeta.map(s => [s.id, s.estimatedWeeks]));
+          
+          let totalWeeks = 0;
+          selectedSkillIds.forEach(id => {
+            const aiWeeks = aiMetaMap.get(id)?.estimatedWeeks;
+            const dbWeeks = dbWeeksMap.get(id) ?? 2;
+            totalWeeks += aiWeeks ?? dbWeeks;
+          });
           const estimatedMonths = Math.max(0.5, parseFloat((totalWeeks / 4).toFixed(1)));
 
           // 7. Persist roadmap details (phases, roadmap-phase-skills, career-skill-gaps) in a transaction
@@ -185,12 +194,17 @@ export class CareerProcessor extends WorkerHost {
             let priorityCounter = 1;
             for (const skillId of sortedSkillIds) {
               const impact = impactMap.get(skillId) ?? 1;
+              const aiMeta = aiMetaMap.get(skillId);
+              
               await tx.careerSkillGap.create({
                 data: {
                   roadmapId,
                   skillId,
                   priority: priorityCounter++,
+                  priorityLevel: aiMeta?.priorityLevel ?? 'MEDIUM',
+                  reason: aiMeta?.reason ?? null,
                   estimatedImpact: impact,
+                  estimatedWeeks: aiMeta?.estimatedWeeks ?? null,
                 },
               });
             }
