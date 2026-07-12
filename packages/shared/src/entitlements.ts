@@ -189,7 +189,7 @@ export const QUOTA_DEFINITIONS: Record<QuotaKey, QuotaDefinition> = {
 };
 
 export const PLAN_ENTITLEMENTS: Record<string, ReadonlySet<Feature>> = {
-  FREE: new Set([Feature.CREATE_CV, Feature.ATS_SCAN]),
+  FREE: new Set([Feature.CREATE_CV, Feature.ATS_SCAN, Feature.AI_REWRITE]),
   PRO: new Set([
     Feature.CREATE_CV,
     Feature.ATS_SCAN,

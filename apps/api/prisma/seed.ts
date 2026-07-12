@@ -28,14 +28,14 @@ async function main() {
     where: { tier: "FREE" },
     update: {
       name: "Free",
-      monthlyAiQuota: 50000,
+      monthlyAiQuota: 5000,
       maxCV: 3,
       maxDailyATS: 3,
     },
     create: {
       tier: "FREE",
       name: "Free",
-      monthlyAiQuota: 50000,
+      monthlyAiQuota: 5000,
       maxCV: 3,
       maxDailyATS: 3,
     }
