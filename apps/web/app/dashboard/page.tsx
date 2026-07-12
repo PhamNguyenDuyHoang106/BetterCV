@@ -93,12 +93,8 @@ function DashboardPageContent() {
 
   const checkCvQuota = () => {
     if (cvQuota.exhausted) {
-      alert(
-        activeLang === "vi"
-          ? `Bạn đã đạt giới hạn tối đa ${cvQuota.limit} CV của gói ${plan?.displayName || "Free"}. Vui lòng nâng cấp tài khoản để tạo thêm.`
-          : `You have reached the maximum limit of ${cvQuota.limit} CVs for the ${plan?.displayName || "Free"} plan. Please upgrade to create more.`
-      );
-      setActiveTab("upgrade");
+      const { useUpgradeModalStore } = require("../../lib/store/upgrade-modal");
+      useUpgradeModalStore.getState().openUpgradeModal("MAX_CV", "PRO");
       return false;
     }
     return true;

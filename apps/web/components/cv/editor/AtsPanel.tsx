@@ -3,6 +3,7 @@ import { apiFetch } from "../../../lib/api";
 import { useTranslation } from "../../../hooks/useTranslation";
 import { useEntitlement } from "../../../hooks/useEntitlement";
 import { QuotaKey } from "@acv/shared";
+import { useUpgradeModalStore } from "../../../lib/store/upgrade-modal";
 
 type Recommendation = {
   id: string;
@@ -64,11 +65,7 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
 
   const runAtsAnalysis = async () => {
     if (atsQuota.exhausted) {
-      alert(
-        language === "vi"
-          ? `Bạn đã hết lượt quét ATS miễn phí hôm nay (${atsQuota.used}/${atsQuota.limit} lượt). Vui lòng nâng cấp để quét không giới hạn.`
-          : `You have exhausted your daily ATS scans (${atsQuota.used}/${atsQuota.limit} scans). Please upgrade to unlock unlimited scans.`
-      );
+      useUpgradeModalStore.getState().openUpgradeModal("ATS_SCAN", "PRO");
       return;
     }
     if (!jobDescription.trim()) {
@@ -96,8 +93,10 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       const firstLine = jobDescription.split("\n")[0].trim();
       const extractedTitle = firstLine.length > 80 ? firstLine.slice(0, 80) + "..." : firstLine;
       setTargetRole(extractedTitle || (language === "vi" ? "Lập trình viên" : "Software Engineer"));
-    } catch (err) {
+    } catch (err: any) {
       console.error("ATS Error:", err);
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) return;
       alert(t.editor.ats.scanFailed);
     } finally {
       setIsAnalyzingAts(false);
@@ -127,11 +126,14 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       }
     } catch (err: any) {
       console.error("Roadmap error:", err);
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) return;
       alert(err.message || "Failed to create career roadmap.");
     } finally {
       setIsCreatingRoadmap(false);
     }
   };
+
 
   return (
     <div className="space-y-6">

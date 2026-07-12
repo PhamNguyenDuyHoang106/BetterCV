@@ -36,7 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GoogleAnalytics />
         <TopNav />
         {children}
+        <UpgradeModalProvider />
       </body>
     </html>
   );
 }
+
+import { UpgradeModalProvider } from "../components/UpgradeModalProvider";
+

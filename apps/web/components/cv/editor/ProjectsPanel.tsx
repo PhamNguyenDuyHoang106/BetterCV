@@ -50,6 +50,8 @@ export function ProjectsPanel({
         saveProjects(updated);
       }
     } catch (err: any) {
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) return;
       alert(language === "vi" 
         ? `Lỗi đồng bộ GitHub: ${err.message || "Không thể tải thông tin dự án."}` 
         : `GitHub sync error: ${err.message || "Could not fetch project details."}`

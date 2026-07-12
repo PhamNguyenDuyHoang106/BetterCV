@@ -51,6 +51,29 @@ export const apiFetch = async <T>(
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
+      const bodyAny = body as any;
+
+      // Parse structured 403 errors for rich UI handling
+      if (response.status === 403) {
+        const { FeatureLockedError, QuotaExceededError } = await import("./errors");
+        const errObj = bodyAny?.error || bodyAny;
+        const code = errObj?.code;
+        if (code === "FEATURE_LOCKED") {
+          throw new FeatureLockedError(
+            errObj.feature || "",
+            errObj.requiredPlan || "PRO",
+            errObj.upgradeUrl || "/dashboard?tab=upgrade",
+          );
+        }
+        if (code === "QUOTA_EXCEEDED") {
+          throw new QuotaExceededError(
+            errObj.quotaKey || "",
+            errObj.limit ?? 0,
+            "/dashboard?tab=upgrade",
+          );
+        }
+      }
+
       const message =
         (body as { error?: { message?: string } }).error?.message ||
         (body as { message?: string }).message ||

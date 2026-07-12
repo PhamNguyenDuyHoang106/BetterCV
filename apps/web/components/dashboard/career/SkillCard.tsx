@@ -62,8 +62,13 @@ export function SkillCard({ skill, roadmapId, viewCoursesLabel, t }: Props) {
       } else {
         setAddState("added");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Add to CV failed:", err);
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) {
+        setAddState("idle");
+        return;
+      }
       setAddState("error");
       setTimeout(() => setAddState("idle"), 3000);
     }
@@ -81,8 +86,13 @@ export function SkillCard({ skill, roadmapId, viewCoursesLabel, t }: Props) {
       const data = res?.data || res;
       setBulletText(data?.bullet || "");
       setBulletState("visible");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Generate bullet failed:", err);
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) {
+        setBulletState("hidden");
+        return;
+      }
       setBulletState("hidden");
     }
   };

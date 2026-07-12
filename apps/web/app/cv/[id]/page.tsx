@@ -5,8 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useCvStore } from "../../../lib/store/cv";
 import { useAuthStore } from "../../../lib/store/auth";
 import { apiFetch } from "../../../lib/api";
+import { FeatureLockedError } from "../../../lib/errors";
 import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
+import { useUpgradeModalStore } from "../../../lib/store/upgrade-modal";
 import { useTranslation } from "../../../hooks/useTranslation";
 import { syncSessionToApp } from "../../../lib/auth-session";
 
@@ -51,10 +53,17 @@ export default function CvEditorPage() {
   const [previewScale, setPreviewScale] = useState<number>(100);
   const [exporting, setExporting] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<"PRO" | "PREMIUM" | null>(null);
+
+  const openUpgradeModal = useCallback((err?: unknown) => {
+    if (err instanceof FeatureLockedError || (err as any)?.name === "FeatureLockedError") {
+      useUpgradeModalStore.getState().openUpgradeModal((err as any).feature, (err as any).requiredPlan);
+    } else {
+      useUpgradeModalStore.getState().openUpgradeModal(undefined, undefined);
+    }
+  }, []);
 
   const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
   const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
@@ -80,6 +89,7 @@ export default function CvEditorPage() {
     saveSummary: editor.saveSummary,
     setExperiences: editor.setExperiences,
     saveExperiences: editor.saveExperiences,
+    onFeatureLocked: openUpgradeModal,
   });
 
   // Compile Live Preview HTML
@@ -113,7 +123,7 @@ export default function CvEditorPage() {
     }
   }, [hydrate]);
 
-  const handleManualSave = async () => {
+  const handleManualSave = useCallback(async (silent = false) => {
     setIsSavingManual(true);
     try {
       if (isDirty) {
@@ -121,14 +131,18 @@ export default function CvEditorPage() {
       }
       await apiFetch(`/cvs/${cvId}/versions`, { method: "POST" });
       setVersionUpdateTrigger((prev) => prev + 1);
-      alert(language === "vi" ? "Lưu bản sao thành công!" : "Saved version copy successfully!");
+      if (!silent) {
+        alert(language === "vi" ? "Lưu bản sao thành công!" : "Saved version copy successfully!");
+      }
     } catch (err) {
-      console.error("Failed to save manually:", err);
-      alert(language === "vi" ? "Lỗi lưu bản sao!" : "Failed to save copy!");
+      if (!silent) {
+        console.error("Failed to save manually:", err);
+        alert(language === "vi" ? "Lỗi lưu bản sao!" : "Failed to save copy!");
+      }
     } finally {
       setIsSavingManual(false);
     }
-  };
+  }, [cvId, isDirty, language, syncDirtyChanges]);
 
   useEffect(() => {
     if (mounted && !accessToken) {
@@ -148,7 +162,7 @@ export default function CvEditorPage() {
         } catch (e) {
           console.error("Failed to sync session on payment success:", e);
         } finally {
-          setShowUpgradeModal(false);
+          useUpgradeModalStore.getState().closeUpgradeModal();
           setCheckoutUrl(null);
           setCheckoutQr(null);
         }
@@ -160,6 +174,30 @@ export default function CvEditorPage() {
       window.removeEventListener("message", handleMessage);
     };
   }, [language]);
+
+  // Auto-save a version when the user closes/leaves the browser tab
+  useEffect(() => {
+    if (!cvId) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && isDirty) {
+        // Use keepalive fetch to fire-and-forget a version snapshot
+        const token = useAuthStore.getState().accessToken;
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000/api";
+        navigator.sendBeacon
+          ? navigator.sendBeacon(`${baseUrl}/cvs/${cvId}/versions`, new Blob([JSON.stringify({ silent: true })], { type: "application/json" }))
+          : fetch(`${baseUrl}/cvs/${cvId}/versions`, {
+              method: "POST",
+              keepalive: true,
+              headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+              body: JSON.stringify({ silent: true }),
+            }).catch(() => {});
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [cvId, isDirty]);
 
   // Sync iframe qua postMessage để giảm giật lag và flicker
   useEffect(() => {
@@ -242,7 +280,7 @@ export default function CvEditorPage() {
       : false;
 
     if (isPremiumTemplate && user?.role === "FREE") {
-      setShowUpgradeModal(true);
+      openUpgradeModal();
       return;
     }
 
@@ -290,7 +328,11 @@ export default function CvEditorPage() {
       <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={async () => {
+              // Auto-save a version snapshot before navigating away
+              await handleManualSave(true);
+              router.push("/dashboard");
+            }}
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition-all text-slate-300"
             title={t.editor.backToDashboard}
           >
@@ -314,33 +356,33 @@ export default function CvEditorPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {autoSaveEnabled ? (
-            <AutosaveIndicator />
-          ) : (
-            <button
-              onClick={handleManualSave}
-              disabled={isSavingManual}
-              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-slate-700/80 transition-all ${
-                isDirty
-                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500/50 shadow-lg shadow-emerald-500/10"
-                  : "bg-slate-900 text-slate-500 hover:bg-slate-850 border-slate-800/80"
-              }`}
-            >
-              {isSavingManual ? (
-                <>
-                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  {language === "vi" ? "Đang lưu..." : "Saving..."}
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8l-4-4H8zm0 0v4h6V4H8zm-2 9h12v5H6v-5z" />
-                  </svg>
-                  {language === "vi" ? "Lưu bản sao" : "Save Copy"}
-                </>
-              )}
-            </button>
-          )}
+          {autoSaveEnabled && <AutosaveIndicator />}
+
+          {/* Save Copy button — always visible */}
+          <button
+            onClick={() => handleManualSave(false)}
+            disabled={isSavingManual}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-slate-700/80 transition-all ${
+              isDirty
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500/50 shadow-lg shadow-emerald-500/10"
+                : "bg-slate-900 text-slate-500 hover:bg-slate-850 border-slate-800/80"
+            }`}
+            title={language === "vi" ? "Lưu bản sao lịch sử" : "Save version copy"}
+          >
+            {isSavingManual ? (
+              <>
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                {language === "vi" ? "Đang lưu..." : "Saving..."}
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8l-4-4H8zm0 0v4h6V4H8zm-2 9h12v5H6v-5z" />
+                </svg>
+                {language === "vi" ? "Lưu bản sao" : "Save Copy"}
+              </>
+            )}
+          </button>
 
           <button
             onClick={() => setShowHistory(!showHistory)}
@@ -489,6 +531,8 @@ export default function CvEditorPage() {
             {activeTab === "languages" && (
               <LanguagesPanel
                 languages={editor.languages}
+                showLangLevel={editor.showLangLevel}
+                handleShowLangLevelChange={editor.handleShowLangLevelChange}
                 addLanguageItem={editor.addLanguageItem}
                 updateLanguageItem={editor.updateLanguageItem}
                 removeLanguageItem={editor.removeLanguageItem}
@@ -601,73 +645,6 @@ export default function CvEditorPage() {
 
       {/* Editing Conflicts Overlay Dialog */}
       <ConflictDialog />
-
-      {/* Premium Upgrade Modal */}
-      {showUpgradeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-200">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-400">
-              <span className="material-symbols-outlined text-3xl">workspace_premium</span>
-            </div>
-            
-            <div className="space-y-2">
-              <h3 className="text-xl font-bold text-white">
-                {language === "vi" ? "Mẫu CV Cao Cấp (PRO/ULTRA)" : "PRO/ULTRA CV Template"}
-              </h3>
-              <p className="text-sm text-slate-400">
-                {language === "vi"
-                  ? "Mẫu giao diện này chỉ áp dụng cho tài khoản cao cấp. Vui lòng chọn gói nâng cấp phù hợp bên dưới để tiếp tục xuất PDF."
-                  : "This template is only available for premium accounts. Please choose a suitable upgrade plan below to export PDF."}
-              </p>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <button
-                disabled={checkoutLoading !== null}
-                onClick={() => handleUpgradeCheckout("PRO")}
-                className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-slate-900 border border-indigo-500/30 hover:border-indigo-500 hover:from-indigo-950/60 transition-all text-left group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-indigo-400 text-lg group-hover:scale-110 transition-transform">workspace_premium</span>
-                    {language === "vi" ? "Nâng cấp gói Pro (Theo tháng)" : "Upgrade to PRO (Monthly)"}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    {language === "vi" ? "Truy cập mọi mẫu CV, đầy đủ công cụ AI thông minh." : "Unlock all premium templates and AI assistant tools."}
-                  </p>
-                </div>
-                <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">chevron_right</span>
-              </button>
-
-              <button
-                disabled={checkoutLoading !== null}
-                onClick={() => handleUpgradeCheckout("PREMIUM")}
-                className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-amber-950/40 to-slate-900 border border-amber-500/30 hover:border-amber-500 hover:from-amber-950/60 transition-all text-left group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-amber-400 text-lg group-hover:scale-110 transition-transform">verified</span>
-                    {language === "vi" ? "Nâng cấp gói Ultra (Trọn đời)" : "Upgrade to ULTRA (Lifetime)"}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    {language === "vi" ? "Sở hữu vĩnh viễn, không giới hạn lượt xuất và tính năng." : "Lifetime access, unlimited exports and all features forever."}
-                  </p>
-                </div>
-                <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">chevron_right</span>
-              </button>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setShowUpgradeModal(false)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-transparent text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-all"
-              >
-                {language === "vi" ? "Đóng" : "Cancel"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Payment Checkout QR Modal Overlay */}
       {checkoutUrl && (
