@@ -8,6 +8,8 @@ import puppeteer from 'puppeteer';
 import { Document, HeadingLevel, Packer, Paragraph } from 'docx';
 import { CvService } from '../cv/cv.service';
 import { resolveTemplateSchemaForCv } from '../template/template-schema.util';
+import { EntitlementService } from '../entitlement/entitlement.service';
+import { Feature, getTemplateRegistryEntry } from '@acv/shared';
 
 @Injectable()
 export class ExportService {
@@ -19,6 +21,7 @@ export class ExportService {
     private prisma: PrismaService,
     private config: ConfigService,
     private cvService: CvService,
+    private entitlementService: EntitlementService,
   ) {
     const supabaseUrl = this.config.get<string>('SUPABASE_URL');
     const supabaseKey = this.config.get<string>('SUPABASE_SERVICE_ROLE_KEY');
@@ -41,12 +44,37 @@ export class ExportService {
       throw new ForbiddenException('Template not found');
     }
 
+    const user = await this.prisma.user.findUnique({
+      where: { supabaseId },
+      select: { id: true },
+    });
+    if (!user) throw new ForbiddenException('User not found');
+
+    const registryEntry = getTemplateRegistryEntry(cv.templateId);
+    if (registryEntry?.tag === 'Premium') {
+      await this.entitlementService.assertFeature(user.id, Feature.PREMIUM_TEMPLATE, {
+        cvId,
+        templateId: cv.templateId,
+      });
+    }
+
     // Force immediate snapshot tagged as export checkpoint
     await this.cvService.snapshotVersion(cvId, true, true);
 
+    const hasHdExport = await this.entitlementService.hasFeature(user.id, Feature.EXPORT_PDF_HD);
+
+    const renderData = {
+      ...this.flatten(cv),
+      rendering: {
+        watermark: {
+          enabled: !hasHdExport,
+        },
+      },
+    };
+
     const html = renderHtml({
       template: templateSchema as any,
-      data: this.flatten(cv),
+      data: renderData,
       locale: cv.locale || 'vi',
     });
     const buffer = await this.renderPdf(html);

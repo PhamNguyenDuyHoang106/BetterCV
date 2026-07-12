@@ -1,6 +1,7 @@
 import { apiFetch } from "./api";
 import { createSupabaseClient } from "./supabase";
 import { useAuthStore } from "./store/auth";
+import { useEntitlementStore } from "./store/entitlement";
 
 export type AuthProfile = {
   id: string;
@@ -30,6 +31,10 @@ export async function syncSessionToApp(fullName?: string): Promise<AuthProfile |
   const profile = res?.data || res;
 
   useAuthStore.getState().setAuth(session.access_token, profile);
+  
+  // Dynamically fetch user entitlements & quotas in sync with session
+  await useEntitlementStore.getState().fetchEntitlements(session.access_token);
+  
   return profile;
 }
 

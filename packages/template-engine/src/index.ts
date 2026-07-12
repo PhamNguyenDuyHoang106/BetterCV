@@ -1650,6 +1650,19 @@ export const renderHtml = (input: RenderInput): string => {
   return result;
 };
 
+const renderWatermark = (data: any, locale: string): string => {
+  const isVi = locale === "vi";
+  const enabled = data?.rendering?.watermark?.enabled ?? false;
+  if (!enabled) return "";
+
+  return `
+    <div class="acv-watermark-container" style="display: flex; align-items: center; justify-content: center; gap: 4px; font-family: sans-serif; font-size: 10px; color: #94a3b8; padding: 12px 0; margin-top: 20px; border-top: 1px dashed #e2e8f0; text-align: center; page-break-inside: avoid; break-inside: avoid;">
+      <span>${isVi ? "Thiết kế bằng" : "Created with"}</span>
+      <strong style="color: #4f46e5; font-weight: 700;">BetterCV.vn</strong>
+    </div>
+  `;
+};
+
 // ─── Core Compilation Pipeline ─────────────────────────────────────────────
 
 const renderHtmlDirect = ({ template, data, localFontsDir, locale }: RenderInput): string => {
@@ -3021,6 +3034,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir, locale }: RenderInput
   </head>
   <body class="template-${validatedTemplate.id}${layout.fullBleedHeader && validatedTemplate.id !== "coral-impact" && validatedTemplate.id !== "cyan-pro" ? " full-bleed-header" : ""}${layout.fullPageBleed ? " full-page-bleed-style" : ""}${validatedTemplate.id === "coral-impact" ? " coral-impact-body" : ""}">
     ${bodyHtml}
+    ${renderWatermark(data, activeLocale)}
     <script>
       window.addEventListener('message', (event) => {
         if (event.data && event.data.type === 'UPDATE_HTML') {

@@ -28,12 +28,16 @@ async function main() {
     where: { tier: "FREE" },
     update: {
       name: "Free",
-      monthlyAiQuota: 2000
+      monthlyAiQuota: 50000,
+      maxCV: 3,
+      maxDailyATS: 3,
     },
     create: {
       tier: "FREE",
       name: "Free",
-      monthlyAiQuota: 2000
+      monthlyAiQuota: 50000,
+      maxCV: 3,
+      maxDailyATS: 3,
     }
   });
 
@@ -41,13 +45,17 @@ async function main() {
     where: { tier: "PRO" },
     update: {
       name: "Pro",
-      monthlyAiQuota: 20000,
+      monthlyAiQuota: 200000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PRO ?? null
     },
     create: {
       tier: "PRO",
       name: "Pro",
-      monthlyAiQuota: 20000,
+      monthlyAiQuota: 200000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PRO ?? null
     }
   });
@@ -56,13 +64,17 @@ async function main() {
     where: { tier: "PREMIUM" },
     update: {
       name: "Premium",
-      monthlyAiQuota: 50000,
+      monthlyAiQuota: 500000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PREMIUM ?? null
     },
     create: {
       tier: "PREMIUM",
       name: "Premium",
-      monthlyAiQuota: 50000,
+      monthlyAiQuota: 500000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PREMIUM ?? null
     }
   });

@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { TopNav } from "../components/TopNav";
+import GoogleAnalytics from "../components/GoogleAnalytics";
 
 export const metadata: Metadata = {
   title: "BetterCV — AI Resume Builder",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="vi">
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <GoogleAnalytics />
         <TopNav />
         {children}
       </body>

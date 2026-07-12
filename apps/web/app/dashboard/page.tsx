@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { apiFetch } from "../../lib/api";
 import { useAuthStore } from "../../lib/store/auth";
+import { useEntitlement } from "../../hooks/useEntitlement";
+import { QuotaKey } from "@acv/shared";
 import { TEMPLATE_IDS } from "@acv/shared";
 import { createSupabaseClient } from "../../lib/supabase";
 import { DashboardSidebar, type DashboardTab } from "../../components/dashboard/DashboardSidebar";
@@ -76,6 +78,9 @@ function DashboardPageContent() {
   const { accessToken, user, clear, hydrate, setAuth } = useAuthStore();
   const { language } = useLanguageStore();
 
+  const { getQuota, plan } = useEntitlement();
+  const cvQuota = getQuota(QuotaKey.MAX_CV);
+
   const [templates, setTemplates] = useState<Template[]>([]);
   const [cvs, setCvs] = useState<Cv[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,6 +88,21 @@ function DashboardPageContent() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const activeLang = language || "vi";
+
+  const checkCvQuota = () => {
+    if (cvQuota.exhausted) {
+      alert(
+        activeLang === "vi"
+          ? `Bạn đã đạt giới hạn tối đa ${cvQuota.limit} CV của gói ${plan?.displayName || "Free"}. Vui lòng nâng cấp tài khoản để tạo thêm.`
+          : `You have reached the maximum limit of ${cvQuota.limit} CVs for the ${plan?.displayName || "Free"} plan. Please upgrade to create more.`
+      );
+      setActiveTab("upgrade");
+      return false;
+    }
+    return true;
+  };
 
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
   const [templatesError, setTemplatesError] = useState<string | null>(null);
@@ -227,11 +247,11 @@ function DashboardPageContent() {
   }
 
   // Safe translations lookup
-  const activeLang = mounted ? language : "vi";
   const t = translations[activeLang];
 
   // Handle Create CV
   const onCreate = async (values: CreateForm) => {
+    if (!checkCvQuota()) return;
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -259,18 +279,21 @@ function DashboardPageContent() {
   };
 
   const handleUseTemplate = (templateId: string) => {
+    if (!checkCvQuota()) return;
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
   };
 
   const handleQuickCreateFromTemplate = async (templateId: string, templateName: string) => {
+    if (!checkCvQuota()) return;
     setSelectedTemplateId(templateId);
     setValue("templateId", templateId);
     setIsWorkflowModalOpen(true);
   };
 
   const handleStartFromScratch = async (templateId: string) => {
+    if (!checkCvQuota()) return;
     setLoading(true);
     setErrorMsg(null);
     const templateName = templates.find((t) => t.id === templateId)?.name || "Mẫu đã chọn";
@@ -441,6 +464,7 @@ function DashboardPageContent() {
   const onDuplicate = async (cvId: string, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    if (!checkCvQuota()) return;
     setLoading(true);
     try {
       // 1. Fetch source CV details including sections
@@ -589,6 +613,25 @@ function DashboardPageContent() {
             }
           />
         </div>
+
+        {cvQuota.exhausted && (activeTab === "dashboard" || activeTab === "resumes" || activeTab === "templates") && (
+          <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-500 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <span className="material-symbols-outlined">warning</span>
+              <p className="text-sm font-medium">
+                {activeLang === "vi"
+                  ? `Bạn đã đạt giới hạn tối đa ${cvQuota.limit} CV của gói ${plan?.displayName || "Free"}. Hãy nâng cấp tài khoản để tạo thêm.`
+                  : `You have reached the maximum limit of ${cvQuota.limit} CVs for the ${plan?.displayName || "Free"} plan. Upgrade now to create more.`}
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab("upgrade")}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold transition-colors duration-200"
+            >
+              {activeLang === "vi" ? "Nâng cấp ngay" : "Upgrade Now"}
+            </button>
+          </div>
+        )}
 
         {activeTab === "dashboard" && (
           <DashboardOverviewTab
