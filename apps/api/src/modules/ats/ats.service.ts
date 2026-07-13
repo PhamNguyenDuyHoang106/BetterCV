@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, ForbiddenException, HttpException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { UsageService } from '../entitlement/usage.service';
+import { QuotaKey } from '@acv/shared';
 import * as crypto from 'crypto';
 import { z } from 'zod';
 
@@ -42,6 +44,7 @@ export class AtsService {
   constructor(
     private prisma: PrismaService,
     private aiService: AiService,
+    private usageService: UsageService,
   ) {}
 
   async evaluateCv(
@@ -55,6 +58,8 @@ export class AtsService {
       select: { id: true },
     });
     if (!user) throw new NotFoundException('User not found');
+
+    await this.usageService.assertQuota(user.id, QuotaKey.MAX_DAILY_ATS);
 
     const cv = await this.prisma.cv.findFirst({
       where: { id: cvId, userId: user.id, isDeleted: false },
@@ -281,6 +286,11 @@ ${cleanedJd}`;
 
       aiResult = AtsAnalyzeSchema.parse(parsedOutput);
     } catch (err: any) {
+      // Re-throw quota/entitlement errors — these are NOT AI provider failures.
+      // Swallowing them would silently degrade instead of surfacing a clear 403.
+      if (err instanceof ForbiddenException || err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(
         `AI-powered ATS evaluation failed: ${err.message}. Falling back to degraded baseline.`,
       );

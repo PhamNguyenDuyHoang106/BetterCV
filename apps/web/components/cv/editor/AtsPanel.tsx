@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { useTranslation } from "../../../hooks/useTranslation";
+import { useEntitlement } from "../../../hooks/useEntitlement";
+import { QuotaKey } from "@acv/shared";
+import { useUpgradeModalStore } from "../../../lib/store/upgrade-modal";
 
 type Recommendation = {
   id: string;
@@ -31,6 +34,9 @@ type AtsPanelProps = {
 
 export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
   const { t, language } = useTranslation();
+  const { getQuota, plan } = useEntitlement();
+  const atsQuota = getQuota(QuotaKey.MAX_DAILY_ATS);
+
   const [jobDescription, setJobDescription] = useState<string>("");
   const [atsReport, setAtsReport] = useState<AtsReport | null>(null);
   const [isAnalyzingAts, setIsAnalyzingAts] = useState<boolean>(false);
@@ -58,6 +64,10 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
   };
 
   const runAtsAnalysis = async () => {
+    if (atsQuota.exhausted) {
+      useUpgradeModalStore.getState().openUpgradeModal("ATS_SCAN", "PRO");
+      return;
+    }
     if (!jobDescription.trim()) {
       alert(
         language === "vi"
@@ -83,8 +93,10 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       const firstLine = jobDescription.split("\n")[0].trim();
       const extractedTitle = firstLine.length > 80 ? firstLine.slice(0, 80) + "..." : firstLine;
       setTargetRole(extractedTitle || (language === "vi" ? "Lập trình viên" : "Software Engineer"));
-    } catch (err) {
+    } catch (err: any) {
       console.error("ATS Error:", err);
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) return;
       alert(t.editor.ats.scanFailed);
     } finally {
       setIsAnalyzingAts(false);
@@ -114,15 +126,42 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       }
     } catch (err: any) {
       console.error("Roadmap error:", err);
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) return;
       alert(err.message || "Failed to create career roadmap.");
     } finally {
       setIsCreatingRoadmap(false);
     }
   };
 
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+        {atsQuota.exhausted && (
+          <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-500 flex flex-col space-y-2 text-left">
+            <div className="flex items-center space-x-2">
+              <span className="material-symbols-outlined">warning</span>
+              <p className="text-xs font-semibold">
+                {language === "vi"
+                  ? `Bạn đã hết lượt quét ATS miễn phí hôm nay (${atsQuota.used}/${atsQuota.limit} lượt).`
+                  : `You have exhausted your daily ATS scans (${atsQuota.used}/${atsQuota.limit} scans).`}
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {language === "vi"
+                ? "Nâng cấp gói tài khoản để mở khóa số lượt quét không giới hạn."
+                : "Upgrade your plan to unlock unlimited scans."}
+            </p>
+            <a
+              href="/dashboard?tab=upgrade"
+              className="inline-block text-center mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all border-none"
+            >
+              {language === "vi" ? "Nâng cấp ngay" : "Upgrade Now"}
+            </a>
+          </div>
+        )}
+
         <div>
           <h3 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider">
             {t.editor.ats.scanTitle}
@@ -142,7 +181,7 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
 
         <button
           onClick={runAtsAnalysis}
-          disabled={isAnalyzingAts}
+          disabled={isAnalyzingAts || atsQuota.exhausted}
           className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 py-3 text-sm font-bold text-white shadow shadow-indigo-500/10 border-none transition-all disabled:opacity-50"
         >
           {isAnalyzingAts ? (

@@ -2,7 +2,9 @@ import { Body, Controller, Get, Param, Post, UseGuards, Res, Query, Patch } from
 import { AuthGuard } from '@nestjs/passport';
 import { CareerService } from './career.service';
 import { CareerCoachService } from './career-coach.service';
-import { CurrentUser, JwtPayload } from '../../core/decorators';
+import { CurrentUser, JwtPayload, RequireFeature } from '../../core/decorators';
+import { PolicyGuard } from '../../core/guards';
+import { Feature } from '@acv/shared';
 import { IsNotEmpty, IsString, IsArray, IsOptional } from 'class-validator';
 import { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
@@ -77,7 +79,7 @@ export class RenameSessionDto {
   title!: string;
 }
 
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PolicyGuard)
 @Controller('career')
 export class CareerController {
   constructor(
@@ -85,6 +87,7 @@ export class CareerController {
     private readonly coachService: CareerCoachService,
   ) {}
 
+  @RequireFeature(Feature.CAREER_PROJECTS)
   @Post('roadmap')
   async createRoadmap(
     @CurrentUser() user: JwtPayload,
@@ -93,11 +96,13 @@ export class CareerController {
     return this.careerService.createRoadmap(user.sub, dto);
   }
 
+  @RequireFeature(Feature.CAREER_VIEW)
   @Get('roadmaps')
   async listRoadmaps(@CurrentUser() user: JwtPayload) {
     return this.careerService.listRoadmaps(user.sub);
   }
 
+  @RequireFeature(Feature.CAREER_VIEW)
   @Get('roadmap/:id')
   async getRoadmap(
     @CurrentUser() user: JwtPayload,
@@ -106,6 +111,7 @@ export class CareerController {
     return this.careerService.getRoadmap(user.sub, roadmapId);
   }
 
+  @RequireFeature(Feature.CAREER_PROJECTS)
   @Post('add-skill-to-cv')
   async addSkillToCv(
     @CurrentUser() user: JwtPayload,
@@ -114,6 +120,7 @@ export class CareerController {
     return this.careerService.addSkillToCv(user.sub, dto);
   }
 
+  @RequireFeature(Feature.CAREER_ANALYSIS)
   @Post('generate-skill-bullet')
   async generateSkillBullet(
     @CurrentUser() user: JwtPayload,
@@ -122,6 +129,7 @@ export class CareerController {
     return this.careerService.generateSkillBullet(user.sub, dto);
   }
 
+  @RequireFeature(Feature.CAREER_ANALYSIS)
   @Post('rescore-ats')
   async rescoreAts(
     @CurrentUser() user: JwtPayload,
@@ -130,6 +138,7 @@ export class CareerController {
     return this.careerService.rescoreAts(user.sub, dto);
   }
 
+  @RequireFeature(Feature.CAREER_CHAT)
   @Throttle({ coach: { limit: 10, ttl: 60000 } })
   @Post('coach-chat')
   async coachChat(
@@ -140,6 +149,7 @@ export class CareerController {
     return this.coachService.streamCoachChat(user.sub, dto, res);
   }
 
+  @RequireFeature(Feature.CAREER_CHAT)
   @Get('coach/sessions/:roadmapId')
   async listCoachSessions(
     @CurrentUser() user: JwtPayload,
@@ -148,6 +158,7 @@ export class CareerController {
     return this.coachService.listSessions(user.sub, roadmapId);
   }
 
+  @RequireFeature(Feature.CAREER_CHAT)
   @Post('coach/session/:id/archive')
   async archiveCoachSession(
     @CurrentUser() user: JwtPayload,
@@ -156,6 +167,7 @@ export class CareerController {
     return this.coachService.archiveSession(user.sub, sessionId);
   }
 
+  @RequireFeature(Feature.CAREER_CHAT)
   @Post('coach/session')
   async createSession(
     @CurrentUser() user: JwtPayload,
@@ -164,6 +176,7 @@ export class CareerController {
     return this.coachService.createNewSession(user.sub, dto);
   }
 
+  @RequireFeature(Feature.CAREER_CHAT)
   @Patch('coach/session/:id')
   async renameSession(
     @CurrentUser() user: JwtPayload,
@@ -173,6 +186,7 @@ export class CareerController {
     return this.coachService.renameSession(user.sub, sessionId, dto.title);
   }
 
+  @RequireFeature(Feature.CAREER_CHAT)
   @Get('coach/session/:id/messages')
   async getSessionMessages(
     @CurrentUser() user: JwtPayload,
@@ -182,6 +196,7 @@ export class CareerController {
     return this.coachService.getSessionMessages(user.sub, sessionId, beforeTimestamp);
   }
 
+  @RequireFeature(Feature.CAREER_CHAT)
   @Get('coach/search')
   async searchConversations(
     @CurrentUser() user: JwtPayload,
@@ -191,6 +206,7 @@ export class CareerController {
     return this.coachService.searchMessages(user.sub, roadmapId, query);
   }
 
+  @RequireFeature(Feature.CAREER_ANALYSIS)
   @Get('coach/analytics/:roadmapId')
   async getCoachAnalytics(
     @CurrentUser() user: JwtPayload,

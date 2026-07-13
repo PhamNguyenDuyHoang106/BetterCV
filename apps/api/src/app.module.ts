@@ -20,6 +20,7 @@ import { CoreModule } from './core/core.module';
 import { LoggerModule } from './core/logger/logger.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { CareerModule } from './modules/career/career.module';
+import { EntitlementModule } from './modules/entitlement/entitlement.module';
 
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
@@ -119,6 +120,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     AtsModule,
     OcrModule,
     CareerModule,
+    EntitlementModule,
     CoreModule,
     AuditModule,
   ],

@@ -9,6 +9,7 @@ import { PayOS } from '@payos/node';
 import Stripe from 'stripe';
 import { PrismaService } from '../../database/prisma.service';
 import { CheckoutDto } from './dto/checkout.dto';
+import { EntitlementService } from '../entitlement/entitlement.service';
 
 type PayosTier = 'PRO' | 'PREMIUM';
 
@@ -21,6 +22,7 @@ export class BillingService {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private entitlementService: EntitlementService,
   ) {
     const clientId = this.config.get<string>('PAYOS_CLIENT_ID');
     const apiKey = this.config.get<string>('PAYOS_API_KEY');
@@ -358,6 +360,8 @@ export class BillingService {
       }
     });
 
+    this.entitlementService.invalidateCache(txn.userId);
+
     this.logger.log(
       `User ${txn.userId} upgraded to ${role} via PayOS order ${orderCode}`,
     );
@@ -458,6 +462,8 @@ export class BillingService {
       where: { id: stripeCustomer.userId },
       data: { role: this.roleFromPlan(plan.tier) },
     });
+
+    this.entitlementService.invalidateCache(stripeCustomer.userId);
   }
 
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
@@ -474,6 +480,8 @@ export class BillingService {
       where: { id: record.userId },
       data: { role: 'FREE' },
     });
+
+    this.entitlementService.invalidateCache(record.userId);
   }
 
   private roleFromPlan(tier: string) {
@@ -512,6 +520,8 @@ export class BillingService {
         },
       });
     }
+
+    this.entitlementService.invalidateCache(userId);
   }
 
   private async getUserRole(userId: string) {

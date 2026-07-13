@@ -4,9 +4,26 @@ import { AiService } from '../ai/ai.service';
 import { z } from 'zod';
 
 const GapAnalysisSchema = z.object({
-  selectedSkillIds: z.array(z.string()),
   explanation: z.string(),
+  skills: z.array(
+    z.object({
+      skillId: z.string(),
+      priorityLevel: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+      reason: z.string(),
+      estimatedWeeks: z.number().int().min(1).max(52),
+    })
+  ),
 });
+
+export interface GapAnalysisResult {
+  explanation: string;
+  skills: Array<{
+    skillId: string;
+    priorityLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+    reason: string;
+    estimatedWeeks: number;
+  }>;
+}
 
 @Injectable()
 export class AiGapAnalyzerService {
@@ -26,10 +43,10 @@ export class AiGapAnalyzerService {
     missingKeywords: string[],
     targetRole: string,
     locale = 'vi',
-  ): Promise<{ selectedSkillIds: string[]; explanation: string }> {
+  ): Promise<GapAnalysisResult> {
     if (!missingKeywords || missingKeywords.length === 0) {
       return {
-        selectedSkillIds: [],
+        skills: [],
         explanation: locale === 'vi'
           ? 'CV của bạn đã bao phủ đầy đủ các kỹ năng cốt lõi được yêu cầu.'
           : 'Your CV already covers all core requested skills.',
@@ -57,8 +74,8 @@ export class AiGapAnalyzerService {
     const isVi = locale === 'vi';
 
     // 3. Build prompts for OpenAI
-    const systemPrompt = `You are an expert technical recruiter and career gap analyzer.
-Your task is to review the list of missing keywords extracted from a Job Description (JD) and select only the highly relevant technical and soft skills from our database catalog that are necessary to transition to the target role.
+    const systemPrompt = `You are an expert technical recruiter and career coach.
+Your task is to review the list of missing keywords extracted from a Job Description (JD) and select only the highly relevant skills from our database catalog that are necessary to transition to the target role.
 
 RULES:
 1. Compare "missingKeywords" with the "targetRole" and filter for skills that actually matter for this role.
@@ -66,14 +83,26 @@ RULES:
 3. If no matching or related skill is found in the catalog for a missing keyword, do NOT invent a skill ID. Just skip it.
 4. Provide a personalized "explanation" in the language matching the requested locale.
    Requested Locale: "${isVi ? 'Vietnamese (vi)' : 'English (en)'}".
-   Therefore, write the explanation in ${isVi ? 'Vietnamese' : 'English'}.
-5. Return ONLY a valid JSON object matching the schema below.
-6. Do NOT wrap the JSON in markdown code blocks (like \`\`\`json). Just return the raw JSON object.
+   Write the explanation in ${isVi ? 'Vietnamese' : 'English'}.
+5. Do NOT include arbitrary match percentages (like "72%" or "85%") or fake score numbers in the "explanation". Keep it professional, qualitative, and encouraging. Focus on what competency gaps are present and how the roadmap will help close them.
+6. For each selected skill, assign:
+   - "priorityLevel": 'HIGH' | 'MEDIUM' | 'LOW' (critical core gaps should be HIGH, nice-to-haves should be LOW)
+   - "reason": A brief 1-sentence explanation of why this skill is needed for the target role (in the requested locale language).
+   - "estimatedWeeks": Estimated study duration in weeks (1 to 52).
+7. Return ONLY a valid JSON object matching the schema below.
+8. Do NOT wrap the JSON in markdown code blocks. Just return the raw JSON object.
 
 JSON SCHEMA:
 {
-  "selectedSkillIds": ["cuid_1", "cuid_2"],
-  "explanation": "string"
+  "explanation": "string",
+  "skills": [
+    {
+      "skillId": "catalog_cuid_id",
+      "priorityLevel": "HIGH",
+      "reason": "Docker is crucial for containerization and consistency across backend environments.",
+      "estimatedWeeks": 2
+    }
+  ]
 }`;
 
     const userPrompt = `MISSING KEYWORDS FROM ATS:
@@ -114,15 +143,15 @@ ${JSON.stringify(skillCatalog)}`;
 
       // Verify that all returned skill IDs actually exist in our database catalog to prevent AI hallucination
       const dbIds = new Set(skillCatalog.map(s => s.id));
-      validated.selectedSkillIds = validated.selectedSkillIds.filter(id => dbIds.has(id));
+      validated.skills = validated.skills.filter(s => dbIds.has(s.skillId));
 
-      return validated;
+      return validated as GapAnalysisResult;
     } catch (err: any) {
       this.logger.error(`AI Gap Analysis failed: ${err.message}. Returning fallback.`);
       
       // Safe fallback if AI fails or validation fails
       return {
-        selectedSkillIds: [],
+        skills: [],
         explanation: isVi
           ? 'Không thể phân tích tự động lộ trình. Vui lòng kiểm tra lại sau.'
           : 'Could not automatically analyze roadmap. Please check again later.',

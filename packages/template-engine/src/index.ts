@@ -489,11 +489,14 @@ export const normalizeData = (data: Record<string, any>): Record<string, any> =>
 
   const rawLanguages = data.languages || [];
   const languageItems = Array.isArray(rawLanguages) ? rawLanguages : (rawLanguages.items || []);
-  normalized.languages = languageItems.map((item: any) => ({
+  const showLangLevelSetting = Array.isArray(rawLanguages) ? false : (rawLanguages.showLevel === true);
+  const normalizedLangs: any[] = languageItems.map((item: any) => ({
     id: item.id || `lang_${Math.random()}`,
     name: (item.name || "").trim(),
     level: (item.level || "").trim(),
   }));
+  (normalizedLangs as any).showLevel = showLangLevelSetting;
+  normalized.languages = normalizedLangs;
 
   const rawCerts = data.certifications || [];
   const certItems = Array.isArray(rawCerts) ? rawCerts : (rawCerts.items || []);
@@ -1273,6 +1276,9 @@ const renderSkills = (data: any, variant = "badges"): string => {
   const items = Array.isArray(data) ? data : (data?.items || []);
   if (items.length === 0) return "";
 
+  // Respect the showLevel toggle set by the user in the Skills panel
+  const showLevel: boolean = Array.isArray(data) ? true : ((data as any)?.showLevel !== false);
+
   const getActiveCount = (level: string): number => {
     switch (level) {
       case "Beginner": return 1;
@@ -1287,6 +1293,10 @@ const renderSkills = (data: any, variant = "badges"): string => {
   if (variant === "bars") {
     return `<div class="skills-container variant-bars">${
       items.map((item: any) => {
+        if (!showLevel) {
+          // No level bars — just show the name as a simple row
+          return `<div class="skill-item-with-level"><span class="skill-name">${escapeHtml(item.name || "")}</span></div>`;
+        }
         const activeCount = getActiveCount(item.level || "Advanced");
         const barsHtml = Array.from({ length: 5 }, (_, i) =>
           `<span class="level-bar${i < activeCount ? " active" : ""}"></span>`
@@ -1309,16 +1319,18 @@ const renderSkills = (data: any, variant = "badges"): string => {
       items.map((item: any) => `
         <div class="skill-column-item">
           <span class="skill-name">${escapeHtml(item.name || "")}</span>
-          ${item.level ? `<span class="skill-level-label">${escapeHtml(item.level)}</span>` : ""}
+          ${showLevel && item.level ? `<span class="skill-level-label">${escapeHtml(item.level)}</span>` : ""}
         </div>
       `).join("")
     }</div>`;
   }
 
+  // badges variant — levels are never displayed in badge mode (pure name badges)
   return `<div class="skills-container variant-badges">${
     items.map((item: any) => `<span class="skill-badge">${escapeHtml(item.name || "")}</span>`).join("")
   }</div>`;
 };
+
 
 const getSocialSvgIcon = (type: string): string => {
   const icons: Record<string, string> = {
@@ -1397,15 +1409,55 @@ const renderLanguages = (data: any): string => {
   const items = Array.isArray(data) ? data : (data?.items || []);
   if (items.length === 0) return "";
 
-  return items.map((item: any) => `
-    <div class="language-item">
-      <div class="item-header">
-        <span class="item-title">${escapeHtml(item.name || "")}</span>
-        ${item.level ? `<span class="item-date">${escapeHtml(item.level)}</span>` : ""}
+  const showLevel: boolean = (data as any)?.showLevel === true;
+
+  const getActiveCount = (level: string): number => {
+    switch (level) {
+      case "Beginner": return 1;
+      case "Elementary": return 2;
+      case "Intermediate": return 3;
+      case "Advanced": return 4;
+      case "Native": return 5;
+      default: return 3;
+    }
+  };
+
+  return items.map((item: any) => {
+    const name = escapeHtml(item.name || "");
+    const levelStr = escapeHtml(item.level || "");
+
+    if (showLevel) {
+      const activeCount = getActiveCount(item.level || "Intermediate");
+      const barsHtml = Array.from({ length: 5 }, (_, i) =>
+        `<span class="lang-level-bar${i < activeCount ? " active" : ""}"></span>`
+      ).join("");
+
+      return `
+        <div class="language-item">
+          <div class="item-header language-header-split">
+            <span class="item-title">${name}</span>
+            <div class="language-level-scale">
+              <span class="language-level-text">${levelStr}</span>
+              <div class="language-level-bars">
+                ${barsHtml}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="language-item">
+        <div class="item-header">
+          <span class="item-title">${name}</span>
+          ${item.level ? `<span class="item-date">${levelStr}</span>` : ""}
+        </div>
       </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 };
+
 
 const renderCertifications = (data: any): string => {
   const items = Array.isArray(data) ? data : (data?.items || []);
@@ -1648,6 +1700,19 @@ export const renderHtml = (input: RenderInput): string => {
   }
   renderCache.set(hashKey, result);
   return result;
+};
+
+const renderWatermark = (data: any, locale: string): string => {
+  const isVi = locale === "vi";
+  const enabled = data?.rendering?.watermark?.enabled ?? false;
+  if (!enabled) return "";
+
+  return `
+    <div class="acv-watermark-container" style="display: flex; align-items: center; justify-content: center; gap: 4px; font-family: sans-serif; font-size: 10px; color: #94a3b8; padding: 12px 0; margin-top: 20px; border-top: 1px dashed #e2e8f0; text-align: center; page-break-inside: avoid; break-inside: avoid;">
+      <span>${isVi ? "Thiết kế bằng" : "Created with"}</span>
+      <strong style="color: #4f46e5; font-weight: 700;">BetterCV.vn</strong>
+    </div>
+  `;
 };
 
 // ─── Core Compilation Pipeline ─────────────────────────────────────────────
@@ -2247,6 +2312,37 @@ const renderHtmlDirect = ({ template, data, localFontsDir, locale }: RenderInput
       .award-item {
         margin-bottom: 10px;
       }
+      .language-header-split {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+      }
+      .language-level-scale {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2.5px;
+      }
+      .language-level-text {
+        font-size: 10px;
+        font-weight: 500;
+        color: #64748b;
+      }
+      .language-level-bars {
+        display: flex;
+        gap: 2.5px;
+      }
+      .lang-level-bar {
+        width: 15px;
+        height: 3px;
+        border-radius: 1px;
+        background-color: #e2e8f0;
+      }
+      .lang-level-bar.active {
+        background-color: var(--primary-color, #475569);
+      }
+
       
       /* Projects link */
       .project-link {
@@ -3021,6 +3117,7 @@ const renderHtmlDirect = ({ template, data, localFontsDir, locale }: RenderInput
   </head>
   <body class="template-${validatedTemplate.id}${layout.fullBleedHeader && validatedTemplate.id !== "coral-impact" && validatedTemplate.id !== "cyan-pro" ? " full-bleed-header" : ""}${layout.fullPageBleed ? " full-page-bleed-style" : ""}${validatedTemplate.id === "coral-impact" ? " coral-impact-body" : ""}">
     ${bodyHtml}
+    ${renderWatermark(data, activeLocale)}
     <script>
       window.addEventListener('message', (event) => {
         if (event.data && event.data.type === 'UPDATE_HTML') {

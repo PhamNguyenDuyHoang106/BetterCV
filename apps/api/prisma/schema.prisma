@@ -41,6 +41,8 @@ model Plan {
   tier           PlanTier       @unique
   name           String
   monthlyAiQuota Int
+  maxCV          Int            @default(-1)
+  maxDailyATS    Int            @default(-1)
   stripePriceId  String?        @unique
   isActive       Boolean        @default(true)
   createdAt      DateTime       @default(now())
@@ -390,6 +392,8 @@ enum AuditEventType {
   SHARE_LINK_DELETED
   BILLING_STATUS_CHANGED
   USER_ROLE_CHANGED
+  FEATURE_BLOCKED
+  BILLING_EVENT
 }
 
 enum AuditSeverity {
@@ -443,19 +447,75 @@ enum SkillDifficulty {
   ADVANCED
 }
 
-model Skill {
-  id             String            @id @default(cuid())
-  name           String            @unique // VD: "Docker", "AWS", "Kubernetes"
-  category       SkillCategory
-  difficulty     SkillDifficulty   @default(BEGINNER)
-  estimatedWeeks Int               @default(2)
-  createdAt      DateTime          @default(now())
+// Mức độ cầu tuyển dụng của skill đối với một role cụ thể.
+// TODO: Sau này migrate sang model RoleSkillDemand(roleId, skillId, demand)
+// để mỗi skill có demand khác nhau theo từng role (Backend vs Frontend vs DevOps).
+enum HiringDemand {
+  CORE        // Xuất hiện trong 80%+ JD của role này
+  IMPORTANT   // Được ưu tiên, có thì tốt hơn
+  OPTIONAL    // Nice to have
+}
 
-  dependencies   SkillDependency[] @relation("DependentSkills")
-  neededFor      SkillDependency[] @relation("RequiredSkills")
-  courses        Course[]
-  phaseSkills    RoadmapPhaseSkill[]
-  skillGaps      CareerSkillGap[]
+enum ResourceProvider {
+  YOUTUBE
+  FREECODECAMP
+  ROADMAP_SH
+  MICROSOFT_LEARN
+  AWS_SKILL_BUILDER
+  GOOGLE_CLOUD
+  COURSERA
+  UDEMY
+  EDX
+  OFFICIAL_DOCS
+  GITHUB
+  LEETCODE
+  EXERCISM
+  FRONTEND_MASTERS
+  INTERACTIVE
+  OTHER
+}
+
+enum ResourceType {
+  DOCS          // Official Docs, Handbook — học step đầu tiên
+  INTERACTIVE   // Hands-on lab, playground — thực hành ngay
+  VIDEO         // YouTube, video courses
+  PRACTICE      // Exercises, challenges
+  COURSE        // Structured courses (Coursera, Udemy)
+  BOOK
+  ARTICLE
+}
+
+enum ResourceStatus {
+  ACTIVE
+  BROKEN    // HTTP 404/410
+  PRIVATE   // HTTP 403 (video private, paywall)
+  PENDING   // Chưa verify
+}
+
+model Skill {
+  id                String            @id @default(cuid())
+  name              String            @unique
+  category          SkillCategory
+  difficulty        SkillDifficulty   @default(BEGINNER)
+  estimatedWeeks    Int               @default(2)
+
+  // Career Intelligence — hiring demand
+  // TODO: Migrate sang RoleSkillDemand(roleId, skillId, demand) khi cần demand per-role
+  hiringDemand      HiringDemand      @default(IMPORTANT)
+
+  // Career Intelligence — mini project (học xong thì build gì?)
+  projectSuggestion String?           // "Containerize a Todo REST API with Docker Compose"
+  projectDifficulty SkillDifficulty?  // Độ khó của project
+  projectHours      Int?              // Ước tính giờ: 2, 4, 8
+  projectOutcome    String?           // "Add 'Containerized NestJS app' to CV Projects"
+
+  createdAt         DateTime          @default(now())
+
+  dependencies      SkillDependency[] @relation("DependentSkills")
+  neededFor         SkillDependency[] @relation("RequiredSkills")
+  resources         LearningResource[]
+  phaseSkills       RoadmapPhaseSkill[]
+  skillGaps         CareerSkillGap[]
 }
 
 model SkillDependency {
@@ -470,22 +530,37 @@ model SkillDependency {
   @@unique([skillId, dependsOnId])
 }
 
-model Course {
-  id          String      @id @default(cuid())
-  title       String
-  provider    String      // "YouTube", "FreeCodeCamp", "Internal"
-  url         String
-  skillId     String      // Hard relation với Skill.id
-  level       CourseLevel @default(BEGINNER)
-  durationMin Int?        // thời lượng tính bằng phút
-  language    String      @default("en")
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
+model LearningResource {
+  id             String           @id @default(cuid())
+  slug           String           @unique
+  title          String
+  description    String?          @db.Text
+  provider       ResourceProvider @default(OTHER)    // Upgraded từ String sang enum
+  providerLabel  String?          // Display name tuỳ chỉnh: "ByteByteGo", "KodeKloud"
+  resourceType   ResourceType     @default(VIDEO)
+  learningOrder  Int              @default(99)       // 1=Docs, 2=Interactive, 3=Video, 4=Practice — dùng để sort
+  url            String
+  skillId        String
+  level          CourseLevel      @default(BEGINNER)
+  durationMin    Int?
+  language       String           @default("en")
+  isPaid         Boolean          @default(false)
+  hasCertificate Boolean          @default(false)
+  qualityScore   Int              @default(70)       // 0-100, Official Docs = 100
+  status         ResourceStatus   @default(PENDING)
+  lastVerifiedAt DateTime?
+  httpStatus     Int?             // Last HTTP response code: 200, 404, 403...
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now()) @updatedAt
 
-  skill       Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skill          Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
-  @@index([skillId])
+  @@index([skillId, learningOrder])
+  @@index([skillId, status])
+  @@index([skillId, qualityScore(sort: Desc)])
   @@index([provider, skillId])
+  @@map("learning_resources")
 }
 
 model CareerRoadmap {
@@ -537,13 +612,22 @@ model RoadmapPhaseSkill {
   @@index([skillId])
 }
 
+enum GapPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model CareerSkillGap {
   id              String        @id @default(cuid())
   roadmapId       String
   skillId         String
-  priority        Int           // 1 (Highest), 2, 3...
-  estimatedImpact Int           // Dự tính điểm cộng ATS (+5 cho Required, +2 cho Preferred, +1 cho Bonus)
-  
+  priority        Int           // Numeric sort: 1 (Highest), 2, 3...
+  priorityLevel   GapPriority   @default(MEDIUM)
+  reason          String?       @db.Text  // "90% of Backend JDs require Docker" — từ AI
+  estimatedImpact Int           // Giữ để backward compat; không hiển thị ra UI nữa
+  estimatedWeeks  Int?          // AI-estimated weeks; fallback về Skill.estimatedWeeks
+
   roadmap         CareerRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
   skill           Skill         @relation(fields: [skillId], references: [id], onDelete: Cascade)
 

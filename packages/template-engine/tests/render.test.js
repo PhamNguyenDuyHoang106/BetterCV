@@ -476,3 +476,53 @@ test("renderHtml - gracefully falls back and renders without crashing when provi
   assert.ok(html.includes("resume-sections-container") || html.includes("resume-container"));
 });
 
+// 9. Languages showLevel Validation Tests
+test("renderHtml - respects languages showLevel toggle to display or hide proficiency scale", () => {
+  const template = {
+    id: "lang-test",
+    name: "Languages Test",
+    category: "DESIGN",
+    layout: {
+      sections: [
+        { type: "LANGUAGES", blocks: [] }
+      ]
+    },
+    layoutConfig: {
+      layoutMode: "single-column",
+      columns: { main: ["LANGUAGES"] },
+      order: ["LANGUAGES"]
+    }
+  };
+
+  // 9a. Test showLevel = true (renders 5-bar rating visual)
+  const dataWithLevelScale = {
+    profile: { fullName: "Test User" },
+    languages: {
+      items: [{ name: "Vietnamese", level: "Native" }],
+      showLevel: true
+    }
+  };
+
+  const htmlScale = renderHtml({ template, data: dataWithLevelScale });
+  assert.ok(htmlScale.includes('class="lang-level-bar'));
+  assert.ok(htmlScale.includes('class="language-level-bars'));
+  assert.ok(htmlScale.includes("Native"));
+
+  // 9b. Test showLevel = false (renders only text, no bars)
+  const dataWithoutLevelScale = {
+    profile: { fullName: "Test User" },
+    languages: {
+      items: [{ name: "Vietnamese", level: "Native" }],
+      showLevel: false
+    }
+  };
+
+  const htmlNoScale = renderHtml({ template, data: dataWithoutLevelScale });
+  assert.ok(!htmlNoScale.includes('class="lang-level-bar'));
+  assert.ok(!htmlNoScale.includes('class="language-level-bars'));
+  assert.ok(htmlNoScale.includes("Native"));
+});
+
+
+
+

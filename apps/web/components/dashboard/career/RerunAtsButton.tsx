@@ -37,8 +37,13 @@ export function RerunAtsButton({ roadmapId, initialScore, t }: Props) {
         delta: data.delta ?? 0,
       });
       setState("done");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Rescore ATS failed:", err);
+      const { handleFeatureError } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) {
+        setState("idle");
+        return;
+      }
       setState("error");
       setTimeout(() => setState("idle"), 3000);
     }

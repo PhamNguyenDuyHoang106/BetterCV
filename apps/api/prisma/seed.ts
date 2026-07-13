@@ -28,12 +28,16 @@ async function main() {
     where: { tier: "FREE" },
     update: {
       name: "Free",
-      monthlyAiQuota: 2000
+      monthlyAiQuota: 5000,
+      maxCV: 3,
+      maxDailyATS: 3,
     },
     create: {
       tier: "FREE",
       name: "Free",
-      monthlyAiQuota: 2000
+      monthlyAiQuota: 5000,
+      maxCV: 3,
+      maxDailyATS: 3,
     }
   });
 
@@ -41,13 +45,17 @@ async function main() {
     where: { tier: "PRO" },
     update: {
       name: "Pro",
-      monthlyAiQuota: 20000,
+      monthlyAiQuota: 200000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PRO ?? null
     },
     create: {
       tier: "PRO",
       name: "Pro",
-      monthlyAiQuota: 20000,
+      monthlyAiQuota: 200000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PRO ?? null
     }
   });
@@ -56,13 +64,17 @@ async function main() {
     where: { tier: "PREMIUM" },
     update: {
       name: "Premium",
-      monthlyAiQuota: 50000,
+      monthlyAiQuota: 500000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PREMIUM ?? null
     },
     create: {
       tier: "PREMIUM",
       name: "Premium",
-      monthlyAiQuota: 50000,
+      monthlyAiQuota: 500000,
+      maxCV: -1,
+      maxDailyATS: -1,
       stripePriceId: process.env.STRIPE_PRICE_PREMIUM ?? null
     }
   });
@@ -171,6 +183,14 @@ async function main() {
       create: { name: rule.name, pattern: rule.pattern, isActive: true }
     });
   }
+
+  // Seed modern learning resources & skill metadata
+  try {
+    const { seedLearningResources } = await import("./seeds/learning-resources.seed");
+    await seedLearningResources(prisma);
+  } catch (err) {
+    console.error("Failed to seed learning resources:", err);
+  }
 }
 
 main()
@@ -181,3 +201,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

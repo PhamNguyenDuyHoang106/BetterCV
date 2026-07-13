@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
+import { FeatureLockedError } from "../../lib/errors";
 import { useLanguageStore } from "../../lib/store/language";
 
 type UseAiRewriteProps = {
@@ -15,6 +16,8 @@ type UseAiRewriteProps = {
   saveSummary: (val: string) => void;
   setExperiences: (val: any[]) => void;
   saveExperiences: (val: any[]) => void;
+  /** Called with the caught error when a FeatureLockedError is thrown by the API */
+  onFeatureLocked?: (err: FeatureLockedError) => void;
 };
 
 type InlineAiState = {
@@ -45,6 +48,7 @@ export function useAiRewrite({
   saveSummary,
   setExperiences,
   saveExperiences,
+  onFeatureLocked,
 }: UseAiRewriteProps) {
   // State per section: key = "summary" | experience.id
   const [inlineStates, setInlineStates] = useState<Record<string, InlineAiState>>({});
@@ -194,6 +198,14 @@ export function useAiRewrite({
         });
 
         if (!response.ok) {
+          // Parse 403 FEATURE_LOCKED from SSE endpoint early
+          if (response.status === 403) {
+            const body = await response.json().catch(() => ({})) as any;
+            if (body?.code === "FEATURE_LOCKED") {
+              const { FeatureLockedError: FLE } = await import("../../lib/errors");
+              throw new FLE(body.feature || "", body.requiredPlan || "PRO", body.upgradeUrl || "/dashboard?tab=upgrade");
+            }
+          }
           throw new Error("SSE Stream failed, falling back to POST");
         }
 
@@ -240,6 +252,11 @@ export function useAiRewrite({
           // Do not fallback to POST if the request was intentionally aborted
           return;
         }
+        // Surface FeatureLockedError immediately — don't fall through to POST
+        if (err instanceof FeatureLockedError || err?.name === "FeatureLockedError") {
+          onFeatureLocked?.(err);
+          return;
+        }
         // Fallback: standard POST
         try {
           const res = await apiFetch<any>("/ai/rewrite", {
@@ -255,6 +272,11 @@ export function useAiRewrite({
           setInlineField(key, { output: text });
         } catch (err: any) {
           if (err?.name === "AbortError") {
+            return;
+          }
+          // Surface FeatureLockedError to parent for rich modal
+          if (err instanceof FeatureLockedError || err?.name === "FeatureLockedError") {
+            onFeatureLocked?.(err);
             return;
           }
           const lang = useLanguageStore.getState().language;

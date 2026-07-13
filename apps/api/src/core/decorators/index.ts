@@ -9,3 +9,5 @@ export {
   LogAuditOptions,
   AUDIT_LOG_KEY,
 } from './log-audit.decorator';
+export { RequireFeature, REQUIRE_FEATURE_KEY } from './require-feature.decorator';
+export { RequireQuota, REQUIRE_QUOTA_KEY } from './require-quota.decorator';

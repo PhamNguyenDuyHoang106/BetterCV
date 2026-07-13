@@ -22,7 +22,8 @@
     "seed:users": "node scripts/seed-users.mjs",
     "update:avatars": "node scripts/update-avatars.mjs",
     "update:avatars:force": "node scripts/update-avatars.mjs --force",
-    "update:avatars:dry": "node scripts/update-avatars.mjs --dry-run"
+    "update:avatars:dry": "node scripts/update-avatars.mjs --dry-run",
+    "verify-resources": "node apps/api/scripts/verify-resources.mjs"
   },
   "engines": {
     "node": ">=18.18"

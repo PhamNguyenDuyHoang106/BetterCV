@@ -76,6 +76,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   const [certifications, setCertifications] = useState<any[]>([]);
   const [awards, setAwards] = useState<any[]>([]);
   const [showLevel, setShowLevel] = useState<boolean>(true);
+  const [showLangLevel, setShowLangLevel] = useState<boolean>(false);
 
   const [prevCvId, setPrevCvId] = useState<string | null>(null);
   const [resolvedTemplateId, setResolvedTemplateId] = useState<string | null>(null);
@@ -217,10 +218,13 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       const langSec = cv.sections?.find((s) => s.type === "LANGUAGES");
       if (langSec && langSec.content && Array.isArray(langSec.content.items)) {
         setLanguages(langSec.content.items);
+        setShowLangLevel(langSec.content.showLevel !== undefined ? !!langSec.content.showLevel : false);
       } else if (langSec && langSec.content && Array.isArray(langSec.content)) {
         setLanguages(langSec.content);
+        setShowLangLevel(false);
       } else {
         setLanguages([]);
+        setShowLangLevel(false);
       }
 
       const certSec = cv.sections?.find((s) => s.type === "CERTIFICATIONS");
@@ -277,6 +281,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     setSkills([]);
     setProjects([]);
     setLanguages([]);
+    setShowLangLevel(false);
     setCertifications([]);
     setAwards([]);
     setShowLevel(true);
@@ -319,10 +324,10 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     triggerAutosave();
   }, [projects, setDraftSection, triggerAutosave]);
 
-  const saveLanguages = useCallback((items = languages) => {
-    setDraftSection("LANGUAGES", { items }, 7);
+  const saveLanguages = useCallback((items = languages, showLvl = showLangLevel) => {
+    setDraftSection("LANGUAGES", { items, showLevel: showLvl }, 7);
     triggerAutosave();
-  }, [languages, setDraftSection, triggerAutosave]);
+  }, [languages, showLangLevel, setDraftSection, triggerAutosave]);
 
   const saveCertifications = useCallback((items = certifications) => {
     setDraftSection("CERTIFICATIONS", { items }, 8);
@@ -470,10 +475,15 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
   };
 
   const addLanguageItem = () => {
-    const newItem = { id: `lang_${Date.now()}`, name: "", level: "" };
+    const newItem = { id: `lang_${Date.now()}`, name: "", level: showLangLevel ? "Intermediate" : "" };
     const updated = [...languages, newItem];
     setLanguages(updated);
     saveLanguages(updated);
+  };
+
+  const handleShowLangLevelChange = (val: boolean) => {
+    setShowLangLevel(val);
+    saveLanguages(languages, val);
   };
 
   const updateLanguageItem = (id: string, field: string, val: any) => {
@@ -533,12 +543,12 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
       education: educations,
       skills: { items: skills, showLevel: showLevel },
       projects: projects,
-      languages: languages,
+      languages: { items: languages, showLevel: showLangLevel },
       certifications: certifications,
       awards: awards,
       theme: profileForm.theme,
     };
-  }, [profileForm, summaryText, experiences, educations, skills, showLevel, projects, languages, certifications, awards]);
+  }, [profileForm, summaryText, experiences, educations, skills, showLevel, projects, languages, showLangLevel, certifications, awards]);
 
   return {
     cv,
@@ -565,6 +575,8 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     setAwards,
     showLevel,
     setShowLevel,
+    showLangLevel,
+    setShowLangLevel,
     saveMetadata,
     saveProfile,
     saveSummary,
@@ -593,6 +605,7 @@ export function useCvEditor(cvId: string, triggerAutosave: () => void) {
     addLanguageItem,
     updateLanguageItem,
     removeLanguageItem,
+    handleShowLangLevelChange,
     addCertificationItem,
     updateCertificationItem,
     removeCertificationItem,

@@ -17,11 +17,13 @@ import { CvService } from './cv.service';
 import { ThumbnailService } from './thumbnail.service';
 import { CvCreateDto, CvUpdateDto, CvVersionRenameDto } from './dto/cv.dto';
 import { CvSectionUpsertDto } from './dto/section.dto';
-import { CurrentUser, JwtPayload, LogAudit } from '../../core/decorators';
+import { CurrentUser, JwtPayload, LogAudit, RequireQuota } from '../../core/decorators';
+import { PolicyGuard } from '../../core/guards';
+import { QuotaKey } from '@acv/shared';
 
 import { ThumbnailGcTask } from './thumbnail-gc.task';
 
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PolicyGuard)
 @Controller('cvs')
 export class CvController {
   constructor(
@@ -39,6 +41,7 @@ export class CvController {
     return { success: true };
   }
 
+  @RequireQuota(QuotaKey.MAX_CV)
   @Post()
   @LogAudit({
     action: 'CV created',

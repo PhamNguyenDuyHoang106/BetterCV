@@ -8,9 +8,11 @@ import {
   AiScoreDto,
   AiGithubAnalyzeDto,
 } from './dto/ai.dto';
-import { CurrentUser, JwtPayload } from '../../core/decorators';
+import { CurrentUser, JwtPayload, RequireFeature } from '../../core/decorators';
+import { PolicyGuard } from '../../core/guards';
+import { Feature } from '@acv/shared';
 
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PolicyGuard)
 @Controller('ai')
 export class AiController {
   constructor(private aiService: AiService) {}
@@ -29,11 +31,13 @@ export class AiController {
     return this.aiService.generateStream(user.sub, dto, res);
   }
 
+  @RequireFeature(Feature.AI_REWRITE)
   @Post('rewrite')
   async rewrite(@CurrentUser() user: JwtPayload, @Body() dto: AiRewriteDto) {
     return this.aiService.rewrite(user.sub, dto);
   }
 
+  @RequireFeature(Feature.AI_REWRITE)
   @Post('rewrite/stream')
   async rewriteStream(
     @CurrentUser() user: JwtPayload,
@@ -62,6 +66,7 @@ export class AiController {
     return this.aiService.suggestSkills(dto);
   }
 
+  @RequireFeature(Feature.JD_OPTIMIZATION)
   @Post('jd/analyze')
   async analyzeJd(
     @CurrentUser() user: JwtPayload,

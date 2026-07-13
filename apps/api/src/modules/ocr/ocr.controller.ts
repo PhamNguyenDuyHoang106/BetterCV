@@ -11,13 +11,16 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { OcrService } from './ocr.service';
-import { CurrentUser, JwtPayload } from '../../core/decorators';
+import { CurrentUser, JwtPayload, RequireFeature } from '../../core/decorators';
+import { PolicyGuard } from '../../core/guards';
+import { Feature } from '@acv/shared';
 
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PolicyGuard)
 @Controller('ai')
 export class OcrController {
   constructor(private readonly ocrService: OcrService) {}
 
+  @RequireFeature(Feature.IMPORT_CV)
   @Post('upload-cv')
   @UseInterceptors(FileInterceptor('file'))
   async uploadCv(

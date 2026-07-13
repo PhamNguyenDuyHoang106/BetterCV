@@ -674,6 +674,8 @@ Strict Guardrails:
       throw new ForbiddenException('User not found');
     }
 
+    const isFreeUser = user.role === 'FREE' && user.subscriptions.length === 0;
+
     const planQuota =
       user.subscriptions[0]?.plan?.monthlyAiQuota ??
       (user.role === 'ADMIN'
@@ -683,7 +685,7 @@ Strict Guardrails:
           : user.role === 'PRO'
             ? 1000000
             : user.role === 'FREE'
-              ? 500000
+              ? 5000
               : 0);
 
     const periodStart = new Date();
@@ -720,14 +722,27 @@ Strict Guardrails:
     }
 
     // Thực hiện Conditional Update nguyên tử có kiểm tra giới hạn trên database
-    const affectedRows = await this.prisma.$executeRaw`
-      UPDATE "UsageQuota"
-      SET "usedTokens" = "usedTokens" + ${estimatedTokens},
-          "usedRequests" = "usedRequests" + 1,
-          "updatedAt" = NOW()
-      WHERE "userId" = ${userId}
-        AND "usedTokens" + ${estimatedTokens} <= ${planQuota}
-    `;
+    let affectedRows = 0;
+    if (isFreeUser) {
+      affectedRows = await this.prisma.$executeRaw`
+        UPDATE "UsageQuota"
+        SET "usedTokens" = "usedTokens" + ${estimatedTokens},
+            "usedRequests" = "usedRequests" + 1,
+            "updatedAt" = NOW()
+        WHERE "userId" = ${userId}
+          AND "usedTokens" + ${estimatedTokens} <= 5000
+          AND "usedRequests" + 1 <= 10
+      `;
+    } else {
+      affectedRows = await this.prisma.$executeRaw`
+        UPDATE "UsageQuota"
+        SET "usedTokens" = "usedTokens" + ${estimatedTokens},
+            "usedRequests" = "usedRequests" + 1,
+            "updatedAt" = NOW()
+        WHERE "userId" = ${userId}
+          AND "usedTokens" + ${estimatedTokens} <= ${planQuota}
+      `;
+    }
 
     if (affectedRows === 0) {
       throw new ForbiddenException('AI quota exceeded or system busy');

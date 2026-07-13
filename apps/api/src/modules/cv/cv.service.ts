@@ -18,6 +18,8 @@ import {
 } from '../template/template-schema.util';
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { UsageService } from '../entitlement/usage.service';
+import { QuotaKey } from '@acv/shared';
 
 @Injectable()
 export class CvService {
@@ -26,30 +28,12 @@ export class CvService {
     private thumbnailService: ThumbnailService,
     private auditService: AuditLogService,
     private eventEmitter: EventEmitter2,
+    private usageService: UsageService,
   ) {}
 
   async create(supabaseId: string, dto: CvCreateDto) {
     const userId = await this.resolveUserId(supabaseId);
-
-    // ── Enforce CV limit for FREE users ─────────────────────────────
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
-
-    if (user?.role === 'FREE') {
-      const FREE_CV_LIMIT = 3;
-      const existingCount = await this.prisma.cv.count({
-        where: { userId, isDeleted: false },
-      });
-      if (existingCount >= FREE_CV_LIMIT) {
-        throw new ForbiddenException(
-          `Bạn đã đạt giới hạn tối đa ${FREE_CV_LIMIT} CV của gói Free. Hãy nâng cấp tài khoản để tạo thêm.`,
-        );
-      }
-    }
-    // ────────────────────────────────────────────────────────────────
-
+    await this.usageService.assertQuota(userId, QuotaKey.MAX_CV);
     let templateVersionId: string | null = null;
     let templateVersionNum = 1;
     let templateSnapshot: Prisma.InputJsonValue | undefined;
