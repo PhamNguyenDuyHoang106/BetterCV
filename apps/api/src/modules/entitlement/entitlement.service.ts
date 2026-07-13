@@ -14,6 +14,7 @@ export class EntitlementService {
     planName: string;
     features: string[];
     subscriptionUpdatedAt: string;
+    role: string;
     policyHash: string;
     expiresAt: number;
   }>();
@@ -39,9 +40,10 @@ export class EntitlementService {
   }
 
   async getEntitlements(userId: string) {
-    const dates = await this.prisma.user.findUnique({
+    const userState = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
+        role: true,
         updatedAt: true,
         subscriptions: {
           where: { status: { in: ['active', 'trialing'] } },
@@ -50,11 +52,11 @@ export class EntitlementService {
       },
     });
 
-    if (!dates) {
+    if (!userState) {
       throw new ForbiddenException('User not found');
     }
 
-    const subUpdatedAt = dates.subscriptions[0]?.updatedAt || new Date(0);
+    const subUpdatedAt = userState.subscriptions[0]?.updatedAt || userState.updatedAt;
     const policyVersion = this.policyService.getPolicyVersion();
 
     const cached = this.cache.get(userId);
@@ -64,7 +66,8 @@ export class EntitlementService {
       cached &&
       cached.expiresAt > now &&
       cached.policyHash === policyVersion &&
-      cached.subscriptionUpdatedAt === subUpdatedAt.toISOString()
+      cached.subscriptionUpdatedAt === subUpdatedAt.toISOString() &&
+      cached.role === userState.role
     ) {
       return {
         planTier: cached.planTier,
@@ -88,24 +91,28 @@ export class EntitlementService {
       throw new ForbiddenException('User not found');
     }
 
-    let activePlan: any;
-    let subscriptionUpdatedAt = new Date(0).toISOString();
+    const activeTier =
+      user.role === 'ADMIN'
+        ? 'PREMIUM'
+        : user.role === 'PREMIUM' || user.role === 'PRO'
+        ? user.role
+        : user.subscriptions[0]?.plan?.tier || 'FREE';
 
-    if (user.subscriptions.length > 0) {
-      const activeSub = user.subscriptions[0];
-      activePlan = activeSub.plan;
-      subscriptionUpdatedAt = activeSub.updatedAt.toISOString();
-    } else {
-      activePlan = await this.prisma.plan.findUnique({
-        where: { tier: 'FREE' },
-      });
-      if (!activePlan) {
-        throw new NotFoundException('Default FREE plan not found in database');
-      }
+    const activePlan = await this.prisma.plan.findUnique({
+      where: { tier: activeTier as any },
+    });
+
+    if (!activePlan) {
+      throw new NotFoundException(`Plan with tier ${activeTier} not found`);
     }
 
     const planTier = activePlan.tier;
     const planName = activePlan.name;
+
+    const subscriptionUpdatedAt =
+      user.subscriptions.length > 0
+        ? user.subscriptions[0].updatedAt.toISOString()
+        : user.updatedAt.toISOString();
 
     const features: string[] = [];
     for (const feat of Object.values(Feature)) {
@@ -119,6 +126,7 @@ export class EntitlementService {
       planName,
       features,
       subscriptionUpdatedAt,
+      role: user.role,
       policyHash: policyVersion,
       expiresAt: now + 5 * 60 * 1000, // 5 minutes TTL
     });

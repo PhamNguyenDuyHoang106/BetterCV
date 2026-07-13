@@ -61,6 +61,10 @@ export class CareerCoachChatDto {
   @IsArray()
   @IsNotEmpty()
   messages!: Array<{ role: 'user' | 'assistant'; content: string }>;
+
+  @IsString()
+  @IsOptional()
+  locale?: string;
 }
 
 export class CreateSessionDto {

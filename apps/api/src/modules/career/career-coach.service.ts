@@ -88,7 +88,7 @@ export class CareerCoachService implements OnModuleInit, OnModuleDestroy {
    */
   async streamCoachChat(
     supabaseId: string,
-    dto: { roadmapId: string; sessionId?: string; messages: Array<{ role: string; content: string }> },
+    dto: { roadmapId: string; sessionId?: string; messages: Array<{ role: string; content: string }>; locale?: string },
     res: Response,
   ) {
     // 1. Resolve user ID
@@ -207,7 +207,8 @@ export class CareerCoachService implements OnModuleInit, OnModuleDestroy {
     const cv = roadmap.atsScan?.cv;
     const cvContext = this.formatCvToText(cv?.sections || []);
     const baseRoadmapContext = this.formatRoadmapToText(roadmap);
-    const locale = cv?.locale || 'vi';
+    const locale = dto.locale || cv?.locale || 'vi';
+    console.log(`[CareerCoachService.streamCoachChat] dto.locale=${dto.locale}, cv.locale=${cv?.locale}, resolved=${locale}`);
 
     // 8a. Personalization injection (Phase 4D)
     const personalizationCtx = await this.buildPersonalizationContext(user.id, dto.roadmapId);

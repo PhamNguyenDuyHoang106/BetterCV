@@ -88,22 +88,33 @@ export class UsageService {
       return cached;
     }
 
-    const activeSub = await this.prisma.subscription.findFirst({
-      where: { userId, status: { in: ['active', 'trialing'] } },
-      include: { plan: true },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscriptions: {
+          where: { status: { in: ['active', 'trialing'] } },
+          include: { plan: true },
+        },
+      },
     });
 
-    let plan: any;
-    if (activeSub?.plan) {
-      plan = activeSub.plan;
-    } else {
-      const freePlan = await this.prisma.plan.findUnique({
-        where: { tier: 'FREE' },
-      });
-      if (!freePlan) {
-        throw new NotFoundException('Default FREE plan not found in database');
-      }
-      plan = freePlan;
+    if (!user) {
+      throw new ForbiddenException('User not found');
+    }
+
+    const activeTier =
+      user.role === 'ADMIN'
+        ? 'PREMIUM'
+        : user.role === 'PREMIUM' || user.role === 'PRO'
+        ? user.role
+        : user.subscriptions[0]?.plan?.tier || 'FREE';
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { tier: activeTier as any },
+    });
+
+    if (!plan) {
+      throw new NotFoundException(`Plan with tier ${activeTier} not found`);
     }
 
     this.planCache.set(userId, plan);

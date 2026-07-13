@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../../../lib/store/auth";
 import { apiFetch } from "../../../lib/api";
+import { useLanguageStore } from "../../../lib/store/language";
 
 type Message = {
   id: string;
@@ -93,6 +94,8 @@ const baseUrl =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000/api";
 
 export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props) {
+  const { language } = useLanguageStore();
+  const activeLang = language || "vi";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -127,7 +130,8 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
   const fetchAnalytics = async () => {
     try {
       setLoadingAnalytics(true);
-      const data = await apiFetch<CoachAnalytics>(`/career/coach/analytics/${roadmapId}`);
+      const res = await apiFetch<any>(`/career/coach/analytics/${roadmapId}`);
+      const data = res?.data || res;
       setAnalytics(data);
     } catch (err) {
       console.error("Failed to load coach analytics:", err);
@@ -146,18 +150,20 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
   const loadSessionsList = async (activateLatest = false) => {
     try {
       setFetchingHistory(true);
-      const data = await apiFetch<{ sessions: Session[] }>(`/career/coach/sessions/${roadmapId}`);
-      setSessions(data.sessions || []);
+      const res = await apiFetch<any>(`/career/coach/sessions/${roadmapId}`);
+      const data = res?.data || res;
+      const sessions = data?.sessions || data || [];
+      setSessions(sessions);
 
-      if (data.sessions && data.sessions.length > 0) {
+      if (sessions && sessions.length > 0) {
         if (activateLatest || !currentSessionId) {
-          const latest = data.sessions[0];
+          const latest = sessions[0];
           setCurrentSessionId(latest.id);
           setMessages(latest.messages || []);
           setHasMoreMessages((latest.messages?.length || 0) >= 50);
         } else {
           // Re-sync current session messages from fresh list if active
-          const current = data.sessions.find((s) => s.id === currentSessionId);
+          const current = sessions.find((s: any) => s.id === currentSessionId);
           if (current) {
             setMessages(current.messages || []);
           }
@@ -237,12 +243,14 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
 
       try {
         setFetchingHistory(true);
-        const res = await apiFetch<{ messages: any[] }>(
+        const fetchRes = await apiFetch<any>(
           `/career/coach/session/${currentSessionId}/messages?beforeTimestamp=${beforeTimestamp}`
         );
+        const res = fetchRes?.data || fetchRes;
+        const messagesList = res?.messages || res || [];
 
-        if (res.messages && res.messages.length > 0) {
-          const mapped = res.messages.map((m: any) => ({
+        if (messagesList && messagesList.length > 0) {
+          const mapped = messagesList.map((m: any) => ({
             id: m.id,
             role: m.role.toLowerCase() as "user" | "assistant",
             content: m.content,
@@ -250,7 +258,7 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
           }));
 
           setMessages((prev) => [...mapped, ...prev]);
-          setHasMoreMessages(res.messages.length >= 50);
+          setHasMoreMessages(messagesList.length >= 50);
 
           // Restore scroll anchor
           setTimeout(() => {
@@ -271,10 +279,11 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
   const handleCreateSession = async () => {
     try {
       setLoading(true);
-      const newSession = await apiFetch<Session>("/career/coach/session", {
+      const res = await apiFetch<any>("/career/coach/session", {
         method: "POST",
         body: JSON.stringify({ roadmapId }),
       });
+      const newSession = res?.data || res;
 
       setSessions((prev) => [newSession, ...prev]);
       setCurrentSessionId(newSession.id);
@@ -311,18 +320,20 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
           setCurrentSessionId(remaining[0].id);
           // Load messages of the new active session
           setFetchingHistory(true);
-          const detail = await apiFetch<{ messages: any[] }>(
+          const resDetail = await apiFetch<any>(
             `/career/coach/session/${remaining[0].id}/messages`
           );
+          const detail = resDetail?.data || resDetail;
+          const messagesList = detail?.messages || detail || [];
           setMessages(
-            detail.messages.map((m: any) => ({
+            messagesList.map((m: any) => ({
               id: m.id,
               role: m.role.toLowerCase() as "user" | "assistant",
               content: m.content,
               createdAt: m.createdAt,
             }))
           );
-          setHasMoreMessages(detail.messages.length >= 50);
+          setHasMoreMessages(messagesList.length >= 50);
           setFetchingHistory(false);
         } else {
           setCurrentSessionId(null);
@@ -380,10 +391,11 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
 
       try {
         setSearching(true);
-        const data = await apiFetch<{ results: any[] }>(
+        const res = await apiFetch<any>(
           `/career/coach/search?roadmapId=${roadmapId}&query=${encodeURIComponent(trimmed)}`
         );
-        setSearchResults(data.results || []);
+        const data = res?.data || res;
+        setSearchResults(data?.results || data || []);
       } catch (err) {
         console.error("Failed to search conversations:", err);
       } finally {
@@ -403,11 +415,13 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
       setSearchResults([]);
 
       // Fetch all messages of the target session
-      const detail = await apiFetch<{ messages: any[] }>(
+      const resDetail = await apiFetch<any>(
         `/career/coach/session/${result.sessionId}/messages`
       );
+      const detail = resDetail?.data || resDetail;
+      const messagesList = detail?.messages || detail || [];
 
-      const mapped = detail.messages.map((m: any) => ({
+      const mapped = messagesList.map((m: any) => ({
         id: m.id,
         role: m.role.toLowerCase() as "user" | "assistant",
         content: m.content,
@@ -415,7 +429,7 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
       }));
 
       setMessages(mapped);
-      setHasMoreMessages(detail.messages.length >= 50);
+      setHasMoreMessages(messagesList.length >= 50);
 
       // Trigger message highlighting
       setTimeout(() => {
@@ -472,6 +486,7 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
           roadmapId,
           sessionId: currentSessionId || undefined,
           messages: [{ role: "user", content: textToSend }], // Send only current user message
+          locale: activeLang,
         }),
         signal: abortController.signal,
       });
@@ -574,8 +589,10 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
       setCurrentSessionId(id);
       setSidebarOpen(false);
 
-      const detail = await apiFetch<{ messages: any[] }>(`/career/coach/session/${id}/messages`);
-      const mapped = detail.messages.map((m: any) => ({
+      const resDetail = await apiFetch<any>(`/career/coach/session/${id}/messages`);
+      const detail = resDetail?.data || resDetail;
+      const messagesList = detail?.messages || detail || [];
+      const mapped = messagesList.map((m: any) => ({
         id: m.id,
         role: m.role.toLowerCase() as "user" | "assistant",
         content: m.content,
@@ -589,7 +606,7 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
           content: t.coachDefaultGreeting,
         },
       ]);
-      setHasMoreMessages(detail.messages.length >= 50);
+      setHasMoreMessages(messagesList.length >= 50);
     } catch (err) {
       console.error("Failed to load session:", err);
     } finally {
@@ -658,7 +675,7 @@ export function CareerCoachPanel({ open, onClose, roadmapId, roadmap, t }: Props
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-white shadow-2xl border-l border-slate-100 z-50 flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed top-topnav-height bottom-0 right-0 w-full md:w-[450px] bg-white shadow-2xl border-l border-t border-slate-100 z-[100] flex flex-col animate-in slide-in-from-right duration-300">
       {/* Header */}
       <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-3">
         <div className="flex items-center justify-between">

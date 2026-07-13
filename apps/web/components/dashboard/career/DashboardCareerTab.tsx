@@ -100,7 +100,7 @@ export function DashboardCareerTab({ t, formatDate }: Props) {
       const data = res?.data || res;
       setSelectedRoadmapDetails(data);
       
-      if (data.status === "GENERATING") {
+      if (data.status === "GENERATING" || data.status === "FAILED") {
         setViewState("GENERATING");
       } else {
         setViewState("DETAIL");

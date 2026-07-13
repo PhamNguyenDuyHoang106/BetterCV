@@ -222,6 +222,7 @@ export class AiService {
     const { supabaseId, cvContext, roadmapContext, messages, locale, res } =
       params;
     const isVi = locale === 'vi';
+    console.log(`[AiService.streamCoachChat] locale=${locale}, isVi=${isVi}`);
 
     const systemPrompt = isVi
       ? `Bạn là một AI Career Coach chuyên nghiệp và thân thiện của BetterCV. Nhiệm vụ của bạn là đồng hành và hỗ trợ người dùng hoàn thành Lộ trình Học tập (Roadmap) của họ.
@@ -235,7 +236,8 @@ Yêu cầu huấn luyện (QUY TẮC BẮT BUỘC):
 3. Không tự ý khẳng định người dùng đã sở hữu bất cứ kỹ năng nào ngoài những kỹ năng đã được chỉ rõ trong CV Context.
 4. Luôn ưu tiên đưa ra đề xuất học tập theo thứ tự các phase trong Lộ trình.
 5. Không khuyến khích người dùng bỏ qua các kỹ năng cơ bản (prerequisites).
-6. Sử dụng định dạng Markdown (danh sách, bảng, in đậm) để cấu trúc câu trả lời đẹp mắt. Phản hồi bằng Tiếng Việt.`
+6. Sử dụng định dạng Markdown (danh sách, bảng, in đậm) để cấu trúc câu trả lời đẹp mắt.
+7. Tự động phát hiện ngôn ngữ của tin nhắn mới nhất từ người dùng (Tiếng Việt hoặc Tiếng Anh) và phản hồi bằng chính ngôn ngữ đó (Hỏi bằng Tiếng Việt thì trả lời bằng Tiếng Việt, hỏi bằng Tiếng Anh thì trả lời bằng Tiếng Anh).`
       : `You are an expert AI Career Coach from BetterCV. Your goal is to guide and encourage the user in mastering their Learning Roadmap.
 Here is the user's CV and Roadmap context:
 ${cvContext}
@@ -247,14 +249,15 @@ Strict Guardrails:
 3. Do not claim the user possesses skills that are not explicitly listed in the CV context.
 4. Prioritize recommendations based on the current roadmap phases.
 5. Never recommend skipping prerequisite skills.
-6. Use clean Markdown styling (tables, bold lists) for readability. Always answer in English.`;
+6. Use clean Markdown styling (tables, bold lists) for readability.
+7. Automatically detect the language of the user's latest message (English or Vietnamese) and respond using that same language (if asked in Vietnamese, reply in Vietnamese; if asked in English, reply in English).`;
 
     const lastUserMessage = messages[messages.length - 1]?.content || 'Hello';
     const history = messages.slice(0, -1);
 
     return this.streamPrompt(
       supabaseId,
-      'career_coach_chat',
+      `career_coach_chat_${locale}`,
       {
         system: systemPrompt,
         user: lastUserMessage,
