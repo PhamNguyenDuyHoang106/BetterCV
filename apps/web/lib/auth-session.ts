@@ -33,6 +33,41 @@ export async function syncSessionToApp(fullName?: string): Promise<AuthProfile |
   return profile;
 }
 
+/**
+ * Sync session after payment — retries up to `maxRetries` times with `delayMs`
+ * between attempts. This handles the PayOS webhook race condition where the DB
+ * role may not yet be updated when the first sync happens.
+ *
+ * Stops early if role is no longer FREE (i.e., upgrade was applied).
+ */
+export async function syncSessionWithRetry(
+  maxRetries = 5,
+  delayMs = 2000,
+): Promise<AuthProfile | null> {
+  let lastProfile: AuthProfile | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const profile = await syncSessionToApp();
+      lastProfile = profile;
+
+      // If role is now upgraded, stop retrying
+      if (profile && profile.role !== "FREE") {
+        return profile;
+      }
+    } catch (err) {
+      console.warn(`syncSessionWithRetry attempt ${attempt + 1} failed:`, err);
+    }
+
+    // Wait before next attempt (skip delay after last attempt)
+    if (attempt < maxRetries) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return lastProfile;
+}
+
 export async function signInWithGoogle(redirectPath = "/dashboard") {
   const supabase = createSupabaseClient();
   const origin = typeof window !== "undefined" ? window.location.origin : "";

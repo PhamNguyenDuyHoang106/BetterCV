@@ -21,7 +21,7 @@ import { DashboardSettingsTab } from "../../components/dashboard/views/Dashboard
 import { DashboardProfileTab } from "../../components/dashboard/views/DashboardProfileTab";
 import { DashboardCareerTab } from "../../components/dashboard/career/DashboardCareerTab";
 import { FALLBACK_TEMPLATES, getTemplateDisplayMeta } from "../../lib/dashboard-templates";
-import { syncSessionToApp } from "../../lib/auth-session";
+import { syncSessionToApp, syncSessionWithRetry } from "../../lib/auth-session";
 import { useLanguageStore } from "../../lib/store/language";
 import { translations } from "../../lib/translations";
 import { isRenderableCv } from "../../lib/cv-health";
@@ -134,7 +134,10 @@ function DashboardPageContent() {
             console.warn("PayOS confirm API error (payment might be processed via webhook):", e);
           }
         }
-        await syncSessionToApp();
+        // Use retry sync — webhook may not have updated DB role yet
+        await syncSessionWithRetry(5, 2000);
+        // Refetch CVs to reflect new role-based list
+        fetchCvs();
         if (typeof window !== "undefined" && window.opener) {
           try {
             window.opener.postMessage({ type: "PAYMENT_SUCCESS" }, window.location.origin);
@@ -604,9 +607,12 @@ function DashboardPageContent() {
         {activeTab === "resumes" && (
           <DashboardResumesTab
             filteredCvs={filteredCvs}
+            totalCvCount={cvs.length}
+            userRole={user?.role}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onGoTemplates={() => setActiveTab("templates")}
+            onGoUpgrade={() => setActiveTab("upgrade")}
             formatDate={formatDate}
             onDuplicate={onDuplicate}
             onDelete={onDelete}

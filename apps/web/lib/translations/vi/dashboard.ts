@@ -136,6 +136,8 @@ export const dashboard: DeepNormalize<typeof enDashboard> = {
     cvListHeader: "Danh sách CV",
     staleBadge: "Chưa cập nhật",
     atsMatchLabel: "Độ tương thích ATS:",
+    freeLimitBanner: "Bạn đã đạt giới hạn tối đa 3 CV của gói Free. Hãy nâng cấp tài khoản để tạo thêm.",
+    freeLimitUpgrade: "Nâng cấp ngay",
   },
   // main dashboard layout
   main: {

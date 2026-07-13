@@ -57,9 +57,12 @@ type Cv = {
 
 type Props = {
   filteredCvs: Cv[];
+  totalCvCount: number;
+  userRole?: string;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onGoTemplates: () => void;
+  onGoUpgrade: () => void;
   formatDate: (d?: string) => string;
   onDuplicate: (id: string, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
@@ -324,9 +327,12 @@ function CvCardHtmlPreview({ cv, templates }: { cv: Cv; templates: any[] }) {
 
 export function DashboardResumesTab({
   filteredCvs,
+  totalCvCount,
+  userRole,
   searchQuery,
   onSearchChange,
   onGoTemplates,
+  onGoUpgrade,
   formatDate,
   onDuplicate,
   onDelete,
@@ -360,6 +366,22 @@ export function DashboardResumesTab({
   return (
     <div className="flex flex-col">
 
+      {/* ── FREE plan limit banner ─────────────────────────────────── */}
+      {userRole === "FREE" && totalCvCount >= 3 && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm">
+          <span className="material-symbols-outlined text-amber-500 text-xl mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">{t.resumes.freeLimitBanner}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onGoUpgrade}
+            className="shrink-0 dash-btn-primary !py-1.5 !px-4 !text-xs"
+          >
+            {t.resumes.freeLimitUpgrade}
+          </button>
+        </div>
+      )}
 
       {filteredCvs.length === 0 ? (
         <DashEmptyState

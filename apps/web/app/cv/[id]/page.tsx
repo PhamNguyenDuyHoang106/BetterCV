@@ -8,7 +8,7 @@ import { apiFetch } from "../../../lib/api";
 import AutosaveIndicator from "../../../components/cv/AutosaveIndicator";
 import ConflictDialog from "../../../components/cv/ConflictDialog";
 import { useTranslation } from "../../../hooks/useTranslation";
-import { syncSessionToApp } from "../../../lib/auth-session";
+import { syncSessionWithRetry } from "../../../lib/auth-session";
 
 // Import renderHtml from template-engine
 import { renderHtml } from "@acv/template-engine";
@@ -143,7 +143,7 @@ export default function CvEditorPage() {
       if (event.data && event.data.type === "PAYMENT_SUCCESS") {
         console.log("Payment success received from child tab!");
         try {
-          await syncSessionToApp();
+          await syncSessionWithRetry(5, 2000);
           alert(language === "vi" ? "Nâng cấp tài khoản thành công!" : "Account upgraded successfully!");
         } catch (e) {
           console.error("Failed to sync session on payment success:", e);

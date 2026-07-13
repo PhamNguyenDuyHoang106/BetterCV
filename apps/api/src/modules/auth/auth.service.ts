@@ -165,6 +165,11 @@ export class AuthService {
       user.avatarUrl = updatedUser.avatarUrl;
     }
 
+    // PREMIUM users are lifetime — never auto-downgrade them
+    if (user.role === 'PREMIUM') {
+      return user;
+    }
+
     if (user.role === 'PRO') {
       const dbUserWithSubs = await this.prisma.user.findUnique({
         where: { id: user.id },

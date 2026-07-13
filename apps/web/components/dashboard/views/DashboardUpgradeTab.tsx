@@ -5,7 +5,7 @@ import { apiFetch } from "../../../lib/api";
 import { useAuthStore } from "../../../lib/store/auth";
 import { useLanguageStore } from "../../../lib/store/language";
 import { translations } from "../../../lib/translations";
-import { syncSessionToApp } from "../../../lib/auth-session";
+import { syncSessionWithRetry } from "../../../lib/auth-session";
 
 export function DashboardUpgradeTab() {
   const { user } = useAuthStore();
@@ -30,7 +30,7 @@ export function DashboardUpgradeTab() {
       if (event.data && event.data.type === "PAYMENT_SUCCESS") {
         console.log("Payment success received from child tab!");
         try {
-          await syncSessionToApp();
+          await syncSessionWithRetry(5, 2000);
           alert(activeLang === "vi" ? "Nâng cấp tài khoản thành công!" : "Account upgraded successfully!");
         } catch (e) {
           console.error("Failed to sync session on payment success:", e);

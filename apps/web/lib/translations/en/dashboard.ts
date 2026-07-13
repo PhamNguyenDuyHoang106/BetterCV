@@ -133,6 +133,8 @@ export const dashboard = {
     cvListHeader: "Resumes List",
     staleBadge: "Stale",
     atsMatchLabel: "ATS Match:",
+    freeLimitBanner: "You've reached the maximum of 3 CVs on the Free plan. Upgrade to create more.",
+    freeLimitUpgrade: "Upgrade Now",
   },
   // main dashboard layout
   main: {
