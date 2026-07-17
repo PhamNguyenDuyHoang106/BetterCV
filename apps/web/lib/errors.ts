@@ -55,3 +55,11 @@ export function handleFeatureError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Always opens the upgrade modal for any error.
+ * Use when the error is known to be entitlement-related but may not carry typed metadata.
+ * Optionally pass feature/plan to show contextual copy in the modal.
+ */
+export function openUpgradeModal(feature?: string, requiredPlan?: string): void {
+  useUpgradeModalStore.getState().openUpgradeModal(feature, requiredPlan);
+}

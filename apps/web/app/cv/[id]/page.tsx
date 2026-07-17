@@ -53,9 +53,6 @@ export default function CvEditorPage() {
   const [previewScale, setPreviewScale] = useState<number>(100);
   const [exporting, setExporting] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
-  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
-  const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState<"PRO" | "PREMIUM" | null>(null);
 
   const openUpgradeModal = useCallback((err?: unknown) => {
     if (err instanceof FeatureLockedError || (err as any)?.name === "FeatureLockedError") {
@@ -131,13 +128,9 @@ export default function CvEditorPage() {
       }
       await apiFetch(`/cvs/${cvId}/versions`, { method: "POST" });
       setVersionUpdateTrigger((prev) => prev + 1);
-      if (!silent) {
-        alert(language === "vi" ? "Lưu bản sao thành công!" : "Saved version copy successfully!");
-      }
     } catch (err) {
       if (!silent) {
         console.error("Failed to save manually:", err);
-        alert(language === "vi" ? "Lỗi lưu bản sao!" : "Failed to save copy!");
       }
     } finally {
       setIsSavingManual(false);
@@ -163,8 +156,6 @@ export default function CvEditorPage() {
           console.error("Failed to sync session on payment success:", e);
         } finally {
           useUpgradeModalStore.getState().closeUpgradeModal();
-          setCheckoutUrl(null);
-          setCheckoutQr(null);
         }
       }
     };
@@ -233,44 +224,6 @@ export default function CvEditorPage() {
     }
   }, [cvId, editor.cv]);
 
-  const handleUpgradeCheckout = async (tier: "PRO" | "PREMIUM") => {
-    setCheckoutLoading(tier);
-    try {
-      const origin = window.location.origin;
-      const successUrl = `${origin}/dashboard?paid=1`;
-      const cancelUrl = `${origin}/dashboard?paid=0`;
-      const mode = tier === "PREMIUM" ? "payment" : "subscription";
-      
-      const res = await apiFetch<any>("/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({
-          tier,
-          mode,
-          successUrl,
-          cancelUrl,
-        }),
-      });
-
-      const payload = res?.data ?? res;
-      const url = payload?.checkoutUrl ?? payload?.url;
-      if (!url) throw new Error("Could not retrieve checkout url");
-      setCheckoutUrl(url);
-      if (payload?.qrCode) setCheckoutQr(payload.qrCode);
-      window.open(url, "_blank");
-    } catch (e) {
-      alert(language === "vi" ? "Lỗi tạo link thanh toán: " + (e as Error).message : "Error creating checkout: " + (e as Error).message);
-    } finally {
-      setCheckoutLoading(null);
-    }
-  };
-
-  const qrSrc = checkoutQr
-    ? checkoutQr.startsWith("data:") || checkoutQr.startsWith("http")
-      ? checkoutQr
-      : `data:image/png;base64,${checkoutQr}`
-    : checkoutUrl
-      ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
-      : null;
 
   // Hành động in và xuất PDF
   const handleExportPDF = async () => {
@@ -294,10 +247,12 @@ export default function CvEditorPage() {
       if (result && result.url) {
         window.open(result.url, "_blank");
       } else {
-        alert(language === "vi" ? "Xuất PDF thất bại. Vui lòng thử lại." : "Exporting PDF failed. Please try again.");
+        openUpgradeModal();
       }
     } catch (err) {
-      alert(language === "vi" ? "Lỗi khi xuất PDF. Hãy chắc chắn rằng API Server đang chạy." : "Error exporting PDF. Make sure the API server is running.");
+      const { handleFeatureError, openUpgradeModal: openModal } = await import("../../../lib/errors");
+      if (handleFeatureError(err)) return;
+      openModal();
     } finally {
       setExporting(false);
     }
@@ -646,68 +601,6 @@ export default function CvEditorPage() {
       {/* Editing Conflicts Overlay Dialog */}
       <ConflictDialog />
 
-      {/* Payment Checkout QR Modal Overlay */}
-      {checkoutUrl && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-white">
-                  {language === "vi" ? "Quét mã QR thanh toán" : "Scan QR Code"}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {language === "vi"
-                    ? "Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử để tiến hành nâng cấp tài khoản."
-                    : "Scan the QR code with your mobile banking or wallet app to complete payment."}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="p-2 rounded-xl hover:bg-slate-800 text-slate-400"
-                onClick={() => {
-                  setCheckoutUrl(null);
-                  setCheckoutQr(null);
-                }}
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            {qrSrc && (
-              <div className="mt-5 flex items-center justify-center">
-                <img
-                  src={qrSrc}
-                  alt="Checkout QR"
-                  className="w-[220px] h-[220px] rounded-2xl ring-1 ring-slate-800 bg-white p-2"
-                />
-              </div>
-            )}
-
-            <div className="mt-5 flex flex-col gap-2">
-              <a
-                href={checkoutUrl}
-                target="_blank"
-                rel="opener"
-                className="w-full text-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all border-none"
-              >
-                {language === "vi" ? "Mở trang thanh toán" : "Open payment page"}
-              </a>
-              <button
-                type="button"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-transparent text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-all"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(checkoutUrl);
-                    alert(language === "vi" ? "Đã sao chép liên kết thanh toán vào bộ nhớ tạm!" : "Payment link copied to clipboard!");
-                  } catch { }
-                }}
-              >
-                {language === "vi" ? "Sao chép liên kết" : "Copy payment link"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

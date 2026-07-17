@@ -1,20 +1,17 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import { apiFetch } from "../../../lib/api";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "../../../lib/store/auth";
 import { useLanguageStore } from "../../../lib/store/language";
 import { translations } from "../../../lib/translations";
-import { syncSessionWithRetry } from "../../../lib/auth-session";
+import { usePaymentModal } from "../../../hooks/usePaymentModal";
+import { PaymentModal } from "../../payment/PaymentModal";
 
 export function DashboardUpgradeTab() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState<"PRO" | "PREMIUM" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
-  const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
+  const payment = usePaymentModal();
 
   useEffect(() => {
     setMounted(true);
@@ -23,80 +20,12 @@ export function DashboardUpgradeTab() {
   const activeLang = mounted ? language : "vi";
   const t = translations[activeLang];
 
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data && event.data.type === "PAYMENT_SUCCESS") {
-        console.log("Payment success received from child tab!");
-        try {
-          await syncSessionWithRetry(5, 2000);
-          alert(activeLang === "vi" ? "Nâng cấp tài khoản thành công!" : "Account upgraded successfully!");
-        } catch (e) {
-          console.error("Failed to sync session on payment success:", e);
-        } finally {
-          setCheckoutUrl(null);
-          setCheckoutQr(null);
-        }
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => {
-      window.removeEventListener("message", handleMessage);
-    };
-  }, [activeLang]);
-
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const successUrl = useMemo(() => `${origin}/dashboard?paid=1`, [origin]);
-  const cancelUrl = useMemo(() => `${origin}/dashboard?paid=0`, [origin]);
-
-  const startCheckout = async (
-    tier: "PRO" | "PREMIUM",
-    mode: "subscription" | "payment",
-  ) => {
-    setLoading(tier);
-    setError(null);
-    setCheckoutUrl(null);
-    setCheckoutQr(null);
-    try {
-      const res = await apiFetch<any>("/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({
-          tier,
-          mode,
-          successUrl,
-          cancelUrl,
-        }),
-      });
-
-      const payload = res?.data ?? res;
-      const url = payload?.checkoutUrl ?? payload?.url;
-      if (!url) throw new Error(t.upgrade.errPay);
-      setCheckoutUrl(url);
-      if (payload?.qrCode) setCheckoutQr(payload.qrCode);
-      window.open(url, "_blank");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t.upgrade.errGeneric);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const qrSrc = checkoutQr
-    ? checkoutQr.startsWith("data:") || checkoutQr.startsWith("http")
-      ? checkoutQr
-      : `data:image/png;base64,${checkoutQr}`
-    : checkoutUrl
-      ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
-      : null;
-
   return (
     <div className="max-w-4xl mx-auto w-full py-4">
 
-      {error && (
+      {payment.errorMessage && (
         <div className="mb-6 rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          {payment.errorMessage}
         </div>
       )}
 
@@ -168,11 +97,11 @@ export function DashboardUpgradeTab() {
           ) : (
             <button
               type="button"
-              onClick={() => startCheckout("PRO", "subscription")}
+              onClick={() => payment.open("PRO")}
               className="dash-btn-primary w-full mt-8"
-              disabled={loading !== null}
+              disabled={payment.status === "creating"}
             >
-              {loading === "PRO" ? t.upgrade.upgrading : t.upgrade.upgradeBtnPro}
+              {payment.status === "creating" && payment.session?.tier === "PRO" ? t.upgrade.upgrading : t.upgrade.upgradeBtnPro}
             </button>
           )}
         </div>
@@ -211,81 +140,26 @@ export function DashboardUpgradeTab() {
           ) : (
             <button
               type="button"
-              onClick={() => startCheckout("PREMIUM", "payment")}
+              onClick={() => payment.open("PREMIUM")}
               className="dash-btn-primary w-full mt-8"
-              disabled={loading !== null}
+              disabled={payment.status === "creating"}
             >
-              {loading === "PREMIUM" ? t.upgrade.upgrading : t.upgrade.upgradeBtnAnnual}
+              {payment.status === "creating" && payment.session?.tier === "PREMIUM" ? t.upgrade.upgrading : t.upgrade.upgradeBtnAnnual}
             </button>
           )}
         </div>
       </div>
 
-      {checkoutUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            aria-label={t.nav.close}
-            onClick={() => {
-              setCheckoutUrl(null);
-              setCheckoutQr(null);
-            }}
-          />
-          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200/70 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-slate-900">{t.upgrade.qrTitle}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {t.upgrade.qrSub}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="p-2 rounded-xl hover:bg-slate-50 text-slate-500"
-                onClick={() => {
-                  setCheckoutUrl(null);
-                  setCheckoutQr(null);
-                }}
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            {qrSrc && (
-              <div className="mt-5 flex items-center justify-center">
-                <img
-                  src={qrSrc}
-                  alt="Checkout QR"
-                  className="w-[220px] h-[220px] rounded-2xl ring-1 ring-slate-200"
-                />
-              </div>
-            )}
-
-            <div className="mt-5 flex flex-col gap-2">
-              <a
-                href={checkoutUrl}
-                target="_blank"
-                rel="opener"
-                className="dash-btn-primary w-full"
-              >
-                {t.upgrade.openPayBtn}
-              </a>
-              <button
-                type="button"
-                className="dash-btn-ghost w-full"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(checkoutUrl);
-                  } catch { }
-                }}
-              >
-                {t.upgrade.copyLinkBtn}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PaymentModal
+        isOpen={payment.isOpen}
+        status={payment.status}
+        session={payment.session}
+        errorMessage={payment.errorMessage}
+        secondsLeft={payment.secondsLeft}
+        onClose={payment.close}
+        onRegenerate={payment.regenerate}
+      />
     </div>
   );
 }
+

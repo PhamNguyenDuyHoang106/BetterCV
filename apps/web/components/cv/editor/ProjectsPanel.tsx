@@ -50,12 +50,10 @@ export function ProjectsPanel({
         saveProjects(updated);
       }
     } catch (err: any) {
-      const { handleFeatureError } = await import("../../../lib/errors");
+      const { handleFeatureError, openUpgradeModal } = await import("../../../lib/errors");
       if (handleFeatureError(err)) return;
-      alert(language === "vi" 
-        ? `Lỗi đồng bộ GitHub: ${err.message || "Không thể tải thông tin dự án."}` 
-        : `GitHub sync error: ${err.message || "Could not fetch project details."}`
-      );
+      // Generic sync errors also route to upgrade modal for consistent UX
+      openUpgradeModal();
     } finally {
       setSyncingId(null);
     }

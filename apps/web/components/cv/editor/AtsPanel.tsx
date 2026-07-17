@@ -4,6 +4,7 @@ import { useTranslation } from "../../../hooks/useTranslation";
 import { useEntitlement } from "../../../hooks/useEntitlement";
 import { QuotaKey } from "@acv/shared";
 import { useUpgradeModalStore } from "../../../lib/store/upgrade-modal";
+import { handleFeatureError, openUpgradeModal } from "../../../lib/errors";
 
 type Recommendation = {
   id: string;
@@ -40,6 +41,8 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
   const [jobDescription, setJobDescription] = useState<string>("");
   const [atsReport, setAtsReport] = useState<AtsReport | null>(null);
   const [isAnalyzingAts, setIsAnalyzingAts] = useState<boolean>(false);
+  const [jdError, setJdError] = useState<string>("");
+  const [roadmapError, setRoadmapError] = useState<string>("");
 
   // Career Roadmap states
   const [showRoadmapForm, setShowRoadmapForm] = useState(false);
@@ -69,13 +72,14 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       return;
     }
     if (!jobDescription.trim()) {
-      alert(
+      setJdError(
         language === "vi"
           ? "Vui lòng nhập mô tả công việc (JD) trước."
           : "Please enter the job description (JD) first."
       );
       return;
     }
+    setJdError("");
     setIsAnalyzingAts(true);
     try {
       const res = await apiFetch<any>("/ats/score", {
@@ -97,7 +101,9 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       console.error("ATS Error:", err);
       const { handleFeatureError } = await import("../../../lib/errors");
       if (handleFeatureError(err)) return;
-      alert(t.editor.ats.scanFailed);
+      // Any remaining ATS error (e.g. API down or generic 500) → show upgrade modal
+      // so the user has a clear path rather than a raw alert.
+      openUpgradeModal();
     } finally {
       setIsAnalyzingAts(false);
     }
@@ -105,9 +111,12 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
 
   const handleCreateRoadmap = async () => {
     if (!currentRole.trim() || !targetRole.trim()) {
-      alert(language === "vi" ? "Vui lòng điền đầy đủ thông tin." : "Please fill in all fields.");
+      setRoadmapError(
+        language === "vi" ? "Vui lòng điền đầy đủ thông tin." : "Please fill in all fields."
+      );
       return;
     }
+    setRoadmapError("");
     setIsCreatingRoadmap(true);
     try {
       const res = await apiFetch<any>("/career/roadmap", {
@@ -122,13 +131,13 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
       if (data.success && data.roadmapId) {
         window.location.href = `/dashboard?tab=career&roadmapId=${data.roadmapId}`;
       } else {
-        alert(language === "vi" ? "Không thể tạo lộ trình. Vui lòng thử lại." : "Failed to create roadmap.");
+        openUpgradeModal();
       }
     } catch (err: any) {
       console.error("Roadmap error:", err);
       const { handleFeatureError } = await import("../../../lib/errors");
       if (handleFeatureError(err)) return;
-      alert(err.message || "Failed to create career roadmap.");
+      openUpgradeModal();
     } finally {
       setIsCreatingRoadmap(false);
     }
@@ -193,6 +202,13 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
             t.editor.ats.runScanBtn
           )}
         </button>
+
+        {jdError && (
+          <p className="text-xs text-rose-400 flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-sm">error</span>
+            {jdError}
+          </p>
+        )}
       </div>
 
       {atsReport && (
@@ -373,6 +389,12 @@ export function AtsPanel({ cvId, cvLocale }: AtsPanelProps) {
                       )}
                     </button>
                   </div>
+                  {roadmapError && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">error</span>
+                      {roadmapError}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

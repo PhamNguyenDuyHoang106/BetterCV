@@ -152,6 +152,12 @@ export class BillingService {
         checkoutUrl: link.checkoutUrl,
         qrCode: link.qrCode,
         orderCode: link.orderCode,
+        paymentLinkId: link.paymentLinkId,
+        bin: link.bin,
+        accountNumber: link.accountNumber,
+        accountName: link.accountName,
+        amount: link.amount,
+        description: link.description,
       };
     } catch (err) {
       await this.prisma.payosTransaction.update({

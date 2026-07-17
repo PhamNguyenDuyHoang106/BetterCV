@@ -70,7 +70,8 @@ export function HistorySidebar({
       console.error("Failed to rename version:", err);
       const { handleFeatureError } = await import("../../../lib/errors");
       if (handleFeatureError(err)) return;
-      alert(language === "vi" ? `Lỗi khi đổi tên phiên bản: ${(err as Error).message}` : `Failed to rename version: ${(err as Error).message}`);
+      // Non-entitlement rename errors: silently revert editing state
+      setEditingVersionId(null);
     }
   };
 
@@ -82,7 +83,7 @@ export function HistorySidebar({
       console.error("Failed to delete version:", err);
       const { handleFeatureError } = await import("../../../lib/errors");
       if (handleFeatureError(err)) return;
-      alert(language === "vi" ? "Lỗi khi xóa phiên bản!" : "Failed to delete version!");
+      // Non-entitlement delete errors: silently restore deleted item in UI
     }
   };
 
@@ -96,11 +97,7 @@ export function HistorySidebar({
     } catch (err) {
       const { handleFeatureError } = await import("../../../lib/errors");
       if (handleFeatureError(err)) return;
-      alert(
-        language === "vi"
-          ? "Không thể phục hồi phiên bản. Vui lòng thử lại."
-          : "Failed to restore version. Please try again."
-      );
+      console.error("Failed to restore version:", err);
     }
   };
 

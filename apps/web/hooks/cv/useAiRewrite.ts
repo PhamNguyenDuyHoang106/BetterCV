@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
-import { FeatureLockedError } from "../../lib/errors";
+import { FeatureLockedError, openUpgradeModal } from "../../lib/errors";
 import { useLanguageStore } from "../../lib/store/language";
 
 type UseAiRewriteProps = {
@@ -279,13 +279,9 @@ export function useAiRewrite({
             onFeatureLocked?.(err);
             return;
           }
-          const lang = useLanguageStore.getState().language;
-          const msg =
-            err?.message ||
-            (lang === "vi"
-              ? "Trợ lý AI đang bận hoặc tài khoản đã hết lượt dùng AI. Vui lòng thử lại sau."
-              : "AI Assistant is busy or your account has run out of AI credits. Please try again later.");
-          alert(msg);
+          // For generic AI errors (network, timeout, quota), open upgrade modal
+          // since the most common cause is quota exhaustion.
+          openUpgradeModal("AI.REWRITE", "PRO");
         }
       } finally {
         if (abortControllersRef.current[key] === controller) {

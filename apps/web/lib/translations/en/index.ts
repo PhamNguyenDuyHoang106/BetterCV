@@ -33,6 +33,7 @@ export const en = {
   career: dashboard.career,
   templateGallery: dashboard.templateGallery,
   deleteCvModal: dashboard.deleteCvModal,
+  payment: dashboard.payment,
   editor,
   validation,
   toast,

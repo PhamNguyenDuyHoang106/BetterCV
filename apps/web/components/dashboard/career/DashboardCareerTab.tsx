@@ -109,7 +109,7 @@ export function DashboardCareerTab({ t, formatDate }: Props) {
       console.error("Failed to fetch roadmap details:", err);
       const { handleFeatureError } = await import("../../../lib/errors");
       if (handleFeatureError(err)) return;
-      alert("Failed to load career roadmap details.");
+      // Non-entitlement network errors: leave view in loading=false state
     } finally {
       setLoading(false);
     }

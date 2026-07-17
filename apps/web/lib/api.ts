@@ -56,7 +56,10 @@ export const apiFetch = async <T>(
       // Parse structured 403 errors for rich UI handling
       if (response.status === 403) {
         const { FeatureLockedError, QuotaExceededError } = await import("./errors");
-        const errObj = bodyAny?.error || bodyAny;
+        const errObj =
+          bodyAny && typeof bodyAny.error === "object" && bodyAny.error !== null
+            ? bodyAny.error
+            : bodyAny;
         const code = errObj?.code;
         if (code === "FEATURE_LOCKED") {
           throw new FeatureLockedError(
